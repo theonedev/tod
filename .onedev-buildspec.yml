@@ -15,8 +15,19 @@ jobs:
     image: golang:1.21.3
     interpreter: !DefaultInterpreter
       commands:
-      - GOOS=windows GOARCH=amd64 go build -o amd64/tod.exe
+      - GOOS=windows GOARCH=amd64 go build -o windows-amd64/tod.exe
+      - GOOS=windows GOARCH=arm64 go build -o windows-arm64/tod.exe
+      - GOOS=linux GOARCH=amd64 go build -o linux-amd64/tod
+      - GOOS=linux GOARCH=arm64 go build -o linux-arm64/tod
+      - GOOS=darwin GOARCH=amd64 go build -o mac-amd64/tod
+      - GOOS=darwin GOARCH=arm64 go build -o mac-arm64/tod
+      - GOOS=freebsd GOARCH=amd64 go build -o freebsd-amd64/tod
+      - GOOS=freebsd GOARCH=arm64 go build -o freebsd-arm64/tod
     useTTY: false
+    condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
+  - !PublishArtifactStep
+    name: publish
+    artifacts: '**/tod*'
     condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
   retryCondition: never
   maxRetries: 3
