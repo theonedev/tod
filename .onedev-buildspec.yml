@@ -1,0 +1,24 @@
+version: 28
+jobs:
+- name: Release
+  jobExecutor: internal
+  steps:
+  - !CheckoutStep
+    name: checkout
+    cloneCredential: !DefaultCredential {}
+    withLfs: false
+    withSubmodules: false
+    condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
+  - !CommandStep
+    name: build
+    runInContainer: true
+    image: golang:1.21.3
+    interpreter: !DefaultInterpreter
+      commands:
+      - GOOS=windows GOARCH=amd64 go build -o amd64/tod.exe
+    useTTY: false
+    condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
+  retryCondition: never
+  maxRetries: 3
+  retryDelay: 30
+  timeout: 3600
