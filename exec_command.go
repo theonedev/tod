@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
@@ -63,6 +64,23 @@ func (p ParamMap) Set(value string) error {
 	}
 }
 
+type FilteredWriter struct {
+}
+
+func (fw *FilteredWriter) Write(p []byte) (n int, err error) {
+	scanner := bufio.NewScanner(strings.NewReader(string(p)))
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.HasPrefix(line, "To ") && !strings.Contains(line, "->") && !strings.Contains(line, "Everything up-to-date") {
+			fmt.Fprintln(os.Stderr, line)
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return 0, err
+	}
+	return len(p), nil
+}
+
 var buildFinished bool
 var mutex sync.Mutex
 
@@ -109,25 +127,25 @@ func (execCommand ExecCommand) Execute(args []string) {
 	}
 
 	fs := flag.NewFlagSet("exec", flag.ExitOnError)
-	fs.StringVar(&project, "project", project, "Specify project url")
-	fs.StringVar(&workdir, "workdir", workdir, "Specify working directory")
-	fs.StringVar(&token, "token", token, "Specify access token")
-	fs.Var(&params, "param", "Specify parameter in the format key=value")
+	fs.StringVar(&project, "project", project, "Specify project url, for instance: https://onedev.example.com/your/project")
+	fs.StringVar(&workdir, "workdir", workdir, "Specify working directory to run job against")
+	fs.StringVar(&token, "token", token, "Specify access token with permission to run specified job")
+	fs.Var(&params, "param", "Specify job parameters in form of key=value")
 
 	fs.Parse(args)
 
 	if project == "" {
-		fmt.Fprintln(os.Stderr, "Error: missing project url")
+		fmt.Fprintln(os.Stderr, "Missing project url. Check https://code.onedev.io/onedev/tod for details")
 		os.Exit(1)
 	}
 
 	if token == "" {
-		fmt.Fprintln(os.Stderr, "Error: missing access token")
+		fmt.Fprintln(os.Stderr, "Missing access token. Check https://code.onedev.io/onedev/tod for details")
 		os.Exit(1)
 	}
 
 	if fs.NArg() < 1 {
-		fmt.Fprintln(os.Stderr, "Error: missing job name")
+		fmt.Fprintln(os.Stderr, "Missing job name. Check https://code.onedev.io/onedev/tod for details")
 		os.Exit(1)
 	}
 
@@ -164,7 +182,7 @@ func (execCommand ExecCommand) Execute(args []string) {
 	}
 
 	pathIndex := strings.Index(project[hostIndex:], "/") + 1
-	if pathIndex == -1 {
+	if pathIndex == 0 {
 		fmt.Fprintln(os.Stderr, "Invalid project url:", project)
 		os.Exit(1)
 	}
@@ -173,49 +191,14 @@ func (execCommand ExecCommand) Execute(args []string) {
 	serverUrl := project[:hostIndex+pathIndex-1]
 	projectPath := project[hostIndex+pathIndex:]
 
+	if projectPath == "" {
+		fmt.Fprintln(os.Stderr, "Invalid project url:", project)
+		os.Exit(1)
+	}
+
 	err = checkVersion(serverUrl, token)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Error checking version:", err)
-		os.Exit(1)
-	}
-
-	fmt.Println("Collecting local changes...")
-
-	cmd := exec.Command("git", "stash", "create")
-	cmd.Dir = absoluteWorkdir
-	cmd.Stderr = os.Stderr
-
-	out, err := cmd.Output()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "Error executing command:", err)
-		os.Exit(1)
-	}
-
-	runCommit := strings.TrimSpace(string(out))
-
-	if runCommit == "" {
-		cmd := exec.Command("git", "rev-parse", "HEAD")
-		cmd.Dir = absoluteWorkdir
-		cmd.Stderr = os.Stderr
-
-		out, err := cmd.Output()
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "Error executing command:", err)
-			os.Exit(1)
-		}
-
-		runCommit = strings.TrimSpace(string(out))
-	}
-
-	fmt.Println("Sending local changes to server...")
-
-	cmd = exec.Command("git", "-c", "http.extraHeader=Authorization: Bearer "+token, "push", "-f", project, runCommit+":"+wipRefName)
-	cmd.Dir = absoluteWorkdir
-	cmd.Stderr = os.Stderr
-
-	_, err = cmd.Output()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "Error executing command:", err)
 		os.Exit(1)
 	}
 
@@ -267,6 +250,47 @@ func (execCommand ExecCommand) Execute(args []string) {
 	}
 
 	projectId := projects[0]["id"]
+
+	fmt.Println("Collecting local changes...")
+
+	cmd := exec.Command("git", "stash", "create")
+	cmd.Dir = absoluteWorkdir
+	cmd.Stderr = os.Stderr
+
+	out, err := cmd.Output()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Error executing command:", err)
+		os.Exit(1)
+	}
+
+	runCommit := strings.TrimSpace(string(out))
+
+	if runCommit == "" {
+		cmd := exec.Command("git", "rev-parse", "HEAD")
+		cmd.Dir = absoluteWorkdir
+		cmd.Stderr = os.Stderr
+
+		out, err := cmd.Output()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Error executing command:", err)
+			os.Exit(1)
+		}
+
+		runCommit = strings.TrimSpace(string(out))
+	}
+
+	fmt.Println("Sending local changes to server...")
+
+	cmd = exec.Command("git", "-c", "http.extraHeader=Authorization: Bearer "+token, "push", "-f", project, runCommit+":"+wipRefName)
+	cmd.Dir = absoluteWorkdir
+
+	cmd.Stderr = &FilteredWriter{}
+
+	_, err = cmd.Output()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Error executing command:", err)
+		os.Exit(1)
+	}
 
 	targetUrl.Path = "~api/job-runs"
 	targetUrl.RawQuery = ""

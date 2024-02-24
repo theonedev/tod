@@ -18,7 +18,7 @@ type CompatibleVersions struct {
 
 func main() {
 	if len(os.Args) == 1 {
-		fmt.Fprintln(os.Stderr, "command expected")
+		fmt.Fprintln(os.Stderr, "Command expected. Check https://code.onedev.io/onedev/td for details")
 		os.Exit(1)
 	}
 
@@ -28,7 +28,7 @@ func main() {
 	case "exec":
 		command = ExecCommand{}
 	default:
-		fmt.Fprintln(os.Stderr, "unknown command: ", os.Args[1])
+		fmt.Fprintf(os.Stderr, "Unknown command: %s. Check https://code.onedev.io/onedev/td for details\n", os.Args[1])
 		os.Exit(1)
 	}
 
@@ -100,10 +100,10 @@ func checkVersion(serverUrl string, accessToken string) error {
 	if minVersionSatisfied && maxVersionSatisfied {
 		return nil
 	} else if compatibleVersions.MinVersion != "" && compatibleVersions.MaxVersion != "" {
-		return fmt.Errorf("this server requires version >= %s and version <= %s", compatibleVersions.MinVersion, compatibleVersions.MaxVersion)
+		return fmt.Errorf("this server requires version >= %s and version <= %s, please download from https://code.onedev.io/onedev/tod/~builds?query=%%22Job%%22+is+%%22Release%%22+and+successful", compatibleVersions.MinVersion, compatibleVersions.MaxVersion)
 	} else if compatibleVersions.MinVersion != "" {
-		return fmt.Errorf("this server requires version >= %s", compatibleVersions.MinVersion)
+		return fmt.Errorf("this server requires version >= %s, please download from https://code.onedev.io/onedev/tod/~builds?query=%%22Job%%22+is+%%22Release%%22+and+successful", compatibleVersions.MinVersion)
 	} else {
-		return fmt.Errorf("this server requires version <= %s", compatibleVersions.MaxVersion)
+		return fmt.Errorf("this server requires version <= %s, please download from https://code.onedev.io/onedev/tod/~builds?query=%%22Job%%22+is+%%22Release%%22+and+successful", compatibleVersions.MaxVersion)
 	}
 }
