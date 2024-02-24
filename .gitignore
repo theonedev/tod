@@ -1,15 +1,7 @@
-server-product/docker/build/
-server-product/docker/onedev-*/
-**/target/
-**/.classpath
+tod
+tod.exe
 **/.gitignore
-**/.settings
-**/.project
 **/.vscode
-**/.idea
-release.properties
-pom.xml.releaseBackup
-pom.xml.versionsBackup
 
 .loadpath
 *~
