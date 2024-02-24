@@ -4,7 +4,7 @@ jobs:
   jobExecutor: internal
   steps:
   - !CheckoutStep
-    name: checkout
+    name: checkout code
     cloneCredential: !DefaultCredential {}
     withLfs: false
     withSubmodules: false
@@ -23,7 +23,7 @@ jobs:
     buildVersion: '@file:buildVersion@'
     condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
   - !CommandStep
-    name: build
+    name: build binaries
     runInContainer: true
     image: golang:1.21.3
     interpreter: !DefaultInterpreter
@@ -39,8 +39,46 @@ jobs:
     useTTY: false
     condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
   - !PublishArtifactStep
-    name: publish
+    name: publish artifacts
     artifacts: '**/tod*'
+    condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
+  - !CommandStep
+    name: publish GH release
+    runInContainer: true
+    image: '@property:buildEnvironment@'
+    interpreter: !DefaultInterpreter
+      commands:
+      - set -e
+      - set -o pipefail
+      - ''
+      - buildVersion=@build_version@
+      - ''
+      - projectDir=`pwd`
+      - ''
+      - echo "Creating release tag..."
+      - ''
+      - git config --global user.name "Robin Shen"
+      - git config --global user.email "robin@@onedev.io"
+      - git config --global --add safe.directory /onedev-build/workspace
+      - ''
+      - git tag v$buildVersion -m "Release tag"
+      - git push -f origin v$buildVersion:v$buildVersion
+      - git config --global --unset http.extraHeader
+      - git push -f https://robin:@secrets:github-token@@@github.com/theonedev/tod v$buildVersion:v$buildVersion
+      - ''
+      - echo "Creating release in GitHub..."
+      - ''
+      - releaseId=$(curl -u robinshine:@secrets:github-token@ https://api.github.com/repos/theonedev/tod/releases/tags/v$buildVersion | jq '.id')
+      - ''
+      - releaseJson="{\"name\":\"$buildVersion\",\"tag_name\":\"v$buildVersion\",\"body\":\"## Downloads\n\nhttps://code.onedev.io/onedev/tod/~builds/@build_number@/artifacts\n\n## Change Log\n\nhttps://code.onedev.io/onedev/tod/~builds/@build_number@/fixed-issues?query=%22State%22+is+%22Released%22+order+by+%22Type%22+asc+and+%22Priority%22+desc\"}"
+      - ''
+      - 'acceptHeader="Accept: application/vnd.github.v3+json"'
+      - if [ "$releaseId" == "null" ]; then
+      - '  curl -u robinshine:@secrets:github-token@ -X POST -H "$acceptHeader" -d "$releaseJson" https://api.github.com/repos/theonedev/tod/releases'
+      - else
+      - '  curl -u robinshine:@secrets:github-token@ -X PATCH -H "$acceptHeader" -d "$releaseJson" https://api.github.com/repos/theonedev/tod/releases/$releaseId'
+      - fi
+    useTTY: false
     condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
   triggers:
   - !BranchUpdateTrigger
