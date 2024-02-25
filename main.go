@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"os"
 
+	"io"
+
 	"github.com/Masterminds/semver"
 )
 
@@ -35,6 +37,19 @@ func main() {
 	command.Execute(os.Args[2:])
 }
 
+func checkResponse(resp *http.Response) error {
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err == nil {
+			return fmt.Errorf("non-successful status code received (status: %s, message: %s)", resp.Status, string(body))
+		} else {
+			return fmt.Errorf("non-successful status code received: %s", resp.Status)
+		}
+	} else {
+		return nil
+	}
+}
+
 func checkVersion(serverUrl string, accessToken string) error {
 	// Make a GET request to the API endpoint
 	client := &http.Client{}
@@ -55,9 +70,9 @@ func checkVersion(serverUrl string, accessToken string) error {
 
 	defer resp.Body.Close()
 
-	// Check if the response status code is successful (2xx)
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("error requesting compatible versions: non-successful status code received: %s", resp.Status)
+	err = checkResponse(resp)
+	if err != nil {
+		return fmt.Errorf("error requesting compatible versions: %w", err)
 	}
 
 	// Decode the JSON response into a VersionInfo struct

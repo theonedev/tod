@@ -99,24 +99,19 @@ func (execCommand ExecCommand) Execute(args []string) {
 	token := ""
 	params := make(ParamMap)
 
-	// Check if the configuration file exists
 	if _, err := os.Stat(configFilePath); !os.IsNotExist(err) {
-		// Load and parse the INI configuration file
 		cfg, err := ini.Load(configFilePath)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "Error reading config file:", err)
 			os.Exit(1)
 		}
 
-		// Get the 'exec' section
 		section := cfg.Section(execSection)
 
-		// Retrieve values from the section
 		project = section.Key(projectKey).String()
 		workdir = section.Key(workdirKey).String()
 		token = section.Key(tokenKey).String()
 
-		// Parse parameters
 		for _, key := range section.Keys() {
 			if strings.HasPrefix(key.Name(), paramPrefix) {
 				paramName := strings.TrimPrefix(key.Name(), paramPrefix)
@@ -161,14 +156,12 @@ func (execCommand ExecCommand) Execute(args []string) {
 		os.Exit(1)
 	}
 
-	// Check if the .git directory exists
 	gitDir := filepath.Join(absoluteWorkdir, ".git")
 	if _, err := os.Stat(gitDir); os.IsNotExist(err) {
 		fmt.Fprintln(os.Stderr, "Invalid workdir: not a git working directory:", absoluteWorkdir)
 		os.Exit(1)
 	}
 
-	// Check if the .onedev-buildspec.yml file exists
 	buildSpecFile := filepath.Join(absoluteWorkdir, ".onedev-buildspec.yml")
 	if _, err := os.Stat(buildSpecFile); os.IsNotExist(err) {
 		fmt.Fprintln(os.Stderr, "Invalid workdir: OneDev build spec not found:", absoluteWorkdir)
@@ -187,7 +180,6 @@ func (execCommand ExecCommand) Execute(args []string) {
 		os.Exit(1)
 	}
 
-	// Extract server URL and project path
 	serverUrl := project[:hostIndex+pathIndex-1]
 	projectPath := project[hostIndex+pathIndex:]
 
@@ -232,8 +224,9 @@ func (execCommand ExecCommand) Execute(args []string) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		fmt.Fprintln(os.Stderr, "Error querying project: non-successful status code received:", resp.Status)
+	err = checkResponse(resp)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Error querying project:", err)
 		os.Exit(1)
 	}
 
@@ -302,7 +295,7 @@ func (execCommand ExecCommand) Execute(args []string) {
 		"refName":    wipRefName,
 		"jobName":    jobName,
 		"params":     params,
-		"reason":     "Verify local changes",
+		"reason":     "Build local changes",
 	}
 
 	jsonData, _ := json.Marshal(jobRunData)
@@ -322,8 +315,9 @@ func (execCommand ExecCommand) Execute(args []string) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		fmt.Fprintln(os.Stderr, "Error requesting build:", resp.Status)
+	err = checkResponse(resp)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Error requesting build:", err)
 		os.Exit(1)
 	}
 
@@ -361,8 +355,10 @@ func (execCommand ExecCommand) Execute(args []string) {
 			}
 			defer resp.Body.Close()
 
-			if resp.StatusCode != http.StatusOK {
-				fmt.Fprintln(os.Stderr, "Error cancelling build: unsuccessful response status:", resp.Status)
+			err = checkResponse(resp)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "Error cancelling build:", err)
+				os.Exit(1)
 			}
 		}
 	}()
@@ -383,8 +379,9 @@ func (execCommand ExecCommand) Execute(args []string) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		fmt.Fprintln(os.Stderr, "Error streaming build log: non-successful status code received:", resp.Status)
+	err = checkResponse(resp)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Error streaming build log:", err)
 		os.Exit(1)
 	}
 
