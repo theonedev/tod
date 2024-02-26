@@ -1,39 +1,5 @@
 version: 29
 jobs:
-- name: CI
-  jobExecutor: internal
-  steps:
-  - !CheckoutStep
-    name: checkout code
-    cloneCredential: !DefaultCredential {}
-    withLfs: false
-    withSubmodules: false
-    condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
-  - !CommandStep
-    name: detect version
-    runInContainer: true
-    image: ubuntu
-    interpreter: !DefaultInterpreter
-      commands: |
-        cat main.go|grep 'const version' | cut -d'"' -f 2 > buildVersion
-    useTTY: false
-    condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
-  - !SetBuildVersionStep
-    name: set version
-    buildVersion: '@file:buildVersion@'
-    condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
-  - !UseTemplateStep
-    name: build binaries
-    templateName: build binaries
-    condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
-  triggers:
-  - !BranchUpdateTrigger
-    branches: main
-    projects: onedev/tod
-  retryCondition: never
-  maxRetries: 3
-  retryDelay: 30
-  timeout: 3600
 - name: Release
   jobExecutor: internal
   steps:
