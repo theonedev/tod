@@ -6,14 +6,12 @@ TOD (**T**he**O**ne**D**ev) is a command line tool working with OneDev
 
 [Click here to select version and download](https://code.onedev.io/onedev/tod/~builds?query=%22Job%22+is+%22Release%22+and+successful)
 
-# What It Can Do
-
-## Build Local Change
+# Run CI/CD Job Against Local Change
 
 Tod is able to run CI/CD job against uncommitted code in your working directory to avoid the commmit/push/run/check loop. 
 
 
-### Command Syntax 
+## Command Syntax 
 
 The syntax to build against local change is: 
 
