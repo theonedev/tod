@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	wipRefName  = "refs/misc/wip"
+	refName     = "refs/onedev/tod"
 	execSection = "exec"
 	projectKey  = "project"
 	workdirKey  = "workdir"
@@ -274,7 +274,7 @@ func (execCommand ExecCommand) Execute(args []string) {
 
 	fmt.Println("Sending local changes to server...")
 
-	cmd = exec.Command("git", "-c", "http.extraHeader=Authorization: Bearer "+token, "push", "-f", project, runCommit+":"+wipRefName)
+	cmd = exec.Command("git", "-c", "http.extraHeader=Authorization: Bearer "+token, "push", "-f", project, runCommit+":"+refName)
 	cmd.Dir = absoluteWorkdir
 
 	cmd.Stderr = &FilteredWriter{}
@@ -292,10 +292,10 @@ func (execCommand ExecCommand) Execute(args []string) {
 		"@type":      "JobRunOnCommit",
 		"projectId":  projectId,
 		"commitHash": runCommit,
-		"refName":    wipRefName,
+		"refName":    refName,
 		"jobName":    jobName,
 		"params":     params,
-		"reason":     "Build local changes",
+		"reason":     "Submitted via tod",
 	}
 
 	jsonData, _ := json.Marshal(jobRunData)
@@ -363,7 +363,7 @@ func (execCommand ExecCommand) Execute(args []string) {
 		}
 	}()
 
-	targetUrl.Path = fmt.Sprintf("~api/build-logs/%v/streaming", buildId)
+	targetUrl.Path = fmt.Sprintf("~api/streaming/build-logs/%v", buildId)
 
 	req, err = http.NewRequest("GET", targetUrl.String(), nil)
 	if err != nil {
