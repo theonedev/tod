@@ -135,7 +135,5 @@ stepTemplates:
 
         GOOS=freebsd GOARCH=arm64 go build -o freebsd-arm64/tod
         sha256sum freebsd-arm64/tod | awk '{ print $1 }' > freebsd-arm64/tod.sha256
-
-        find . -name 'tod' -exec chmod +x {} \;
     useTTY: false
     condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
