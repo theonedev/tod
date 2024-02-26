@@ -1,4 +1,4 @@
-version: 28
+version: 29
 jobs:
 - name: Release
   jobExecutor: internal
@@ -15,44 +15,17 @@ jobs:
     runInContainer: true
     image: ubuntu
     interpreter: !DefaultInterpreter
-      commands:
-      - cat main.go|grep 'const version' | cut -d'"' -f 2 > buildVersion
+      commands: |
+        cat main.go|grep 'const version' | cut -d'"' -f 2 > buildVersion
     useTTY: false
     condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
   - !SetBuildVersionStep
     name: set version
     buildVersion: '@file:buildVersion@'
     condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
-  - !CommandStep
+  - !UseTemplateStep
     name: build binaries
-    runInContainer: true
-    image: golang:1.21.3
-    interpreter: !DefaultInterpreter
-      commands:
-      - GOOS=windows GOARCH=amd64 go build -o windows-amd64/tod.exe
-      - sha256sum windows-amd64/tod.exe > windows-amd64/tod.exe.sha256
-      - ''
-      - GOOS=windows GOARCH=arm64 go build -o windows-arm64/tod.exe
-      - sha256sum windows-arm64/tod.exe > windows-arm64/tod.exe.sha256
-      - ''
-      - GOOS=linux GOARCH=amd64 go build -o linux-amd64/tod
-      - sha256sum linux-amd64/tod > linux-amd64/tod.sha256
-      - ''
-      - GOOS=linux GOARCH=arm64 go build -o linux-arm64/tod
-      - sha256sum linux-arm64/tod > linux-arm64/tod.sha256
-      - ''
-      - GOOS=darwin GOARCH=amd64 go build -o mac-amd64/tod
-      - sha256sum mac-amd64/tod > mac-amd64/tod.sha256
-      - ''
-      - GOOS=darwin GOARCH=arm64 go build -o mac-arm64/tod
-      - sha256sum mac-arm64/tod > mac-arm64/tod.sha256
-      - ''
-      - GOOS=freebsd GOARCH=amd64 go build -o freebsd-amd64/tod
-      - sha256sum freebsd-amd64/tod > freebsd-amd64/tod.sha256
-      - ''
-      - GOOS=freebsd GOARCH=arm64 go build -o freebsd-arm64/tod
-      - sha256sum freebsd-arm64/tod > freebsd-arm64/tod.sha256
-    useTTY: false
+    templateName: build binaries
     condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
   - !PublishArtifactStep
     name: publish artifacts
@@ -63,37 +36,37 @@ jobs:
     runInContainer: true
     image: '@property:buildEnvironment@'
     interpreter: !DefaultInterpreter
-      commands:
-      - set -e
-      - set -o pipefail
-      - ''
-      - buildVersion=@build_version@
-      - ''
-      - projectDir=`pwd`
-      - ''
-      - echo "Creating release tag..."
-      - ''
-      - git config --global user.name "Robin Shen"
-      - git config --global user.email "robin@@onedev.io"
-      - git config --global --add safe.directory /onedev-build/workspace
-      - ''
-      - git tag v$buildVersion -m "Release tag"
-      - git push -f origin v$buildVersion:v$buildVersion
-      - git config --global --unset http.extraHeader
-      - git push -f https://robin:@secrets:github-token@@@github.com/theonedev/tod v$buildVersion:v$buildVersion
-      - ''
-      - echo "Creating release in GitHub..."
-      - ''
-      - releaseId=$(curl -u robinshine:@secrets:github-token@ https://api.github.com/repos/theonedev/tod/releases/tags/v$buildVersion | jq '.id')
-      - ''
-      - releaseJson="{\"name\":\"$buildVersion\",\"tag_name\":\"v$buildVersion\",\"body\":\"## Downloads\n\nhttps://code.onedev.io/onedev/tod/~builds/@build_number@/artifacts\n\n## Change Log\n\nhttps://code.onedev.io/onedev/tod/~builds/@build_number@/fixed-issues?query=%22State%22+is+%22Released%22+order+by+%22Type%22+asc+and+%22Priority%22+desc\"}"
-      - ''
-      - 'acceptHeader="Accept: application/vnd.github.v3+json"'
-      - if [ "$releaseId" == "null" ]; then
-      - '  curl -u robinshine:@secrets:github-token@ -X POST -H "$acceptHeader" -d "$releaseJson" https://api.github.com/repos/theonedev/tod/releases'
-      - else
-      - '  curl -u robinshine:@secrets:github-token@ -X PATCH -H "$acceptHeader" -d "$releaseJson" https://api.github.com/repos/theonedev/tod/releases/$releaseId'
-      - fi
+      commands: |
+        set -e
+        set -o pipefail
+
+        buildVersion=@build_version@
+
+        projectDir=`pwd`
+
+        echo "Creating release tag..."
+
+        git config --global user.name "Robin Shen"
+        git config --global user.email "robin@@onedev.io"
+        git config --global --add safe.directory /onedev-build/workspace
+
+        git tag v$buildVersion -m "Release tag"
+        git push -f origin v$buildVersion:v$buildVersion
+        git config --global --unset http.extraHeader
+        git push -f https://robin:@secrets:github-token@@@github.com/theonedev/tod v$buildVersion:v$buildVersion
+
+        echo "Creating release in GitHub..."
+
+        releaseId=$(curl -u robinshine:@secrets:github-token@ https://api.github.com/repos/theonedev/tod/releases/tags/v$buildVersion | jq '.id')
+
+        releaseJson="{\"name\":\"$buildVersion\",\"tag_name\":\"v$buildVersion\",\"body\":\"## Downloads\n\nhttps://code.onedev.io/onedev/tod/~builds/@build_number@/artifacts\n\n## Change Log\n\nhttps://code.onedev.io/onedev/tod/~builds/@build_number@/fixed-issues?query=%22State%22+is+%22Released%22+order+by+%22Type%22+asc+and+%22Priority%22+desc\"}"
+
+        acceptHeader="Accept: application/vnd.github.v3+json"
+        if [ "$releaseId" == "null" ]; then
+          curl -u robinshine:@secrets:github-token@ -X POST -H "$acceptHeader" -d "$releaseJson" https://api.github.com/repos/theonedev/tod/releases
+        else
+          curl -u robinshine:@secrets:github-token@ -X PATCH -H "$acceptHeader" -d "$releaseJson" https://api.github.com/repos/theonedev/tod/releases/$releaseId
+        fi
     useTTY: false
     condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
   triggers:
@@ -117,9 +90,9 @@ jobs:
     runInContainer: true
     image: alpine/git:1.0.7
     interpreter: !DefaultInterpreter
-      commands:
-      - git config --global --unset http.extraHeader
-      - git push -f https://robinshine:@secrets:github-token@@@github.com/theonedev/tod HEAD:main
+      commands: |
+        git config --global --unset http.extraHeader
+        git push -f https://robinshine:@secrets:github-token@@@github.com/theonedev/tod HEAD:main
     useTTY: false
     condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
   triggers:
@@ -130,3 +103,39 @@ jobs:
   maxRetries: 3
   retryDelay: 30
   timeout: 3600
+stepTemplates:
+- name: build binaries
+  steps:
+  - !CommandStep
+    name: build binaries
+    runInContainer: true
+    image: golang:1.21.3
+    interpreter: !DefaultInterpreter
+      commands: |
+        GOOS=windows GOARCH=amd64 go build -o windows-amd64/tod.exe
+        sha256sum windows-amd64/tod.exe | awk '{ print $1 }' > windows-amd64/tod.exe.sha256
+
+        GOOS=windows GOARCH=arm64 go build -o windows-arm64/tod.exe
+        sha256sum windows-arm64/tod.exe | awk '{ print $1 }' > windows-arm64/tod.exe.sha256
+
+        GOOS=linux GOARCH=amd64 go build -o linux-amd64/tod
+        sha256sum linux-amd64/tod | awk '{ print $1 }' > linux-amd64/tod.sha256
+
+        GOOS=linux GOARCH=arm64 go build -o linux-arm64/tod
+        sha256sum linux-arm64/tod | awk '{ print $1 }' > linux-arm64/tod.sha256
+
+        GOOS=darwin GOARCH=amd64 go build -o mac-amd64/tod
+        sha256sum mac-amd64/tod | awk '{ print $1 }' > mac-amd64/tod.sha256
+
+        GOOS=darwin GOARCH=arm64 go build -o mac-arm64/tod
+        sha256sum mac-arm64/tod | awk '{ print $1 }' > mac-arm64/tod.sha256
+
+        GOOS=freebsd GOARCH=amd64 go build -o freebsd-amd64/tod
+        sha256sum freebsd-amd64/tod | awk '{ print $1 }' > freebsd-amd64/tod.sha256
+
+        GOOS=freebsd GOARCH=arm64 go build -o freebsd-arm64/tod
+        sha256sum freebsd-arm64/tod | awk '{ print $1 }' > freebsd-arm64/tod.sha256
+
+        find . -name 'tod' -exec chmod +x {} \;
+    useTTY: false
+    condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
