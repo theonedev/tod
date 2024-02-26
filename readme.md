@@ -10,7 +10,7 @@ TOD (**T**he**O**ne**D**ev) is a command line tool working with OneDev
 
 ## Run CI/CD Job Against Local Change
 
-Tod is able to run CI/CD job against uncommitted code in your working directory to avoid the commmit/push/run/check loop. 
+Tod is able to run CI/CD job against uncommitted code in your working directory to avoid the commmit/push/run/check loop. Under the hood, it stashes local changes to a commit and pushes to server under a temporal ref to run specified job. Log of running job is streamed back to tod  so that you can check log and job status without leaving terminal.
 
 
 ### Command Syntax 
@@ -58,7 +58,7 @@ Now we can simply run `tod exec ci` to execute the job. We can still specify opt
 
 ### Security 
 
-If the job needs to access some protected resources (job secret, groovy script, job executor etc), make sure authorizations of these resources include `non-pull-request commmits`. Simply authorizing the resource to branches is not enough, as under the hood tod stashes local changes as a commit and send to server under ref `refs/onedev/tod` which does not belong to any branch
+If the job needs to access some protected resources (job secret, groovy script, job executor etc), make sure authorizations of these resources include `non-pull-request commmits`. Simply authorizing the resource to branches is not enough, as the temporal ref used to run job does not belong to any branch
 
 ### Performance
 
