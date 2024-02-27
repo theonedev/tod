@@ -6,6 +6,14 @@ TOD (**T**he**O**ne**D**ev) is a command line tool working with OneDev
 
 [Click here to select version and download](https://code.onedev.io/onedev/tod/~builds?query=%22Job%22+is+%22Release%22+and+successful)
 
+# Build From Source
+
+Make sure you have golang version 1.21.3 or higher installed. Clone the repositry, and run below command in repository root:
+
+```
+go build -o tod
+```
+
 # What It Can Do
 
 ## Run CI/CD Job Against Local Change
