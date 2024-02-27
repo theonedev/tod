@@ -17,6 +17,8 @@ The syntax to build against local change is:
 tod exec -project <project url> -token <access token> -workdir <git working directory of the project> -param <name1>=<value1> -param <name2>=<value2> <job name>
 ```
 
+If option `-workdir` is not specified, it will default to current directory. Other options are required if not already defined in config file (more on this later). 
+
 Upon running the command, the terminal will display live log of the job, and you may press ctrl-c to terminate the command and the job will also be cancelled. 
 
 **IMPORTANT:** If OneDev is running behind Nginx, make sure to configure Nginx to add a location directive for OneDev to disable http buffering like below to show log in time:
