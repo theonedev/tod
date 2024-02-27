@@ -29,7 +29,7 @@ jobs:
     condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
   - !PublishArtifactStep
     name: publish artifacts
-    artifacts: '**/tod*'
+    artifacts: '**/tod* -tod.gif'
     condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
   - !CommandStep
     name: publish GH release
