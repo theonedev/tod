@@ -68,4 +68,4 @@ If the job needs to access some protected resources (job secret, groovy script, 
 Tod sends your local change to server to run the job. Follow below tips to speed up job execution to get fast feedback:
 
 1. If your repository is large, specify appropriate clone depth of checkout step instead of cloning the whole history
-1. If your job needs to download external resources, consider [caching](https://docs.onedev.io/tutorials/cicd/job-cache) downloaded resources
+1. If your job needs to download external resources, consider [caching](https://docs.onedev.io/tutorials/cicd/job-cache) downloaded resources. Intermediate files slow to generate may also be a good candidate for caching.
