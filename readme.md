@@ -12,6 +12,7 @@ TOD (**T**he**O**ne**D**ev) is a command line tool working with OneDev
 
 Tod is able to run CI/CD job against uncommitted code in your working directory to avoid the commmit/push/run/check loop. Under the hood, it stashes local changes to a commit and pushes to server under a temporal ref to run specified job. Log of running job is streamed back to tod  so that you can check log and job status without leaving terminal.
 
+![tod](./tod.gif)
 
 ### Command Syntax 
 
