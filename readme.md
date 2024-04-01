@@ -1,6 +1,6 @@
 # What is TOD
 
-TOD (**T**he**O**ne**D**ev) is a command line tool working with OneDev
+TOD (**T**he**O**ne**D**ev) is a command line tool working with **OneDev 10.2** or higher
 
 # Download
 
