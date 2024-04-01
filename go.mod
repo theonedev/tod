@@ -1,6 +1,6 @@
 module onedev/cli
 
-go 1.21.3
+go 1.22.1
 
 require (
 	github.com/Masterminds/semver v1.5.0
