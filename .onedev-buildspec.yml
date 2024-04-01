@@ -1,4 +1,4 @@
-version: 29
+version: 30
 jobs:
 - name: Release
   jobExecutor: internal
@@ -109,7 +109,7 @@ stepTemplates:
   - !CommandStep
     name: build binaries
     runInContainer: true
-    image: golang:1.21.3
+    image: golang:1.22.1
     interpreter: !DefaultInterpreter
       commands: |
         GOOS=windows GOARCH=amd64 go build -o windows-amd64/tod.exe
