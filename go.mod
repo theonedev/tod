@@ -1,4 +1,4 @@
-module onedev/cli
+module onedev/tod
 
 go 1.22.1
 

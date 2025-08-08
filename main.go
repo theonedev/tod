@@ -29,6 +29,8 @@ func main() {
 	switch os.Args[1] {
 	case "exec":
 		command = ExecCommand{}
+	case "mcp":
+		command = MCPCommand{}
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command: %s. Check https://code.onedev.io/onedev/tod for details\n", os.Args[1])
 		os.Exit(1)
