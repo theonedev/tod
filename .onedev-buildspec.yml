@@ -1,4 +1,4 @@
-version: 29
+version: 30
 jobs:
 - name: Release
   jobExecutor: internal
@@ -69,10 +69,6 @@ jobs:
         fi
     useTTY: false
     condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
-  triggers:
-  - !BranchUpdateTrigger
-    branches: main
-    projects: onedev/tod
   retryCondition: never
   maxRetries: 3
   retryDelay: 30
@@ -109,7 +105,7 @@ stepTemplates:
   - !CommandStep
     name: build binaries
     runInContainer: true
-    image: golang:1.21.3
+    image: golang:1.22.1
     interpreter: !DefaultInterpreter
       commands: |
         GOOS=windows GOARCH=amd64 go build -o windows-amd64/tod.exe
