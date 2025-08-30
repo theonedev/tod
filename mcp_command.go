@@ -3,48 +3,26 @@ package main
 import (
 	"bufio"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
+	"path/filepath"
 	"strings"
+
+	"github.com/spf13/cobra"
 )
 
 type MCPCommand struct{}
 
-// Configuration for MCP server
-type MCPConfig struct {
-	Server         string
-	Token          string
-	LogFile        string
-	WorkingDir     string
-	CurrentProject string
-}
-
-// Global config instance
-var globalConfig MCPConfig
+// Global config instance is declared in main.go
+var workingDir string
+var currentProjectCache string
 
 // Global logger instance
 var logger *log.Logger
-
-// Custom error type for API errors with additional context
-type APIError struct {
-	StatusCode int
-	Endpoint   string
-	Response   string
-}
-
-func (e *APIError) Error() string {
-	if e.StatusCode > 0 {
-		return fmt.Sprintf("HTTP %d: %s", e.StatusCode, e.Response)
-	} else {
-		return e.Response
-	}
-}
 
 // JSON-RPC 2.0 standard error codes
 const (
@@ -151,55 +129,6 @@ type PromptMessageContent struct {
 	Text string `json:"text"`
 }
 
-func getCurrentProject() (string, error) {
-	if globalConfig.CurrentProject == "" {
-		var cmd *exec.Cmd
-		cmd = exec.Command("git", "rev-parse", "--is-inside-work-tree")
-		cmd.Dir = globalConfig.WorkingDir
-		err := cmd.Run()
-		if err != nil {
-			return "", fmt.Errorf("working dir not inside a git repository: %v", globalConfig.WorkingDir)
-		}
-
-		cmd = exec.Command("git", "remote", "get-url", "origin")
-		cmd.Dir = globalConfig.WorkingDir
-		output, err := cmd.Output()
-		if err != nil {
-			return "", fmt.Errorf("failed to get origin remote URL: %v", err)
-		}
-
-		originURL := strings.TrimSpace(string(output))
-		if originURL == "" {
-			return "", fmt.Errorf("origin remote URL is empty")
-		}
-
-		// Find the substring after "//"
-		idx := strings.Index(originURL, "//")
-		if idx == -1 || idx+2 >= len(originURL) {
-			return "", fmt.Errorf("invalid git URL format: %q", originURL)
-		}
-		// Find the first "/" after the "//"
-		slashIdx := strings.Index(originURL[idx+2:], "/")
-		if slashIdx == -1 || idx+2+slashIdx+1 > len(originURL) {
-			return "", fmt.Errorf("could not find project path in git URL: %q", originURL)
-		}
-
-		projectPath := strings.TrimSuffix(originURL[idx+2+slashIdx+1:], ".git")
-		projectPath = strings.TrimSuffix(projectPath, "/")
-		globalConfig.CurrentProject = projectPath
-	}
-	return globalConfig.CurrentProject, nil
-}
-
-// isGitExecutableAvailable checks if git executable is available in PATH
-func isGitExecutableAvailable() error {
-	_, err := exec.LookPath("git")
-	if err != nil {
-		return fmt.Errorf("git executable not found in PATH: %v", err)
-	}
-	return nil
-}
-
 // initializeLogging sets up the global logger based on the logfile parameter
 func initializeLogging(logFile string) {
 	if logFile != "" {
@@ -227,32 +156,16 @@ func logf(format string, v ...interface{}) {
 	}
 }
 
-func (mcpCommand MCPCommand) Execute(args []string) {
+func (mcpCommand MCPCommand) Execute(cobraCmd *cobra.Command, args []string) {
 	// Initialize variables
-	var server, token, logFile string
+	var logFile string
 
-	// Create a new flag set for MCP command
-	fs := flag.NewFlagSet("mcp", flag.ExitOnError)
-	fs.StringVar(&server, "server", "", "Specify OneDev server url")
-	if server != "" {
-		server = strings.TrimRight(server, "/")
-	}
-	fs.StringVar(&token, "token", "", "Specify access token to authentication against OneDev server")
-	fs.StringVar(&logFile, "logfile", "", "Specify log file path for debug logging (optional)")
-
-	// Parse the flags
-	fs.Parse(args)
+	logFile, _ = cobraCmd.Flags().GetString("log-file")
 
 	// Initialize logging based on logfile parameter
 	initializeLogging(logFile)
 
-	globalConfig = MCPConfig{
-		Server:  server,
-		Token:   token,
-		LogFile: logFile,
-	}
-
-	logf("MCP server starting with server=%s, logfile=%s", server, logFile)
+	logf("MCP server starting with serverUrl=%s, logFile=%s", config.ServerUrl, logFile)
 
 	scanner := bufio.NewScanner(os.Stdin)
 
@@ -297,10 +210,6 @@ func (mcpCommand MCPCommand) Execute(args []string) {
 			handleToolsList(request)
 		case "tools/call":
 			handleToolsCall(request)
-		case "prompts/list":
-			handlePromptsList(request)
-		case "prompts/get":
-			handlePromptsGet(request)
 		case "ping":
 			// Standard ping/pong for keepalive
 			sendResponse(request.ID, map[string]interface{}{})
@@ -321,20 +230,12 @@ func (mcpCommand MCPCommand) Execute(args []string) {
 func handleInitialize(request MCPRequest) {
 	logf("Handling initialize request")
 
-	// Check if git executable is available
-	if err := isGitExecutableAvailable(); err != nil {
-		message := fmt.Sprintf("MCP server initialization failed: %v. Git is expected to be installed and available in PATH.", err)
-		logf(message)
-		sendError(request.ID, ErrorCodeInvalidRequest, message)
-		return
-	}
-
 	// Validate required configuration before initializing
 	var missingArgs []string
-	if globalConfig.Server == "" {
+	if config.ServerUrl == "" {
 		missingArgs = append(missingArgs, "server")
 	}
-	if globalConfig.Token == "" {
+	if config.AccessToken == "" {
 		missingArgs = append(missingArgs, "token")
 	}
 
@@ -357,26 +258,23 @@ func handleInitialize(request MCPRequest) {
 		var err error
 		wd, err = os.Getwd()
 		if err != nil {
-			message := fmt.Sprintf("Failed to get current working directory: %v", err)
+			message := fmt.Sprintf("Failed to get working directory: %v", err)
 			logf(message)
 			sendError(request.ID, ErrorCodeInternalError, message)
 			return
 		}
 	}
-	globalConfig.WorkingDir = wd
+	workingDir = wd
 
 	serverName := "tod"
-	if globalConfig.Server != "" {
-		serverName = fmt.Sprintf("tod (%s)", globalConfig.Server)
+	if config.ServerUrl != "" {
+		serverName = fmt.Sprintf("tod (%s)", config.ServerUrl)
 	}
 
 	result := InitializeResult{
 		ProtocolVersion: "2024-11-05",
 		Capabilities: map[string]interface{}{
 			"tools": map[string]interface{}{
-				"listChanged": true,
-			},
-			"prompts": map[string]interface{}{
 				"listChanged": true,
 			},
 		},
@@ -403,15 +301,7 @@ func createErrorString(err error) string {
 func handleToolsList(request MCPRequest) {
 	logf("Handling tools/list request")
 
-	apiURL := globalConfig.Server + "/~api/mcp-helper/get-tool-input-schemas"
-	currentProject, err := getCurrentProject()
-	if err != nil {
-		logf("Failed to get current project: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
-		return
-	}
-
-	schemas, err := getJSONMapFromAPI(apiURL + "?currentProject=" + url.QueryEscape(currentProject))
+	schemas, err := getJSONMapFromAPI(config.ServerUrl + "/~api/mcp-helper/get-tool-input-schemas")
 	if err != nil {
 		logf("Failed to get tool input schemas: %v", createErrorString(err))
 		sendError(request.ID, ErrorCodeInternalError, "Failed to get tool input schemas: "+err.Error())
@@ -645,8 +535,8 @@ func handleToolsList(request MCPRequest) {
 	})
 
 	tools = append(tools, Tool{
-		Name:        "reviewPullRequest",
-		Description: "Approve a pull request or request for changes",
+		Name:        "processPullRequest",
+		Description: "Process a pull request",
 		InputSchema: InputSchema{
 			Type: "object",
 			Properties: map[string]interface{}{
@@ -654,16 +544,16 @@ func handleToolsList(request MCPRequest) {
 					"type":        "string",
 					"description": PullRequestReferenceDesc,
 				},
-				"approved": map[string]interface{}{
-					"type":        "boolean",
-					"description": "if true, the pull request will be approved, otherwise it will be requested for changes",
+				"operation": map[string]interface{}{
+					"type":        "string",
+					"description": "Operation to perform on the pull request. Expects one of: approve, requestChanges, merge, discard, reopen, deleteSourceBranch, restoreSourceBranch",
 				},
 				"comment": map[string]interface{}{
 					"type":        "string",
-					"description": "comment to add",
+					"description": "Comment for the operation",
 				},
 			},
-			Required: []string{"pullRequestReference", "approved"},
+			Required: []string{"pullRequestReference", "operation"},
 		},
 	})
 
@@ -688,7 +578,7 @@ func handleToolsList(request MCPRequest) {
 
 	tools = append(tools, Tool{
 		Name:        "checkoutPullRequest",
-		Description: "AI assistant should follow returned instruction of the tool call to set up local git working directory to work on specified pull request",
+		Description: "Checkout specified pull request in current working directory",
 		InputSchema: InputSchema{
 			Type: "object",
 			Properties: map[string]interface{}{
@@ -702,8 +592,8 @@ func handleToolsList(request MCPRequest) {
 	})
 
 	tools = append(tools, Tool{
-		Name:        "getWorkingDir",
-		Description: "Get absolute path in the file system used used as working directory for tod",
+		Name:        "getCurrentProject",
+		Description: "Get default OneDev project for tod operations",
 		InputSchema: InputSchema{
 			Type:       "object",
 			Properties: map[string]interface{}{},
@@ -711,12 +601,26 @@ func handleToolsList(request MCPRequest) {
 		},
 	})
 	tools = append(tools, Tool{
-		Name:        "getCurrentProject",
-		Description: "Get current OneDev project for tod operations",
+		Name:        "getWorkingDir",
+		Description: "Get working directory of tod",
 		InputSchema: InputSchema{
 			Type:       "object",
 			Properties: map[string]interface{}{},
 			Required:   []string{},
+		},
+	})
+	tools = append(tools, Tool{
+		Name:        "setWorkingDir",
+		Description: "Set working directory of tod",
+		InputSchema: InputSchema{
+			Type: "object",
+			Properties: map[string]interface{}{
+				"workingDir": map[string]interface{}{
+					"type":        "string",
+					"description": "Absolute path in the file system",
+				},
+			},
+			Required: []string{"workingDir"},
 		},
 	})
 	tools = append(tools, Tool{
@@ -756,97 +660,6 @@ func handleToolsList(request MCPRequest) {
 	sendResponse(request.ID, result)
 }
 
-func handlePromptsList(request MCPRequest) {
-	logf("Handling prompts/list request")
-
-	apiURL := globalConfig.Server + "/~api/mcp-helper/get-prompt-arguments"
-	currentProject, err := getCurrentProject()
-	if err != nil {
-		logf("Failed to get current project: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
-		return
-	}
-
-	arguments, err := getJSONMapFromAPI(apiURL + "?currentProject=" + url.QueryEscape(currentProject))
-	if err != nil {
-		logf("Failed to get prompt arguments: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInternalError, "Failed to get prompt arguments: "+err.Error())
-		return
-	}
-
-	prompts := []Prompt{
-		{
-			Name:        "createIssue",
-			Description: "Create a new issue in current project",
-			Arguments:   getArgumentsForPrompt("createIssue", arguments),
-		},
-	}
-
-	result := map[string]interface{}{
-		"prompts": prompts,
-	}
-
-	logf("Sending prompts list with %d prompts", len(prompts))
-	sendResponse(request.ID, result)
-}
-
-func handlePromptsGet(request MCPRequest) {
-	logf("Handling prompts/get request")
-
-	paramsBytes, _ := json.Marshal(request.Params)
-	var params GetPromptParams
-	if err := json.Unmarshal(paramsBytes, &params); err != nil {
-		logf("Failed to parse prompt get params: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInvalidParams, "Invalid params: "+err.Error())
-		return
-	}
-
-	logf("Getting prompt: %s", params.Name)
-	switch params.Name {
-	case "createIssue":
-		handleCreateIssuePrompt(request, params)
-	default:
-		logf("Unknown prompt requested: %s", params.Name)
-		sendError(request.ID, ErrorCodeInvalidParams, "Unknown prompt: "+params.Name)
-	}
-}
-
-func getParamsPrompt(params GetPromptParams) string {
-	if len(params.Arguments) == 0 {
-		return ""
-	}
-
-	var lines []string
-	for paramName, paramValue := range params.Arguments {
-		lines = append(lines, fmt.Sprintf("%s: %v", paramName, paramValue))
-	}
-
-	return strings.Join(lines, "\n")
-}
-
-func handleCreateIssuePrompt(request MCPRequest, params GetPromptParams) {
-	logf("Handling createIssue prompt")
-
-	promptText := fmt.Sprintf(
-		"Please create an issue using the createIssue tool with below params:\n%s",
-		getParamsPrompt(params))
-
-	result := GetPromptResult{
-		Messages: []PromptMessage{
-			{
-				Role: "user",
-				Content: PromptMessageContent{
-					Type: "text",
-					Text: promptText,
-				},
-			},
-		},
-	}
-
-	logf("createIssue prompt successful")
-	sendResponse(request.ID, result)
-}
-
 func handleGetWorkingDirTool(request MCPRequest) {
 	logf("Handling getWorkingDir tool call")
 
@@ -854,7 +667,7 @@ func handleGetWorkingDirTool(request MCPRequest) {
 		Content: []ToolContent{
 			{
 				Type: "text",
-				Text: globalConfig.WorkingDir,
+				Text: workingDir,
 			},
 		},
 	}
@@ -863,12 +676,23 @@ func handleGetWorkingDirTool(request MCPRequest) {
 	sendResponse(request.ID, result)
 }
 
+func getCurrentProject() (string, error) {
+	if currentProjectCache == "" {
+		var err error
+		currentProjectCache, err = inferProject(workingDir)
+		if err != nil {
+			return "", err
+		}
+	}
+	return currentProjectCache, nil
+}
+
 func handleGetCurrentProjectTool(request MCPRequest) {
 	logf("Handling getCurrentProject tool call")
 
 	currentProject, err := getCurrentProject()
 	if err != nil {
-		logf("Failed to get current project: %v", createErrorString(err))
+		logf("Failed to get current project: %v", err)
 		sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
 		return
 	}
@@ -883,6 +707,51 @@ func handleGetCurrentProjectTool(request MCPRequest) {
 	}
 
 	logf("getCurrentProject tool call successful")
+	sendResponse(request.ID, result)
+}
+
+func handleSetWorkingDirTool(request MCPRequest, params CallToolParams) {
+	logf("Handling setWorkingDir tool call")
+
+	workingDirArg, exists := params.Arguments["workingDir"]
+	if !exists {
+		logf("Missing required parameter: workingDir")
+		sendError(request.ID, ErrorCodeInvalidParams, "Missing required parameter: workingDir")
+		return
+	}
+
+	var ok bool
+	workingDir, ok = workingDirArg.(string)
+	if !ok {
+		logf("Invalid type for workingDir parameter: expected string")
+		sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for workingDir parameter: expected string")
+		return
+	}
+
+	if workingDir == "" {
+		logf("workingDir parameter cannot be empty")
+		sendError(request.ID, ErrorCodeInvalidParams, "workingDir parameter cannot be empty")
+		return
+	}
+
+	if !filepath.IsAbs(workingDir) {
+		logf("workingDir parameter must be an absolute path")
+		sendError(request.ID, ErrorCodeInvalidParams, "workingDir parameter must be an absolute path")
+		return
+	}
+
+	currentProjectCache = ""
+
+	result := CallToolResult{
+		Content: []ToolContent{
+			{
+				Type: "text",
+				Text: "Working directory set to " + workingDir,
+			},
+		},
+	}
+
+	logf("setWorkingDir tool call successful")
 	sendResponse(request.ID, result)
 }
 
@@ -902,7 +771,7 @@ func handleGetLoginNameTool(request MCPRequest, params CallToolParams) {
 		"userName": {userName},
 	}
 	// Build the API URL
-	apiURL := globalConfig.Server + "/~api/mcp-helper/get-login-name?" + urlQuery.Encode()
+	apiURL := config.ServerUrl + "/~api/mcp-helper/get-login-name?" + urlQuery.Encode()
 
 	// Create HTTP request
 	req, err := http.NewRequest("GET", apiURL, nil)
@@ -957,7 +826,7 @@ func handleGetUnixTimestampTool(request MCPRequest, params CallToolParams) {
 		"dateTimeDescription": {dateTimeDescription},
 	}
 	// Build the API URL
-	apiURL := globalConfig.Server + "/~api/mcp-helper/get-unix-timestamp?" + urlQuery.Encode()
+	apiURL := config.ServerUrl + "/~api/mcp-helper/get-unix-timestamp?" + urlQuery.Encode()
 
 	// Create HTTP request
 	req, err := http.NewRequest("GET", apiURL, nil)
@@ -995,51 +864,70 @@ func handleQueryEntitiesTool(request MCPRequest, params CallToolParams, toolName
 
 	logf("Handling %s tool call", toolName)
 
+	var project string
+	if projectArg, exists := params.Arguments["project"]; exists {
+		var ok bool
+		project, ok = projectArg.(string)
+		if !ok {
+			logf("Invalid type for project parameter: expected string")
+			sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for project parameter: expected string")
+			return
+		}
+	}
+
+	var query string
+	if queryVal, exists := params.Arguments["query"]; exists {
+		var ok bool
+		query, ok = queryVal.(string)
+		if !ok {
+			logf("Invalid type for query parameter: expected string")
+			sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for query parameter: expected string")
+			return
+		}
+	}
+
+	var offset float64
+	if offsetVal, exists := params.Arguments["offset"]; exists {
+		var ok bool
+		offset, ok = offsetVal.(float64)
+		if !ok {
+			logf("Invalid type for offset parameter: expected integer")
+			sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for offset parameter: expected integer")
+			return
+		}
+	} else {
+		offset = 0
+	}
+
+	var count float64
+	if countVal, exists := params.Arguments["count"]; exists {
+		var ok bool
+		count, ok = countVal.(float64)
+		if !ok {
+			logf("Invalid type for count parameter: expected integer")
+			sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for count parameter: expected integer")
+			return
+		}
+	} else {
+		count = DefaultQueryCount
+	}
+
 	currentProject, err := getCurrentProject()
 	if err != nil {
-		logf("Failed to get current project: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInvalidParams, "Failed to get current project: "+err.Error())
+		logf("Failed to get current project: %v", err)
+		sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
 		return
 	}
 
-	// Extract optional query parameter (default to empty string for all issues)
-	var query string
-	if queryVal, exists := params.Arguments["query"]; exists {
-		if queryStr, ok := queryVal.(string); ok {
-			query = queryStr
-		}
-	}
-
-	// Extract optional offset parameter (default to 0)
-	offset := 0
-	if offsetVal, exists := params.Arguments["offset"]; exists {
-		offsetFloat, ok := offsetVal.(float64)
-		if !ok {
-			sendError(request.ID, ErrorCodeInvalidParams, "Invalid 'offset' parameter - must be an integer")
-			return
-		}
-		offset = int(offsetFloat)
-	}
-
-	// Extract optional count parameter (default to 25)
-	count := DefaultQueryCount
-	if countVal, exists := params.Arguments["count"]; exists {
-		countFloat, ok := countVal.(float64)
-		if !ok {
-			sendError(request.ID, ErrorCodeInvalidParams, "Invalid 'count' parameter - must be an integer")
-			return
-		}
-		count = int(countFloat)
-	}
-
 	urlQuery := url.Values{
+		"project":        {project},
 		"currentProject": {currentProject},
 		"query":          {query},
-		"offset":         {fmt.Sprintf("%d", offset)},
-		"count":          {fmt.Sprintf("%d", count)},
+		"offset":         {fmt.Sprintf("%d", int(offset))},
+		"count":          {fmt.Sprintf("%d", int(count))},
 	}
 
-	apiURL := globalConfig.Server + "/~api/mcp-helper/" + endpointSuffix + "?" + urlQuery.Encode()
+	apiURL := config.ServerUrl + "/~api/mcp-helper/" + endpointSuffix + "?" + urlQuery.Encode()
 
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
@@ -1095,17 +983,17 @@ func handleGetEntityDataTool(request MCPRequest, params CallToolParams, toolName
 
 	logf("Handling %s tool call", toolName)
 
-	currentProject, err := getCurrentProject()
-	if err != nil {
-		logf("Failed to get current project: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInvalidParams, "Failed to get current project: "+err.Error())
-		return
-	}
-
 	reference, err := getNonEmptyStringParam(params, referenceParamName)
 	if err != nil {
 		logf("Failed to extract %s: %v", referenceParamName, createErrorString(err))
 		sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract "+referenceParamName+": "+err.Error())
+		return
+	}
+
+	currentProject, err := getCurrentProject()
+	if err != nil {
+		logf("Failed to get current project: %v", err)
+		sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
 		return
 	}
 
@@ -1115,7 +1003,7 @@ func handleGetEntityDataTool(request MCPRequest, params CallToolParams, toolName
 		"reference":      {reference},
 	}
 
-	apiURL := globalConfig.Server + "/~api/mcp-helper/" + endpointSuffix + "?" + urlQuery.Encode()
+	apiURL := config.ServerUrl + "/~api/mcp-helper/" + endpointSuffix + "?" + urlQuery.Encode()
 
 	// Create HTTP request
 	req, err := http.NewRequest("GET", apiURL, nil)
@@ -1149,15 +1037,7 @@ func handleGetEntityDataTool(request MCPRequest, params CallToolParams, toolName
 }
 
 func handleCheckoutPullRequestTool(request MCPRequest, params CallToolParams) {
-
 	logf("Handling checkoutPullRequest tool call")
-
-	currentProject, err := getCurrentProject()
-	if err != nil {
-		logf("Failed to get current project: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInvalidParams, "Failed to get current project: "+err.Error())
-		return
-	}
 
 	reference, err := getNonEmptyStringParam(params, "pullRequestReference")
 	if err != nil {
@@ -1166,27 +1046,10 @@ func handleCheckoutPullRequestTool(request MCPRequest, params CallToolParams) {
 		return
 	}
 
-	// Build the API URL
-	urlQuery := url.Values{
-		"currentProject": {currentProject},
-		"reference":      {reference},
-	}
-
-	apiURL := globalConfig.Server + "/~api/mcp-helper/get-pull-request-checkout-instruction?" + urlQuery.Encode()
-
-	// Create HTTP request
-	req, err := http.NewRequest("GET", apiURL, nil)
+	err = checkoutPullRequest(workingDir, reference, logger)
 	if err != nil {
-		logf("Failed to create request: %v", err)
-		sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
-		return
-	}
-
-	// Make the API call
-	body, err := makeAPICall(req)
-	if err != nil {
-		logf("Failed to make API call: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInternalError, "Failed to make API call: "+err.Error())
+		logf("Failed to checkout pull request: %v", err)
+		sendError(request.ID, ErrorCodeInternalError, "Failed to checkout pull request: "+err.Error())
 		return
 	}
 
@@ -1194,7 +1057,7 @@ func handleCheckoutPullRequestTool(request MCPRequest, params CallToolParams) {
 		Content: []ToolContent{
 			{
 				Type: "text",
-				Text: string(body),
+				Text: "Checked out pull request " + reference + ". AI assistant should not do anything else",
 			},
 		},
 	}
@@ -1205,13 +1068,6 @@ func handleCheckoutPullRequestTool(request MCPRequest, params CallToolParams) {
 
 func handleGetPullRequestFileChangesTool(request MCPRequest, params CallToolParams) {
 	logf("Handling getPullRequestFileChanges tool call")
-
-	currentProject, err := getCurrentProject()
-	if err != nil {
-		logf("Failed to get current project: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInvalidParams, "Failed to get current project: "+err.Error())
-		return
-	}
 
 	reference, err := getNonEmptyStringParam(params, "pullRequestReference")
 	if err != nil {
@@ -1235,6 +1091,13 @@ func handleGetPullRequestFileChangesTool(request MCPRequest, params CallToolPara
 		return
 	}
 
+	currentProject, err := getCurrentProject()
+	if err != nil {
+		logf("Failed to get current project: %v", err)
+		sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
+		return
+	}
+
 	// Build the API URL
 	urlQuery := url.Values{
 		"currentProject":  {currentProject},
@@ -1242,7 +1105,7 @@ func handleGetPullRequestFileChangesTool(request MCPRequest, params CallToolPara
 		"sinceLastReview": {fmt.Sprintf("%t", sinceLastReview)},
 	}
 
-	apiURL := globalConfig.Server + "/~api/mcp-helper/get-pull-request-patch-info?" + urlQuery.Encode()
+	apiURL := config.ServerUrl + "/~api/mcp-helper/get-pull-request-patch-info?" + urlQuery.Encode()
 
 	// Create HTTP request
 	req, err := http.NewRequest("GET", apiURL, nil)
@@ -1276,7 +1139,7 @@ func handleGetPullRequestFileChangesTool(request MCPRequest, params CallToolPara
 		"new-commit": {newCommitHash},
 	}
 
-	apiURL = globalConfig.Server + "/~downloads/projects/" + projectId + "/patch?" + urlQuery.Encode()
+	apiURL = config.ServerUrl + "/~downloads/projects/" + projectId + "/patch?" + urlQuery.Encode()
 
 	req, err = http.NewRequest("GET", apiURL, nil)
 	if err != nil {
@@ -1310,17 +1173,17 @@ func handleAddEntityCommentTool(request MCPRequest, params CallToolParams, toolN
 
 	logf("Handling %s tool call", toolName)
 
-	currentProject, err := getCurrentProject()
-	if err != nil {
-		logf("Failed to get current project: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInvalidParams, "Failed to get current project: "+err.Error())
-		return
-	}
-
 	reference, err := getNonEmptyStringParam(params, referenceParamName)
 	if err != nil {
 		logf("Failed to extract %s: %v", referenceParamName, createErrorString(err))
 		sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract "+referenceParamName+": "+err.Error())
+		return
+	}
+
+	currentProject, err := getCurrentProject()
+	if err != nil {
+		logf("Failed to get current project: %v", err)
+		sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
 		return
 	}
 
@@ -1329,10 +1192,8 @@ func handleAddEntityCommentTool(request MCPRequest, params CallToolParams, toolN
 		"reference":      {reference},
 	}
 
-	// Build the API URL
-	apiURL := globalConfig.Server + "/~api/mcp-helper/" + endpointSuffix + "?" + urlQuery.Encode()
+	apiURL := config.ServerUrl + "/~api/mcp-helper/" + endpointSuffix + "?" + urlQuery.Encode()
 
-	// Extract required commentContent parameter
 	commentContentVal, exists := params.Arguments["commentContent"]
 	if !exists {
 		logf("Missing required parameter: commentContent")
@@ -1353,7 +1214,6 @@ func handleAddEntityCommentTool(request MCPRequest, params CallToolParams, toolN
 		return
 	}
 
-	// Create HTTP POST request with comment content as body
 	req, err := http.NewRequest("POST", apiURL, strings.NewReader(commentContent))
 	if err != nil {
 		logf("Failed to create request: %v", err)
@@ -1386,15 +1246,8 @@ func handleAddEntityCommentTool(request MCPRequest, params CallToolParams, toolN
 	sendResponse(request.ID, response)
 }
 
-func handleReviewPullRequestTool(request MCPRequest, params CallToolParams) {
-	logf("Handling reviewPullRequest tool call")
-
-	currentProject, err := getCurrentProject()
-	if err != nil {
-		logf("Failed to get current project: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInvalidParams, "Failed to get current project: "+err.Error())
-		return
-	}
+func handleProcessPullRequestTool(request MCPRequest, params CallToolParams) {
+	logf("Handling processPullRequest tool call")
 
 	reference, err := getNonEmptyStringParam(params, "pullRequestReference")
 	if err != nil {
@@ -1403,28 +1256,19 @@ func handleReviewPullRequestTool(request MCPRequest, params CallToolParams) {
 		return
 	}
 
-	approvedVal, exists := params.Arguments["approved"]
+	operationVal, exists := params.Arguments["operation"]
 	if !exists {
-		logf("Missing required parameter: approved")
-		sendError(request.ID, ErrorCodeInvalidParams, "Missing required parameter: approved")
+		logf("Missing required parameter: operation")
+		sendError(request.ID, ErrorCodeInvalidParams, "Missing required parameter: operation")
 		return
 	}
 
-	approved, ok := approvedVal.(bool)
+	operation, ok := operationVal.(string)
 	if !ok {
-		logf("Invalid type for approved parameter: expected boolean")
-		sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for approved parameter: expected boolean")
+		logf("Invalid type for operation parameter: expected string")
+		sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for operation parameter: expected string")
 		return
 	}
-
-	urlQuery := url.Values{
-		"currentProject": {currentProject},
-		"reference":      {reference},
-		"approved":       {fmt.Sprintf("%t", approved)},
-	}
-
-	// Build the API URL
-	apiURL := globalConfig.Server + "/~api/mcp-helper/review-pull-request?" + urlQuery.Encode()
 
 	comment := ""
 	commentVal, exists := params.Arguments["comment"]
@@ -1436,6 +1280,21 @@ func handleReviewPullRequestTool(request MCPRequest, params CallToolParams) {
 			return
 		}
 	}
+
+	currentProject, err := getCurrentProject()
+	if err != nil {
+		logf("Failed to get current project: %v", err)
+		sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
+		return
+	}
+
+	urlQuery := url.Values{
+		"currentProject": {currentProject},
+		"reference":      {reference},
+		"operation":      {operation},
+	}
+
+	apiURL := config.ServerUrl + "/~api/mcp-helper/process-pull-request?" + urlQuery.Encode()
 
 	// Create HTTP POST request with comment content as body
 	req, err := http.NewRequest("POST", apiURL, strings.NewReader(comment))
@@ -1466,19 +1325,12 @@ func handleReviewPullRequestTool(request MCPRequest, params CallToolParams) {
 		},
 	}
 
-	logf("reviewPullRequest tool call successful")
+	logf("processPullRequest tool call successful")
 	sendResponse(request.ID, response)
 }
 
 func handleLogWorkTool(request MCPRequest, params CallToolParams) {
 	logf("Handling logWork tool call")
-
-	currentProject, err := getCurrentProject()
-	if err != nil {
-		logf("Failed to get current project: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInvalidParams, "Failed to get current project: "+err.Error())
-		return
-	}
 
 	issueReference, err := getNonEmptyStringParam(params, "issueReference")
 	if err != nil {
@@ -1513,13 +1365,20 @@ func handleLogWorkTool(request MCPRequest, params CallToolParams) {
 		}
 	}
 
+	currentProject, err := getCurrentProject()
+	if err != nil {
+		logf("Failed to get current project: %v", err)
+		sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
+		return
+	}
+
 	var urlQuery = url.Values{
 		"currentProject": {currentProject},
 		"reference":      {issueReference},
 		"spentHours":     {fmt.Sprintf("%d", int64(spentHours))},
 	}
 	// Build the API URL
-	apiURL := globalConfig.Server + "/~api/mcp-helper/log-work?" + urlQuery.Encode()
+	apiURL := config.ServerUrl + "/~api/mcp-helper/log-work?" + urlQuery.Encode()
 
 	// Create HTTP POST request with comment content as body
 	req, err := http.NewRequest("POST", apiURL, strings.NewReader(comment))
@@ -1554,23 +1413,28 @@ func handleLogWorkTool(request MCPRequest, params CallToolParams) {
 	sendResponse(request.ID, response)
 }
 
-func handleCreateEntityTool(request MCPRequest, params CallToolParams, toolName string,
+func handleCreateIssueTool(request MCPRequest, params CallToolParams, toolName string,
 	endpointSuffix string) {
 
 	logf("Handling %s tool call", toolName)
 
-	currentProject, err := getCurrentProject()
-	if err != nil {
-		logf("Failed to get current project: %v", err)
-		sendError(request.ID, ErrorCodeInvalidParams, "Failed to get current project: "+err.Error())
-		return
-	}
-
 	entityMap := make(map[string]interface{})
 
-	// Extract all parameters from arguments
+	var project string
+	if projectArg, exists := params.Arguments["project"]; exists {
+		var ok bool
+		project, ok = projectArg.(string)
+		if !ok {
+			logf("Invalid type for project parameter: expected string")
+			sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for project parameter: expected string")
+			return
+		}
+	}
+
 	for paramName, paramValue := range params.Arguments {
-		entityMap[paramName] = paramValue
+		if paramName != "project" {
+			entityMap[paramName] = paramValue
+		}
 	}
 
 	entityBytes, err := json.Marshal(entityMap)
@@ -1581,8 +1445,19 @@ func handleCreateEntityTool(request MCPRequest, params CallToolParams, toolName 
 	}
 	entityData := string(entityBytes)
 
-	// Build the API URL
-	apiURL := globalConfig.Server + "/~api/mcp-helper/" + endpointSuffix + "?currentProject=" + url.QueryEscape(currentProject)
+	currentProject, err := getCurrentProject()
+	if err != nil {
+		logf("Failed to get current project: %v", err)
+		sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
+		return
+	}
+
+	var urlQuery = url.Values{
+		"project":        {project},
+		"currentProject": {currentProject},
+	}
+
+	apiURL := config.ServerUrl + "/~api/mcp-helper/" + endpointSuffix + "?" + urlQuery.Encode()
 
 	req, err := http.NewRequest("POST", apiURL, strings.NewReader(entityData))
 	if err != nil {
@@ -1613,17 +1488,96 @@ func handleCreateEntityTool(request MCPRequest, params CallToolParams, toolName 
 	sendResponse(request.ID, response)
 }
 
-func handleEditEntityTool(request MCPRequest, params CallToolParams, toolName string,
-	endpointSuffix string, referenceParamName string) {
+func handleCreatePullRequestTool(request MCPRequest, params CallToolParams) {
 
-	logf("Handling %s tool call", toolName)
+	logf("Handling createPullRequest tool call")
+
+	entityMap := make(map[string]interface{})
+
+	var targetProject string
+	if targetProjectArg, exists := params.Arguments["targetProject"]; exists {
+		var ok bool
+		targetProject, ok = targetProjectArg.(string)
+		if !ok {
+			logf("Invalid type for targetProject parameter: expected string")
+			sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for targetProject parameter: expected string")
+			return
+		}
+	}
+
+	var sourceProject string
+	if sourceProjectArg, exists := params.Arguments["sourceProject"]; exists {
+		var ok bool
+		sourceProject, ok = sourceProjectArg.(string)
+		if !ok {
+			logf("Invalid type for sourceProject parameter: expected string")
+			sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for sourceProject parameter: expected string")
+			return
+		}
+	}
+
+	for paramName, paramValue := range params.Arguments {
+		if paramName != "targetProject" && paramName != "sourceProject" {
+			entityMap[paramName] = paramValue
+		}
+	}
+
+	entityBytes, err := json.Marshal(entityMap)
+	if err != nil {
+		logf("Failed to marshal map to JSON: %v", createErrorString(err))
+		sendError(request.ID, ErrorCodeInternalError, "Failed to marshal map to JSON: "+err.Error())
+		return
+	}
+	entityData := string(entityBytes)
 
 	currentProject, err := getCurrentProject()
 	if err != nil {
 		logf("Failed to get current project: %v", err)
-		sendError(request.ID, ErrorCodeInvalidParams, "Failed to get current project: "+err.Error())
+		sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
 		return
 	}
+
+	var urlQuery = url.Values{
+		"targetProject":  {targetProject},
+		"sourceProject":  {sourceProject},
+		"currentProject": {currentProject},
+	}
+
+	apiURL := config.ServerUrl + "/~api/mcp-helper/create-pull-request?" + urlQuery.Encode()
+
+	req, err := http.NewRequest("POST", apiURL, strings.NewReader(entityData))
+	if err != nil {
+		logf("Failed to create request: %v", createErrorString(err))
+		sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
+		return
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	body, err := makeAPICall(req)
+	if err != nil {
+		logf("Failed to make API call: %v", createErrorString(err))
+		sendError(request.ID, ErrorCodeInternalError, "Failed to make API call: "+err.Error())
+		return
+	}
+
+	response := CallToolResult{
+		Content: []ToolContent{
+			{
+				Type: "text",
+				Text: string(body),
+			},
+		},
+	}
+
+	logf("createPullRequest tool call successful")
+	sendResponse(request.ID, response)
+}
+
+func handleEditEntityTool(request MCPRequest, params CallToolParams, toolName string,
+	endpointSuffix string, referenceParamName string) {
+
+	logf("Handling %s tool call", toolName)
 
 	entityMap := make(map[string]interface{})
 
@@ -1649,13 +1603,20 @@ func handleEditEntityTool(request MCPRequest, params CallToolParams, toolName st
 		return
 	}
 
+	currentProject, err := getCurrentProject()
+	if err != nil {
+		logf("Failed to get current project: %v", err)
+		sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
+		return
+	}
+
 	urlQuery := url.Values{
 		"currentProject": {currentProject},
 		"reference":      {reference},
 	}
 
 	// Build the API URL
-	apiURL := globalConfig.Server + "/~api/mcp-helper/" + endpointSuffix + "?" + urlQuery.Encode()
+	apiURL := config.ServerUrl + "/~api/mcp-helper/" + endpointSuffix + "?" + urlQuery.Encode()
 
 	req, err := http.NewRequest("POST", apiURL, strings.NewReader(entityData))
 	if err != nil {
@@ -1689,13 +1650,6 @@ func handleEditEntityTool(request MCPRequest, params CallToolParams, toolName st
 func handleTransitIssueTool(request MCPRequest, params CallToolParams) {
 	logf("Handling transitIssue tool call")
 
-	currentProject, err := getCurrentProject()
-	if err != nil {
-		logf("Failed to get current project: %v", err)
-		sendError(request.ID, ErrorCodeInvalidParams, "Failed to get current project: "+err.Error())
-		return
-	}
-
 	issueMap := make(map[string]interface{})
 
 	// Extract all parameters from arguments
@@ -1720,12 +1674,19 @@ func handleTransitIssueTool(request MCPRequest, params CallToolParams) {
 		return
 	}
 
+	currentProject, err := getCurrentProject()
+	if err != nil {
+		logf("Failed to get current project: %v", err)
+		sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
+		return
+	}
+
 	urlQuery := url.Values{
 		"currentProject": {currentProject},
 		"reference":      {issueReference},
 	}
 	// Build the API URL
-	apiURL := globalConfig.Server + "/~api/mcp-helper/transit-issue?" + urlQuery.Encode()
+	apiURL := config.ServerUrl + "/~api/mcp-helper/transit-issue?" + urlQuery.Encode()
 
 	req, err := http.NewRequest("POST", apiURL, strings.NewReader(issueData))
 	if err != nil {
@@ -1759,13 +1720,6 @@ func handleTransitIssueTool(request MCPRequest, params CallToolParams) {
 func handleLinkIssuesTool(request MCPRequest, params CallToolParams) {
 	logf("Handling linkIssues tool call")
 
-	currentProject, err := getCurrentProject()
-	if err != nil {
-		logf("Failed to get current project: %v", err)
-		sendError(request.ID, ErrorCodeInvalidParams, "Failed to get current project: "+err.Error())
-		return
-	}
-
 	sourceReference, err := getNonEmptyStringParam(params, "sourceIssueReference")
 	if err != nil {
 		logf("Failed to extract source issue reference: %v", createErrorString(err))
@@ -1791,13 +1745,20 @@ func handleLinkIssuesTool(request MCPRequest, params CallToolParams) {
 		return
 	}
 
+	currentProject, err := getCurrentProject()
+	if err != nil {
+		logf("Failed to get current project: %v", err)
+		sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
+		return
+	}
+
 	urlQuery := url.Values{
 		"currentProject":  {currentProject},
 		"sourceReference": {sourceReference},
 		"targetReference": {targetReference},
 		"linkName":        {linkName},
 	}
-	apiURL := globalConfig.Server + "/~api/mcp-helper/link-issues?" + urlQuery.Encode()
+	apiURL := config.ServerUrl + "/~api/mcp-helper/link-issues?" + urlQuery.Encode()
 
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
@@ -1848,7 +1809,7 @@ func handleToolsCall(request MCPRequest) {
 	case "getIssueComments":
 		handleGetEntityDataTool(request, params, "getIssueComments", "get-issue-comments", "issueReference")
 	case "createIssue":
-		handleCreateEntityTool(request, params, "createIssue", "create-issue")
+		handleCreateIssueTool(request, params, "createIssue", "create-issue")
 	case "editIssue":
 		handleEditEntityTool(request, params, "editIssue", "edit-issue", "issueReference")
 	case "transitIssue":
@@ -1870,19 +1831,21 @@ func handleToolsCall(request MCPRequest) {
 	case "getPullRequestFileChanges":
 		handleGetPullRequestFileChangesTool(request, params)
 	case "createPullRequest":
-		handleCreateEntityTool(request, params, "createPullRequest", "create-pull-request")
+		handleCreatePullRequestTool(request, params)
 	case "editPullRequest":
 		handleEditEntityTool(request, params, "editPullRequest", "edit-pull-request", "pullRequestReference")
-	case "reviewPullRequest":
-		handleReviewPullRequestTool(request, params)
+	case "processPullRequest":
+		handleProcessPullRequestTool(request, params)
 	case "addPullRequestComment":
 		handleAddEntityCommentTool(request, params, "addPullRequestComment", "add-pull-request-comment", "pullRequestReference")
 	case "checkoutPullRequest":
 		handleCheckoutPullRequestTool(request, params)
-	case "getWorkingDir":
-		handleGetWorkingDirTool(request)
 	case "getCurrentProject":
 		handleGetCurrentProjectTool(request)
+	case "getWorkingDir":
+		handleGetWorkingDirTool(request)
+	case "setWorkingDir":
+		handleSetWorkingDirTool(request, params)
 	case "getLoginName":
 		handleGetLoginNameTool(request, params)
 	case "getUnixTimestamp":
@@ -1891,152 +1854,6 @@ func handleToolsCall(request MCPRequest) {
 		logf("Unknown tool requested: %s", params.Name)
 		sendError(request.ID, ErrorCodeInvalidParams, "Unknown tool: "+params.Name)
 	}
-}
-
-func makeAPICall(req *http.Request) ([]byte, error) {
-	req.Header.Set("Authorization", "Bearer "+globalConfig.Token)
-
-	// Make the HTTP request
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, &APIError{
-			StatusCode: -1,
-			Endpoint:   req.URL.String(),
-			Response:   fmt.Sprintf("failed to call API: %v", err),
-		}
-	}
-	defer resp.Body.Close()
-
-	// Check response status
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, &APIError{
-			StatusCode: resp.StatusCode,
-			Endpoint:   req.URL.String(),
-			Response:   string(body),
-		}
-	}
-
-	// Read response body
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, &APIError{
-			StatusCode: -1,
-			Endpoint:   req.URL.String(),
-			Response:   fmt.Sprintf("failed to read response: %v", err),
-		}
-	}
-
-	return body, nil
-}
-
-func getJSONMapFromAPI(apiURL string) (map[string]interface{}, error) {
-	req, err := http.NewRequest("GET", apiURL, nil)
-	if err != nil {
-		return nil, &APIError{
-			StatusCode: -1,
-			Endpoint:   apiURL,
-			Response:   fmt.Sprintf("failed to create request: %v", err),
-		}
-	}
-
-	// Make the API call
-	body, err := makeAPICall(req)
-	if err != nil {
-		return nil, err
-	}
-
-	// Parse JSON response
-	var jsonData map[string]interface{}
-	if err := json.Unmarshal(body, &jsonData); err != nil {
-		return nil, &APIError{
-			StatusCode: -1,
-			Endpoint:   apiURL,
-			Response:   fmt.Sprintf("failed to parse JSON response: %v", err),
-		}
-	}
-
-	return jsonData, nil
-}
-
-// getArgumentsForPrompt converts JSON data from prompt arguments API to PromptArgument array
-// Returns an empty PromptArgument array if the prompt is not found or conversion fails
-func getArgumentsForPrompt(promptName string, arguments map[string]interface{}) []PromptArgument {
-	// Extract the prompt-specific arguments array
-	promptArgumentsVal, exists := arguments[promptName]
-	if !exists {
-		logf("Prompt '%s' not found in prompt arguments data", promptName)
-		sendError(nil, ErrorCodeInternalError, fmt.Sprintf("Prompt '%s' not found in prompt arguments data", promptName))
-		return []PromptArgument{}
-	}
-
-	promptArgumentsSlice, ok := promptArgumentsVal.([]interface{})
-	if !ok {
-		message := fmt.Sprintf("Arguments for prompt '%s' is not an array, got %T", promptName, promptArgumentsVal)
-		logf(message)
-		sendError(nil, ErrorCodeInternalError, message)
-		return []PromptArgument{}
-	}
-
-	var promptArguments []PromptArgument
-	for i, argVal := range promptArgumentsSlice {
-		argMap, ok := argVal.(map[string]interface{})
-		if !ok {
-			message := fmt.Sprintf("Argument at index %d for prompt '%s' is not a map[string]interface{}, got %T", i, promptName, argVal)
-			logf(message)
-			sendError(nil, ErrorCodeInternalError, message)
-			return []PromptArgument{}
-		}
-
-		// Extract name (required)
-		nameVal, nameExists := argMap["name"]
-		if !nameExists {
-			message := fmt.Sprintf("Argument at index %d for prompt '%s' is missing 'name' field", i, promptName)
-			logf(message)
-			sendError(nil, ErrorCodeInternalError, message)
-			return []PromptArgument{}
-		}
-		name, ok := nameVal.(string)
-		if !ok {
-			message := fmt.Sprintf("Argument at index %d for prompt '%s' has invalid 'name' field - must be a string, got %T", i, promptName, nameVal)
-			logf(message)
-			sendError(nil, ErrorCodeInternalError, message)
-			return []PromptArgument{}
-		}
-
-		// Extract description (optional)
-		var description string
-		if descVal, exists := argMap["description"]; exists {
-			if descStr, ok := descVal.(string); ok {
-				description = descStr
-			}
-		}
-
-		// Extract required (required)
-		requiredVal, requiredExists := argMap["required"]
-		if !requiredExists {
-			message := fmt.Sprintf("Argument at index %d for prompt '%s' is missing 'required' field", i, promptName)
-			logf(message)
-			sendError(nil, ErrorCodeInternalError, message)
-			return []PromptArgument{}
-		}
-		required, ok := requiredVal.(bool)
-		if !ok {
-			message := fmt.Sprintf("Argument at index %d for prompt '%s' has invalid 'required' field - must be a boolean, got %T", i, promptName, requiredVal)
-			logf(message)
-			sendError(nil, ErrorCodeInternalError, message)
-			return []PromptArgument{}
-		}
-
-		promptArguments = append(promptArguments, PromptArgument{
-			Name:        name,
-			Description: description,
-			Required:    required,
-		})
-	}
-
-	return promptArguments
 }
 
 // getInputSchemaForTool retrieves and converts a tool's input schema from the schemas map

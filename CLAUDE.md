@@ -44,8 +44,14 @@ go test -v  # verbose output
 
 ### Run
 ```bash
-# Basic exec command
-./tod exec -project <project-url> -token <access-token> -workdir <git-directory> <job-name>
+# Basic run command
+./tod --project-url <project-url> --access-token <access-token> --working-dir <git-directory> run <job-name>
+
+# Using config file for common options
+./tod run <job-name>
+
+# Override specific config values
+./tod --access-token <access-token> run <job-name>
 
 # MCP server mode
 ./tod mcp -server <server-url> -token <access-token>
@@ -58,11 +64,12 @@ go test -v  # verbose output
 
 ### Config Format (INI)
 ```ini
-[exec]
-project=https://onedev.example.com/my/project
-token=<generated-access-token>
-workdir=/path/to/project
-param.db=postgres
+project-url=https://onedev.example.com/my/project
+access-token=<generated-access-token>
+working-dir=/path/to/project
+param.database-type=postgres
+param.environment-name=production
+param.cache-enabled=true
 ```
 
 ### Required Files in Working Directory

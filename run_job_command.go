@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -18,19 +17,15 @@ import (
 	"sync"
 	"syscall"
 
-	"gopkg.in/ini.v1"
+	"github.com/spf13/cobra"
 )
 
 const (
 	refName     = "refs/onedev/tod"
-	execSection = "exec"
-	projectKey  = "project"
-	workdirKey  = "workdir"
-	tokenKey    = "token"
 	paramPrefix = "param."
 )
 
-type ExecCommand struct {
+type RunJobCommand struct {
 }
 
 type ParamMap map[string][]string
@@ -46,22 +41,29 @@ func (p ParamMap) String() string {
 
 func (p ParamMap) Set(value string) error {
 	parts := strings.Split(value, "=")
-	if len(parts) == 2 {
-		key := strings.TrimSpace(parts[0])
-		valuesString := strings.TrimSpace(parts[1])
-		if len(valuesString) == 0 {
-			delete(p, key)
-		} else {
-			values := strings.Split(valuesString, ",")
-			for i := range values {
-				values[i] = strings.TrimSpace(values[i])
-			}
-			p[key] = values
-		}
-		return nil
-	} else {
-		return fmt.Errorf("invalid parameter format: %s", value)
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid parameter format (expected key=value): %s", value)
 	}
+
+	key := strings.TrimSpace(parts[0])
+	val := strings.TrimSpace(parts[1])
+
+	if len(key) == 0 {
+		return fmt.Errorf("parameter key cannot be empty: %s", value)
+	}
+
+	if len(val) == 0 {
+		return fmt.Errorf("parameter value cannot be empty: %s", value)
+	}
+
+	// Append to existing values instead of replacing
+	if existingValues, exists := p[key]; exists {
+		p[key] = append(existingValues, val)
+	} else {
+		p[key] = []string{val}
+	}
+
+	return nil
 }
 
 type FilteredWriter struct {
@@ -84,111 +86,55 @@ func (fw *FilteredWriter) Write(p []byte) (n int, err error) {
 var buildFinished bool
 var mutex sync.Mutex
 
-func (execCommand ExecCommand) Execute(args []string) {
-	homeDir, err := os.UserHomeDir()
+// Execute executes the run job command
+func (runJobCommand RunJobCommand) Execute(cobraCmd *cobra.Command, args []string) {
+	// Extract job name from arguments
+	if len(args) != 1 {
+		fmt.Fprintln(os.Stderr, "Error: exactly one job name is required")
+		os.Exit(1)
+	}
+	jobName := args[0]
+
+	// Get working directory from command flag, default to current directory
+	workingDir, _ := cobraCmd.Flags().GetString("working-dir")
+	if workingDir == "" {
+		workingDir = "."
+	}
+
+	// Get command line parameters
+	paramArray, err := cobraCmd.Flags().GetStringArray("param")
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Error getting user home:", err)
+		fmt.Fprintln(os.Stderr, "Error getting parameters:", err)
 		os.Exit(1)
 	}
 
-	// Define path to the INI configuration file
-	configFilePath := filepath.Join(homeDir, ".tod/config")
-
-	project := ""
-	workdir := ""
-	token := ""
 	params := make(ParamMap)
 
-	if _, err := os.Stat(configFilePath); !os.IsNotExist(err) {
-		cfg, err := ini.Load(configFilePath)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "Error reading config file:", err)
+	// Parse parameter array into ParamMap
+	for _, paramStr := range paramArray {
+		if err := params.Set(paramStr); err != nil {
+			fmt.Fprintln(os.Stderr, "Error parsing parameter:", err)
 			os.Exit(1)
 		}
-
-		section := cfg.Section(execSection)
-
-		project = section.Key(projectKey).String()
-		workdir = section.Key(workdirKey).String()
-		token = section.Key(tokenKey).String()
-
-		for _, key := range section.Keys() {
-			if strings.HasPrefix(key.Name(), paramPrefix) {
-				paramName := strings.TrimPrefix(key.Name(), paramPrefix)
-				paramValues := strings.Split(key.Value(), ",")
-				params[paramName] = paramValues
-			}
-		}
 	}
 
-	fs := flag.NewFlagSet("exec", flag.ExitOnError)
-	fs.StringVar(&project, "project", project, "Specify project url, for instance: https://onedev.example.com/your/project")
-	fs.StringVar(&workdir, "workdir", workdir, "Specify working directory to run job against")
-	fs.StringVar(&token, "token", token, "Specify access token with permission to run specified job")
-	fs.Var(&params, "param", "Specify job parameters in form of key=value")
-
-	fs.Parse(args)
-
-	if project == "" {
-		fmt.Fprintln(os.Stderr, "Missing project url. Check https://code.onedev.io/onedev/tod for details")
-		os.Exit(1)
-	}
-
-	if token == "" {
-		fmt.Fprintln(os.Stderr, "Missing access token. Check https://code.onedev.io/onedev/tod for details")
-		os.Exit(1)
-	}
-
-	if fs.NArg() < 1 {
-		fmt.Fprintln(os.Stderr, "Missing job name. Check https://code.onedev.io/onedev/tod for details")
-		os.Exit(1)
-	}
-
-	jobName := fs.Arg(0)
-
-	if workdir == "" {
-		workdir = "."
-	}
-
-	absoluteWorkdir, err := filepath.Abs(workdir)
+	// Derive project path from working directory
+	project, err := inferProject(workingDir)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Error getting absolute path:", err)
+		fmt.Fprintln(os.Stderr, "Error getting project from working directory:", err)
 		os.Exit(1)
 	}
 
-	gitDir := filepath.Join(absoluteWorkdir, ".git")
-	if _, err := os.Stat(gitDir); os.IsNotExist(err) {
-		fmt.Fprintln(os.Stderr, "Invalid workdir: not a git working directory:", absoluteWorkdir)
-		os.Exit(1)
-	}
+	// Construct project URL from server URL and project path
+	projectUrl := config.ServerUrl + "/" + project
 
-	buildSpecFile := filepath.Join(absoluteWorkdir, ".onedev-buildspec.yml")
+	buildSpecFile := filepath.Join(workingDir, ".onedev-buildspec.yml")
 	if _, err := os.Stat(buildSpecFile); os.IsNotExist(err) {
-		fmt.Fprintln(os.Stderr, "Invalid workdir: OneDev build spec not found:", absoluteWorkdir)
+		fmt.Fprintln(os.Stderr, "Invalid working dir: OneDev build spec not found:", workingDir)
 		os.Exit(1)
 	}
 
-	hostIndex := strings.Index(project, "://") + 3
-	if hostIndex == -1 {
-		fmt.Fprintln(os.Stderr, "Invalid project url:", project)
-		os.Exit(1)
-	}
-
-	pathIndex := strings.Index(project[hostIndex:], "/") + 1
-	if pathIndex == 0 {
-		fmt.Fprintln(os.Stderr, "Invalid project url:", project)
-		os.Exit(1)
-	}
-
-	serverUrl := project[:hostIndex+pathIndex-1]
-	projectPath := project[hostIndex+pathIndex:]
-
-	if projectPath == "" {
-		fmt.Fprintln(os.Stderr, "Invalid project url:", project)
-		os.Exit(1)
-	}
-
-	err = checkVersion(serverUrl, token)
+	err = checkVersion(config.ServerUrl, config.AccessToken)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Error checking version:", err)
 		os.Exit(1)
@@ -197,11 +143,11 @@ func (execCommand ExecCommand) Execute(args []string) {
 	client := http.Client{}
 
 	query := url.Values{}
-	query.Set("query", fmt.Sprintf("\"Path\" is \"%s\"", projectPath))
+	query.Set("query", fmt.Sprintf("\"Path\" is \"%s\"", project))
 	query.Set("offset", "0")
 	query.Set("count", "1")
 
-	targetUrl, err := url.Parse(serverUrl)
+	targetUrl, err := url.Parse(config.ServerUrl)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Error parsing server url", err)
 		os.Exit(1)
@@ -215,7 +161,7 @@ func (execCommand ExecCommand) Execute(args []string) {
 		os.Exit(1)
 	}
 
-	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Authorization", "Bearer "+config.AccessToken)
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -238,7 +184,7 @@ func (execCommand ExecCommand) Execute(args []string) {
 	}
 
 	if len(projects) == 0 {
-		fmt.Fprintln(os.Stderr, "Project not found on server:", projectPath)
+		fmt.Fprintln(os.Stderr, "Project not found on server:", project)
 		os.Exit(1)
 	}
 
@@ -247,7 +193,7 @@ func (execCommand ExecCommand) Execute(args []string) {
 	fmt.Println("Collecting local changes...")
 
 	cmd := exec.Command("git", "stash", "create")
-	cmd.Dir = absoluteWorkdir
+	cmd.Dir = workingDir
 	cmd.Stderr = os.Stderr
 
 	out, err := cmd.Output()
@@ -260,7 +206,7 @@ func (execCommand ExecCommand) Execute(args []string) {
 
 	if runCommit == "" {
 		cmd := exec.Command("git", "rev-parse", "HEAD")
-		cmd.Dir = absoluteWorkdir
+		cmd.Dir = workingDir
 		cmd.Stderr = os.Stderr
 
 		out, err := cmd.Output()
@@ -274,8 +220,8 @@ func (execCommand ExecCommand) Execute(args []string) {
 
 	fmt.Println("Sending local changes to server...")
 
-	cmd = exec.Command("git", "-c", "http.extraHeader=Authorization: Bearer "+token, "push", "-f", project, runCommit+":"+refName)
-	cmd.Dir = absoluteWorkdir
+	cmd = exec.Command("git", "-c", "http.extraHeader=Authorization: Bearer "+config.AccessToken, "push", "-f", projectUrl, runCommit+":"+refName)
+	cmd.Dir = workingDir
 
 	cmd.Stderr = &FilteredWriter{}
 
@@ -306,7 +252,7 @@ func (execCommand ExecCommand) Execute(args []string) {
 		os.Exit(1)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Authorization", "Bearer "+config.AccessToken)
 
 	resp, err = client.Do(req)
 	if err != nil {
@@ -339,14 +285,14 @@ func (execCommand ExecCommand) Execute(args []string) {
 			fmt.Println("Cancelling build...")
 			client := &http.Client{}
 
-			targetUrl := fmt.Sprintf("%s/~api/job-runs/%v", serverUrl, buildId)
+			targetUrl := fmt.Sprintf("%s/~api/job-runs/%v", config.ServerUrl, buildId)
 
 			req, err := http.NewRequest("DELETE", targetUrl, nil)
 			if err != nil {
 				fmt.Fprintln(os.Stderr, "Error cancelling build:", err)
 				return
 			}
-			req.Header.Set("Authorization", "Bearer "+token)
+			req.Header.Set("Authorization", "Bearer "+config.AccessToken)
 
 			resp, err := client.Do(req)
 			if err != nil {
@@ -370,7 +316,7 @@ func (execCommand ExecCommand) Execute(args []string) {
 		fmt.Fprintln(os.Stderr, "Error streaming build log:", err)
 		os.Exit(1)
 	}
-	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Authorization", "Bearer "+config.AccessToken)
 
 	resp, err = client.Do(req)
 	if err != nil {

@@ -27,10 +27,10 @@ Tod is able to run CI/CD job against uncommitted code in your working directory 
 The syntax to build against local change is: 
 
 ```bash
-tod exec -project <project url> -token <access token> -workdir <git working directory of the project> -param <name1>=<value1> -param <name2>=<value2> <job name>
+tod --project-url <project url> --access-token <access token> --working-dir <git working directory of the project> run --param <name1>=<value1> --param <name2>=<value2> <job name>
 ```
 
-If option `-workdir` is not specified, it will default to current directory. Other options are required if not already defined in config file (more on this later). 
+If option `--working-dir` is not specified, it will default to current directory. Other options are required if not already defined in config file (more on this later). 
 
 Upon running the command, the terminal will display live log of the job, and you may press ctrl-c to terminate the command and the job will also be cancelled. 
 
@@ -50,7 +50,7 @@ Check [Nginx setup](https://docs.onedev.io/administration-guide/reverse-proxy-se
 Assume we have a OneDev project `https://onedev.example.com/my/project`. Build spec of the project defines a job `ci` with param `db` indicating database to test against. The project is cloned to directory `/path/to/my/project` for local development. To run job `ci` against local change in this directory, we first need to generate an personal access token from your account at OneDev, then run below command:
 
 ```bash
-tod exec -project https://onedev.example.com/my/project -token <generated-access-token> -workdir /path/to/my/project -param db=<db type> ci
+tod --project-url https://onedev.example.com/my/project --access-token <generated-access-token> --working-dir /path/to/my/project run --param database-type=<db type> --param environment-name=production ci
 ```
 
 ### Config File
@@ -58,14 +58,14 @@ tod exec -project https://onedev.example.com/my/project -token <generated-access
 We can put all or some of above options into file `$HOME/.tod/config` to avoid repeating them each time running the command. For instance, we can create the file with below content:
 
 ```ini
-[exec]
-project=https://onedev.example.com/my/project
-token=<generated-access-token>
-workdir=/path/to/my/project
-param.db=<db type>
+project-url=https://onedev.example.com/my/project
+access-token=<generated-access-token>
+working-dir=/path/to/my/project
+param.database-type=<db type>
+param.environment-name=development
 ```
 
-Now we can simply run `tod exec ci` to execute the job. We can still specify options though, and they will override same options specified in config file
+Now we can simply run `tod run ci` to execute the job. We can still specify options though, and they will override same options specified in config file
 
 ### Security 
 
