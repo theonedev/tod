@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/Masterminds/semver"
 )
@@ -342,6 +344,116 @@ func checkResponse(resp *http.Response) error {
 	}
 }
 
+func runJob(project string, currentProject string, jobMap map[string]interface{},
+	logger *log.Logger) (map[string]interface{}, error) {
+
+	jobBytes, err := json.Marshal(jobMap)
+	if err != nil {
+		logger.Printf("Failed to marshal map to JSON: %v", createErrorString(err))
+		return nil, fmt.Errorf("failed to marshal map to JSON: %w", err)
+	}
+	jobData := string(jobBytes)
+
+	var urlQuery = url.Values{
+		"project":        {project},
+		"currentProject": {currentProject},
+	}
+
+	apiURL := config.ServerUrl + "/~api/mcp-helper/run-job?" + urlQuery.Encode()
+
+	req, err := http.NewRequest("POST", apiURL, strings.NewReader(jobData))
+	if err != nil {
+		logger.Printf("Failed to create request: %v", createErrorString(err))
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	body, err := makeAPICall(req)
+	if err != nil {
+		logger.Printf("Failed to make API call: %v", createErrorString(err))
+		return nil, fmt.Errorf("failed to make API call: %w", err)
+	}
+
+	var build map[string]interface{}
+	if err := json.Unmarshal(body, &build); err != nil {
+		logger.Printf("Failed to parse JSON response: %v", err)
+		return nil, fmt.Errorf("failed to parse JSON response: %w", err)
+	}
+
+	return build, nil
+}
+
+func runLocalJob(jobName string, workingDir string, params map[string][]string,
+	reason string, logger *log.Logger) (map[string]interface{}, error) {
+
+	if workingDir == "" {
+		workingDir = "."
+	}
+
+	// Derive project path from working directory
+	project, err := inferProject(workingDir)
+	if err != nil {
+		return nil, fmt.Errorf("error getting project from working directory: %w", err)
+	}
+
+	// Construct project URL from server URL and project path
+	projectUrl := config.ServerUrl + "/" + project
+
+	buildSpecFile := filepath.Join(workingDir, ".onedev-buildspec.yml")
+	if _, err := os.Stat(buildSpecFile); os.IsNotExist(err) {
+		return nil, fmt.Errorf("invalid working dir: OneDev build spec not found: %s", workingDir)
+	}
+
+	// Collect local changes
+	cmd := exec.Command("git", "stash", "create")
+	cmd.Dir = workingDir
+
+	logger.Printf("Running command: git stash create\n")
+	out, err := cmd.CombinedOutput()
+	logger.Printf("Command output:\n%s", string(out))
+	if err != nil {
+		return nil, fmt.Errorf("error executing git stash create: %w", err)
+	}
+
+	runCommit := strings.TrimSpace(string(out))
+
+	if runCommit == "" {
+		cmd := exec.Command("git", "rev-parse", "HEAD")
+		cmd.Dir = workingDir
+
+		logger.Printf("Running command: git rev-parse HEAD\n")
+		out, err := cmd.CombinedOutput()
+		logger.Printf("Command output:\n%s", string(out))
+		if err != nil {
+			return nil, fmt.Errorf("error executing git rev-parse HEAD: %w", err)
+		}
+
+		runCommit = strings.TrimSpace(string(out))
+	}
+
+	// Push local changes to server
+	cmd = exec.Command("git", "-c", "http.extraHeader=Authorization: Bearer "+config.AccessToken, "push", "-f", projectUrl, runCommit+":refs/onedev/tod")
+	cmd.Dir = workingDir
+
+	logger.Printf("Running command: git push -f %s %s:refs/onedev/tod\n", projectUrl, runCommit)
+	stdoutStderr, err := cmd.CombinedOutput()
+	logger.Printf("Command output:\n%s", string(stdoutStderr))
+	if err != nil {
+		return nil, fmt.Errorf("error pushing local changes: %w", err)
+	}
+
+	jobMap := map[string]interface{}{
+		"commitHash": runCommit,
+		"refName":    "refs/onedev/tod",
+		"jobName":    jobName,
+		"params":     params,
+		"reason":     reason,
+	}
+
+	return runJob(project, project, jobMap, logger)
+}
+
 func checkVersion(serverUrl string, accessToken string) error {
 	// Make a GET request to the API endpoint
 	client := &http.Client{}
@@ -413,4 +525,137 @@ func checkVersion(serverUrl string, accessToken string) error {
 	} else {
 		return fmt.Errorf("this server requires version <= %s, please download from https://code.onedev.io/onedev/tod/~builds?query=%%22Job%%22+is+%%22Release%%22+and+successful", compatibleVersions.MaxVersion)
 	}
+}
+
+// streamBuildLog streams job logs to stdout/stderr and handles cancellation
+func streamBuildLog(buildId int, signalChannel <-chan os.Signal, buildFinished *bool, mutex *sync.Mutex) error {
+	targetUrl, err := url.Parse(config.ServerUrl)
+	if err != nil {
+		return fmt.Errorf("error parsing server url: %w", err)
+	}
+	targetUrl.Path = fmt.Sprintf("~api/streaming/build-logs/%d", buildId)
+
+	req, err := http.NewRequest("GET", targetUrl.String(), nil)
+	if err != nil {
+		return fmt.Errorf("error streaming build log: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+config.AccessToken)
+
+	client := http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("error streaming build log: %w", err)
+	}
+	defer resp.Body.Close()
+
+	err = checkResponse(resp)
+	if err != nil {
+		return fmt.Errorf("error streaming build log: %w", err)
+	}
+
+	// Handle cancellation in background goroutine
+	go func() {
+		<-signalChannel
+		mutex.Lock()
+		defer mutex.Unlock()
+		if !*buildFinished {
+			fmt.Println("Cancelling build...")
+			client := &http.Client{}
+
+			targetUrl := fmt.Sprintf("%s/~api/job-runs/%d", config.ServerUrl, buildId)
+
+			req, err := http.NewRequest("DELETE", targetUrl, nil)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "Error cancelling build:", err)
+				return
+			}
+			req.Header.Set("Authorization", "Bearer "+config.AccessToken)
+
+			resp, err := client.Do(req)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "Error cancelling build:", err)
+				return
+			}
+			defer resp.Body.Close()
+
+			err = checkResponse(resp)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "Error cancelling build:", err)
+				os.Exit(1)
+			}
+		}
+	}()
+
+	for {
+		var len int32
+		err := binary.Read(resp.Body, binary.BigEndian, &len)
+		if err != nil {
+			return fmt.Errorf("error streaming build log: %w", err)
+		}
+
+		if len > 0 {
+			logEntryBytes := make([]byte, len)
+			_, err := io.ReadFull(resp.Body, logEntryBytes)
+			if err != nil {
+				return fmt.Errorf("error streaming build log: %s", resp.Status)
+			}
+
+			var logEntry map[string]interface{}
+			err = json.Unmarshal(logEntryBytes, &logEntry)
+			if err != nil {
+				return fmt.Errorf("error decoding log entry json: %w", err)
+			}
+
+			line := ""
+			messages := logEntry["messages"].([]interface{})
+			for _, messageNode := range messages {
+				message := messageNode.(map[string]interface{})["text"].(string)
+				styleNode := messageNode.(map[string]interface{})["style"].(map[string]interface{})
+
+				fgColor := styleNode["color"].(string)
+				if fgColor != "fg-default" {
+					message = wrapWithColor(message, fgColor)
+				}
+
+				bgColor := styleNode["backgroundColor"].(string)
+				if bgColor != "bg-default" {
+					message = wrapWithColor(message, bgColor)
+				}
+
+				bold := styleNode["bold"].(bool)
+				if bold {
+					message = wrapWithBold(message)
+				}
+
+				line += message
+			}
+			fmt.Println(line)
+		} else if len < 0 {
+			buildStatusBytes := make([]byte, -len)
+			_, err := io.ReadFull(resp.Body, buildStatusBytes)
+			if err != nil {
+				return fmt.Errorf("error reading build status: %w", err)
+			}
+
+			buildStatus := string(buildStatusBytes)
+
+			var message = "Build is " + strings.ToLower(buildStatus)
+			if buildStatus == "SUCCESSFUL" {
+				mutex.Lock()
+				*buildFinished = true
+				mutex.Unlock()
+				fmt.Println(wrapWithBold(wrapWithGreen(message)))
+				break
+			} else if buildStatus == "FAILED" || buildStatus == "CANCELLED" || buildStatus == "TIMED_OUT" {
+				mutex.Lock()
+				*buildFinished = true
+				mutex.Unlock()
+				fmt.Println(wrapWithBold(wrapWithRed(message)))
+				break
+			} else {
+				fmt.Println(wrapWithBold(message))
+			}
+		}
+	}
+	return nil
 }

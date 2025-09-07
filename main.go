@@ -40,21 +40,28 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 
+		// Check version compatibility with server
+		if err := checkVersion(config.ServerUrl, config.AccessToken); err != nil {
+			return err
+		}
+
 		return nil
 	},
 }
 
-var runJobCmd = &cobra.Command{
-	Use:   "run [job-name]",
+var runLocalJobCmd = &cobra.Command{
+	Use:   "run-local [job-name]",
 	Short: "Run a CI/CD job against local changes",
 	Long: `Run a CI/CD job against your local changes without committing/pushing.
 This command stashes your local changes, pushes them to a temporal ref,
 and streams the job execution logs back to your terminal.`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// Run job command
-		runJobCommand := RunJobCommand{}
-		runJobCommand.Execute(cmd, args)
+		// Run local job command
+		runLocalJobCommand := RunLocalJobCommand{}
+		// Create a logger that prints to stdout
+		logger := log.New(os.Stdout, "[RUN-LOCAL] ", log.LstdFlags)
+		runLocalJobCommand.Execute(cmd, args, logger)
 		return nil
 	},
 }
@@ -71,40 +78,63 @@ var mcpCmd = &cobra.Command{
 	},
 }
 
-var checkoutCmd = &cobra.Command{
+var runJobCmd = &cobra.Command{
+	Use:   "run [job-name]",
+	Short: "Run a CI/CD job against a specific branch or tag",
+	Long: `Run a CI/CD job against a specific branch or tag in the repository.
+Either --branch or --tag must be specified, but not both.`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		// Run job command
+		runJobCommand := RunJobCommand{}
+		// Create a logger that prints to stdout
+		logger := log.New(os.Stdout, "[RUN] ", log.LstdFlags)
+		runJobCommand.Execute(cmd, args, logger)
+		return nil
+	},
+}
+
+var checkoutPullRequestCmd = &cobra.Command{
 	Use:   "checkout [pull-request-reference]",
 	Short: "Checkout a pull request",
 	Long:  `Checkout a pull request by its reference.`,
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Checkout command
-		checkoutCommand := CheckoutCommand{}
+		checkoutPullRequestCommand := CheckoutPullRequestCommand{}
 		// Create a logger that prints to stdout
 		logger := log.New(os.Stdout, "[CHECKOUT] ", log.LstdFlags)
-		checkoutCommand.Execute(cmd, args, logger)
+		checkoutPullRequestCommand.Execute(cmd, args, logger)
 		return nil
 	},
 }
 
 func init() {
 	// Global persistent flags
-	rootCmd.PersistentFlags().String("server-url", "", "Specify OneDev server url, for instance: https://onedev.example.com")
-	rootCmd.PersistentFlags().String("access-token", "", "Specify access token for OneDev server")
+	rootCmd.PersistentFlags().String("server-url", "", "Specify OneDev server url, for instance: https://onedev.example.com. If not specified, it will use the server url specified in config file (<user home>/.tod/config).")
+	rootCmd.PersistentFlags().String("access-token", "", "Specify access token for OneDev server. If not specified, it will use the access token specified in config file (<user home>/.tod/config).")
 
-	// Run command specific flags
-	runJobCmd.Flags().String("working-dir", "", "Specify working directory to run job against (defaults to current directory)")
+	// Run-local command specific flags
+	runLocalJobCmd.Flags().String("working-dir", "", "Specify working directory to run job against (defaults to current directory)")
+	runLocalJobCmd.Flags().StringArrayP("param", "p", nil, "Specify job parameters in form of key=value (can be used multiple times)")
+
+	// Run job command specific flags
+	runJobCmd.Flags().String("project", "", "Specify target project to run job against. If not specified, it will infer project from current directory")
+	runJobCmd.Flags().String("branch", "", "Specify branch to run job against (either --branch or --tag is required)")
+	runJobCmd.Flags().String("tag", "", "Specify tag to run job against (either --branch or --tag is required)")
 	runJobCmd.Flags().StringArrayP("param", "p", nil, "Specify job parameters in form of key=value (can be used multiple times)")
 
 	// Checkout command specific flags
-	checkoutCmd.Flags().String("working-dir", "", "Specify working directory to checkout pull request against (defaults to current directory)")
+	checkoutPullRequestCmd.Flags().String("working-dir", "", "Specify working directory to checkout pull request against (defaults to current directory)")
 
 	// MCP command specific flags
 	mcpCmd.Flags().String("log-file", "", "Specify log file path for debug logging")
 
 	// Add commands to root
+	rootCmd.AddCommand(runLocalJobCmd)
 	rootCmd.AddCommand(runJobCmd)
 	rootCmd.AddCommand(mcpCmd)
-	rootCmd.AddCommand(checkoutCmd)
+	rootCmd.AddCommand(checkoutPullRequestCmd)
 }
 
 func main() {

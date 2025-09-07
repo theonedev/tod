@@ -8,10 +8,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type CheckoutCommand struct {
+type CheckoutPullRequestCommand struct {
 }
 
-func (checkoutCommand CheckoutCommand) Execute(cobraCmd *cobra.Command, args []string, logger *log.Logger) {
+func (checkoutPullRequestCommand CheckoutPullRequestCommand) Execute(cobraCmd *cobra.Command, args []string, logger *log.Logger) {
 	if len(args) != 1 {
 		fmt.Fprintln(os.Stderr, "Error: exactly one pull request reference is required")
 		os.Exit(1)
