@@ -26,7 +26,7 @@ The application uses a command pattern with two main commands:
 
 1. **Git Integration**: Uses git stash/push operations to send local changes to OneDev server
 2. **HTTP Streaming**: Real-time log streaming from OneDev server with binary protocol
-3. **Configuration Management**: INI-based config file at `$HOME/.tod/config`
+3. **Configuration Management**: INI-based config file at `$HOME/.todconfig`
 4. **Signal Handling**: Graceful cancellation of running jobs with Ctrl+C
 
 ## Development Commands
@@ -60,7 +60,7 @@ go test -v  # verbose output
 ## Configuration
 
 ### Config File Location
-`$HOME/.tod/config`
+`$HOME/.todconfig
 
 ### Config Format (INI)
 ```ini

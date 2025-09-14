@@ -511,6 +511,29 @@ func handleToolsList(request MCPRequest) {
 		},
 	})
 
+	tools = append(tools, Tool{
+		Name:        "getPullRequestFileContent",
+		Description: "Get content of specified file in pull request. When review a pull request, AI assistant may use this tool to examine content of some files if needed",
+		InputSchema: InputSchema{
+			Type: "object",
+			Properties: map[string]interface{}{
+				"pullRequestReference": map[string]interface{}{
+					"type":        "string",
+					"description": PullRequestReferenceDesc,
+				},
+				"filePath": map[string]interface{}{
+					"type":        "string",
+					"description": "Path of the file relative to repository root",
+				},
+				"revision": map[string]interface{}{
+					"type":        "string",
+					"description": "Must be one of: initial, latest, lastReviewed. Initial revision means the revision before pull request change; latest revision means the revision after pull request change; lastReviewed revision means the revision last reviewed",
+				},
+			},
+			Required: []string{"pullRequestReference", "filePath", "revision"},
+		},
+	})
+
 	createPullRequestSchema := getInputSchemaForTool("createPullRequest", schemas)
 	if createPullRequestSchema.Type == "" {
 		logf("Failed to get input schema for createPullRequest tool")
@@ -636,7 +659,7 @@ func handleToolsList(request MCPRequest) {
 
 	tools = append(tools, Tool{
 		Name:        "getBuildFileContent",
-		Description: "Get content of specified file used in a build. When investigating a build failure, AI assistant may use this tool to examine content of some files. Specifically, file \".onedev-buildspec.yml\" defines the job used in the build",
+		Description: "Get content of specified file in a build. When investigating a build failure, AI assistant may use this tool to examine content of some files. Specifically, file \".onedev-buildspec.yml\" defines the job used in the build",
 		InputSchema: InputSchema{
 			Type: "object",
 			Properties: map[string]interface{}{
@@ -654,8 +677,8 @@ func handleToolsList(request MCPRequest) {
 	})
 
 	tools = append(tools, Tool{
-		Name:        "getFileChangesSincePreviousSuccessfulBuild",
-		Description: "Get file changes since previous successful build of specified build. When investigating a build failure, AI assistant may use this tool to check what has been changed since the previous successful build",
+		Name:        "getFileChangesSincePreviousSuccessfulSimilarBuild",
+		Description: "Get file changes since previous successful build similar to specified build. When investigating a build failure, AI assistant may use this tool to check what has been changed recently",
 		InputSchema: InputSchema{
 			Type: "object",
 			Properties: map[string]interface{}{
@@ -721,6 +744,26 @@ func handleToolsList(request MCPRequest) {
 				},
 			},
 			Required: []string{"jobName"},
+		},
+	})
+
+	tools = append(tools, Tool{
+		Name:        "getBuildSpecSchema",
+		Description: "Get schema of OneDev build spec, which can be used to edit or validate file .onedev-buildspec.yml",
+		InputSchema: InputSchema{
+			Type:       "object",
+			Properties: map[string]interface{}{},
+			Required:   []string{},
+		},
+	})
+
+	tools = append(tools, Tool{
+		Name:        "migrateBuildSpec",
+		Description: "Migrate build spec to latest version. When edit or validate build spec, AI assistant should first check build spec version against version specified in build spec schema, and migrate it if outdated",
+		InputSchema: InputSchema{
+			Type:       "object",
+			Properties: map[string]interface{}{},
+			Required:   []string{},
 		},
 	})
 
@@ -900,11 +943,8 @@ func handleGetLoginNameTool(request MCPRequest, params CallToolParams) {
 		}
 	}
 
-	urlQuery := url.Values{
-		"userName": {userName},
-	}
 	// Build the API URL
-	apiURL := config.ServerUrl + "/~api/mcp-helper/get-login-name?" + urlQuery.Encode()
+	apiURL := config.ServerUrl + "/~api/mcp-helper/get-login-name?userName=" + url.QueryEscape(userName)
 
 	// Create HTTP request
 	req, err := http.NewRequest("GET", apiURL, nil)
@@ -1007,6 +1047,109 @@ func getBuild(buildReference string, currentProject string) (map[string]interfac
 	return build, nil
 }
 
+func getPullRequest(pullRequestReference string, currentProject string) (map[string]interface{}, error) {
+	data, err := getEntityData(pullRequestReference, currentProject, "get-pull-request")
+	if err != nil {
+		return nil, err
+	}
+
+	var pullRequest map[string]interface{}
+	if err := json.Unmarshal(data, &pullRequest); err != nil {
+		logf("Failed to parse JSON response: %v", err)
+		return nil, err
+	}
+
+	return pullRequest, nil
+}
+
+func handleGetPullRequestFileContentTool(request MCPRequest, params CallToolParams) {
+	logf("Handling getPullRequestFileContent tool call")
+
+	currentProject, err := getCurrentProject()
+	if err != nil {
+		logf("Failed to get current project: %v", err)
+		sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
+		return
+	}
+
+	reference, err := getNonEmptyStringParam(params, "pullRequestReference")
+	if err != nil {
+		logf("Failed to extract pullRequestReference: %v", createErrorString(err))
+		sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract pullRequestReference: "+err.Error())
+		return
+	}
+
+	filePath, err := getNonEmptyStringParam(params, "filePath")
+	if err != nil {
+		logf("Failed to extract filePath: %v", createErrorString(err))
+		sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract filePath: "+err.Error())
+		return
+	}
+
+	revision, err := getNonEmptyStringParam(params, "revision")
+	if err != nil {
+		logf("Failed to extract revision: %v", createErrorString(err))
+		sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract revision: "+err.Error())
+		return
+	}
+
+	pullRequest, err := getPullRequest(reference, currentProject)
+
+	var commitHash string
+	if revision == "latest" {
+		commitHash = pullRequest["headCommitHash"].(string)
+	} else {
+		patchInfo, err := getPullRequestPatchInfo(currentProject, reference, revision != "initial")
+		if err != nil {
+			logf("Failed to get pull request patch info: %v", err)
+			sendError(request.ID, ErrorCodeInternalError, "Failed to get pull request patch info: "+err.Error())
+			return
+		}
+		commitHash = patchInfo["oldCommitHash"].(string)
+	}
+
+	if err != nil {
+		logf("Failed to get pull request info: %v", createErrorString(err))
+		sendError(request.ID, ErrorCodeInternalError, "Failed to get pull request info: "+err.Error())
+		return
+	}
+
+	apiURL := fmt.Sprintf("%s/%s/~raw/%s/%s",
+		config.ServerUrl,
+		pullRequest["targetProject"].(string),
+		commitHash,
+		filePath,
+	)
+
+	// Create HTTP request
+	req, err := http.NewRequest("GET", apiURL, nil)
+	if err != nil {
+		logf("Failed to create request: %v", err)
+		sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
+		return
+	}
+
+	// Make the API call
+	body, err := makeAPICall(req)
+	if err != nil {
+		logf("Failed to make API call: %v", createErrorString(err))
+		sendError(request.ID, ErrorCodeInternalError, "Failed to make API call: "+err.Error())
+		return
+	}
+
+	result := CallToolResult{
+		Content: []ToolContent{
+			{
+				Type: "text",
+				Text: string(body),
+			},
+		},
+	}
+
+	logf("getPullRequestFileContent tool call successful")
+	sendResponse(request.ID, result)
+}
+
 func handleGetBuildFileContentTool(request MCPRequest, params CallToolParams) {
 	logf("Handling getBuildFileContent tool call")
 
@@ -1075,8 +1218,8 @@ func handleGetBuildFileContentTool(request MCPRequest, params CallToolParams) {
 	sendResponse(request.ID, result)
 }
 
-func handleGetFileChangesSincePreviousSuccessfulBuildTool(request MCPRequest, params CallToolParams) {
-	logf("Handling getFileChangesSincePreviousSuccessfulBuild tool call")
+func handleGetFileChangesSincePreviousSuccessfulSimilarBuildTool(request MCPRequest, params CallToolParams) {
+	logf("Handling getFileChangesSincePreviousSuccessfulSimilarBuild tool call")
 
 	currentProject, err := getCurrentProject()
 	if err != nil {
@@ -1105,7 +1248,7 @@ func handleGetFileChangesSincePreviousSuccessfulBuildTool(request MCPRequest, pa
 		"reference":      {reference},
 	}
 
-	apiURL := config.ServerUrl + "/~api/mcp-helper/get-previous-successful-build?" + urlQuery.Encode()
+	apiURL := config.ServerUrl + "/~api/mcp-helper/get-previous-successful-similar-build?" + urlQuery.Encode()
 
 	// Create HTTP request
 	req, err := http.NewRequest("GET", apiURL, nil)
@@ -1161,7 +1304,7 @@ func handleGetFileChangesSincePreviousSuccessfulBuildTool(request MCPRequest, pa
 		},
 	}
 
-	logf("getFileChangesSincePreviousSuccessfulBuild tool call successful")
+	logf("getFileChangesSincePreviousSuccessfulSimilarBuild tool call successful")
 	sendResponse(request.ID, result)
 }
 
@@ -1379,6 +1522,39 @@ func handleCheckoutPullRequestTool(request MCPRequest, params CallToolParams) {
 	sendResponse(request.ID, result)
 }
 
+func getPullRequestPatchInfo(currentProject string, reference string, sinceLastReview bool) (map[string]interface{}, error) {
+	// Build the API URL
+	urlQuery := url.Values{
+		"currentProject":  {currentProject},
+		"reference":       {reference},
+		"sinceLastReview": {fmt.Sprintf("%t", sinceLastReview)},
+	}
+
+	apiURL := config.ServerUrl + "/~api/mcp-helper/get-pull-request-patch-info?" + urlQuery.Encode()
+
+	// Create HTTP request
+	req, err := http.NewRequest("GET", apiURL, nil)
+	if err != nil {
+		logf("Failed to create request: %v", err)
+		return nil, err
+	}
+
+	// Make the API call
+	body, err := makeAPICall(req)
+	if err != nil {
+		logf("Failed to make API call: %v", createErrorString(err))
+		return nil, err
+	}
+
+	var patchInfo map[string]interface{}
+	if err := json.Unmarshal(body, &patchInfo); err != nil {
+		logf("Failed to parse JSON response: %v", err)
+		return nil, err
+	}
+
+	return patchInfo, nil
+}
+
 func handleGetPullRequestFileChangesTool(request MCPRequest, params CallToolParams) {
 	logf("Handling getPullRequestFileChanges tool call")
 
@@ -1411,35 +1587,10 @@ func handleGetPullRequestFileChangesTool(request MCPRequest, params CallToolPara
 		return
 	}
 
-	// Build the API URL
-	urlQuery := url.Values{
-		"currentProject":  {currentProject},
-		"reference":       {reference},
-		"sinceLastReview": {fmt.Sprintf("%t", sinceLastReview)},
-	}
-
-	apiURL := config.ServerUrl + "/~api/mcp-helper/get-pull-request-patch-info?" + urlQuery.Encode()
-
-	// Create HTTP request
-	req, err := http.NewRequest("GET", apiURL, nil)
+	patchInfo, err := getPullRequestPatchInfo(currentProject, reference, sinceLastReview)
 	if err != nil {
-		logf("Failed to create request: %v", err)
-		sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
-		return
-	}
-
-	// Make the API call
-	body, err := makeAPICall(req)
-	if err != nil {
-		logf("Failed to make API call: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInternalError, "Failed to make API call: "+err.Error())
-		return
-	}
-
-	var patchInfo map[string]interface{}
-	if err := json.Unmarshal(body, &patchInfo); err != nil {
-		logf("Failed to parse JSON response: %v", err)
-		sendError(request.ID, ErrorCodeInternalError, "Failed to parse JSON response: "+err.Error())
+		logf("Failed to get pull request patch info: %v", err)
+		sendError(request.ID, ErrorCodeInternalError, "Failed to get pull request patch info: "+err.Error())
 		return
 	}
 
@@ -1447,21 +1598,21 @@ func handleGetPullRequestFileChangesTool(request MCPRequest, params CallToolPara
 	oldCommitHash, _ := patchInfo["oldCommitHash"].(string)
 	newCommitHash, _ := patchInfo["newCommitHash"].(string)
 
-	urlQuery = url.Values{
+	urlQuery := url.Values{
 		"old-commit": {oldCommitHash},
 		"new-commit": {newCommitHash},
 	}
 
-	apiURL = config.ServerUrl + "/~downloads/projects/" + projectId + "/patch?" + urlQuery.Encode()
+	apiURL := config.ServerUrl + "/~downloads/projects/" + projectId + "/patch?" + urlQuery.Encode()
 
-	req, err = http.NewRequest("GET", apiURL, nil)
+	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
 		logf("Failed to create request: %v", err)
 		sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
 		return
 	}
 
-	body, err = makeAPICall(req)
+	body, err := makeAPICall(req)
 	if err != nil {
 		logf("Failed to make API call: %v", createErrorString(err))
 		sendError(request.ID, ErrorCodeInternalError, "Failed to make API call: "+err.Error())
@@ -2277,6 +2428,8 @@ func handleToolsCall(request MCPRequest) {
 		handleGetEntityDataTool(request, params, "getPullRequestCodeComments", "get-pull-request-code-comments", "pullRequestReference")
 	case "getPullRequestFileChanges":
 		handleGetPullRequestFileChangesTool(request, params)
+	case "getPullRequestFileContent":
+		handleGetPullRequestFileContentTool(request, params)
 	case "createPullRequest":
 		handleCreatePullRequestTool(request, params)
 	case "editPullRequest":
@@ -2295,12 +2448,16 @@ func handleToolsCall(request MCPRequest) {
 		handleGetBuildLogTool(request, params)
 	case "getBuildFileContent":
 		handleGetBuildFileContentTool(request, params)
-	case "getFileChangesSincePreviousSuccessfulBuild":
-		handleGetFileChangesSincePreviousSuccessfulBuildTool(request, params)
+	case "getFileChangesSincePreviousSuccessfulSimilarBuild":
+		handleGetFileChangesSincePreviousSuccessfulSimilarBuildTool(request, params)
 	case "runJob":
 		handleRunJobTool(request, params)
 	case "runLocalJob":
 		handleRunLocalJobTool(request, params)
+	case "getBuildSpecSchema":
+		handleGetBuildSpecSchemaTool(request)
+	case "migrateBuildSpec":
+		handleMigrateBuildSpecTool(request)
 	case "getCurrentProject":
 		handleGetCurrentProjectTool(request)
 	case "getWorkingDir":
@@ -2409,6 +2566,63 @@ func handleRunLocalJobTool(request MCPRequest, params CallToolParams) {
 
 	logf("runLocalJob tool call successful")
 	sendResponse(request.ID, result)
+}
+
+func handleGetBuildSpecSchemaTool(request MCPRequest) {
+	logf("Handling getBuildSpecSchema tool call")
+
+	// Build the API URL
+	apiURL := config.ServerUrl + "/~api/build-spec-schema.yml"
+
+	req, err := http.NewRequest("GET", apiURL, nil)
+	if err != nil {
+		logf("Failed to create request: %v", createErrorString(err))
+		sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
+		return
+	}
+
+	body, err := makeAPICall(req)
+	if err != nil {
+		logf("Failed to make API call: %v", createErrorString(err))
+		sendError(request.ID, ErrorCodeInvalidParams, "Failed to make API call: "+err.Error())
+		return
+	}
+
+	response := CallToolResult{
+		Content: []ToolContent{
+			{
+				Type: "text",
+				Text: string(body),
+			},
+		},
+	}
+
+	logf("getBuildSpecSchema tool call successful")
+	sendResponse(request.ID, response)
+}
+
+func handleMigrateBuildSpecTool(request MCPRequest) {
+	logf("Handling migrateBuildSpec tool call")
+
+	// Call the migrateBuildSpec method using the global logger
+	err := migrateBuildSpec(workingDir, logger)
+	if err != nil {
+		logf("Failed to migrate build spec: %v", err)
+		sendError(request.ID, ErrorCodeInternalError, "Failed to migrate build spec: "+err.Error())
+		return
+	}
+
+	response := CallToolResult{
+		Content: []ToolContent{
+			{
+				Type: "text",
+				Text: "Build spec migrated successfully",
+			},
+		},
+	}
+
+	logf("migrateBuildSpec tool call successful")
+	sendResponse(request.ID, response)
 }
 
 // getInputSchemaForTool retrieves and converts a tool's input schema from the schemas map

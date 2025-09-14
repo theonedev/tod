@@ -97,14 +97,14 @@ func (runLocalJobCommand RunLocalJobCommand) Execute(cobraCmd *cobra.Command, ar
 	}
 
 	buildId := int(build["id"].(float64))
+	buildNumber := int(build["number"].(float64))
 
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
 
 	fmt.Println("Sending local changes to server...")
 
-	// Stream job logs using the utility function
-	err = streamBuildLog(buildId, signalChannel, &buildFinished, &mutex)
+	err = streamBuildLog(buildId, buildNumber, signalChannel, &buildFinished, &mutex)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

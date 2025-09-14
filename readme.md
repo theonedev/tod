@@ -55,7 +55,7 @@ tod --project-url https://onedev.example.com/my/project --access-token <generate
 
 ### Config File
 
-We can put all or some of above options into file `$HOME/.tod/config` to avoid repeating them each time running the command. For instance, we can create the file with below content:
+We can put all or some of above options into file `$HOME/.todconfig` to avoid repeating them each time running the command. For instance, we can create the file with below content:
 
 ```ini
 project-url=https://onedev.example.com/my/project

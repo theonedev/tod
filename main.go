@@ -109,10 +109,27 @@ var checkoutPullRequestCmd = &cobra.Command{
 	},
 }
 
+var migrateBuildSpecCmd = &cobra.Command{
+	Use:   "migrate-build-spec",
+	Short: "Migrate build spec to current version",
+	Long: `Migrate the .onedev-buildspec.yml file in the current directory to current version.
+This command reads the current build spec, sends it to the server for migration,
+and writes the updated version back to the file.`,
+	Args: cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		// Migrate build spec command
+		migrateBuildSpecCommand := MigrateBuildSpecCommand{}
+		// Create a logger that prints to stdout
+		logger := log.New(os.Stdout, "[MIGRATE] ", log.LstdFlags)
+		migrateBuildSpecCommand.Execute(cmd, args, logger)
+		return nil
+	},
+}
+
 func init() {
 	// Global persistent flags
-	rootCmd.PersistentFlags().String("server-url", "", "Specify OneDev server url, for instance: https://onedev.example.com. If not specified, it will use the server url specified in config file (<user home>/.tod/config).")
-	rootCmd.PersistentFlags().String("access-token", "", "Specify access token for OneDev server. If not specified, it will use the access token specified in config file (<user home>/.tod/config).")
+	rootCmd.PersistentFlags().String("server-url", "", "Specify OneDev server url, for instance: https://onedev.example.com. If not specified, it will use the server url specified in config file (<user home>/.todconfig).")
+	rootCmd.PersistentFlags().String("access-token", "", "Specify access token for OneDev server. If not specified, it will use the access token specified in config file (<user home>/.todconfig).")
 
 	// Run-local command specific flags
 	runLocalJobCmd.Flags().String("working-dir", "", "Specify working directory to run job against (defaults to current directory)")
@@ -127,6 +144,9 @@ func init() {
 	// Checkout command specific flags
 	checkoutPullRequestCmd.Flags().String("working-dir", "", "Specify working directory to checkout pull request against (defaults to current directory)")
 
+	// Migrate build spec command specific flags
+	migrateBuildSpecCmd.Flags().String("working-dir", "", "Specify working directory containing build spec file (defaults to current directory)")
+
 	// MCP command specific flags
 	mcpCmd.Flags().String("log-file", "", "Specify log file path for debug logging")
 
@@ -135,6 +155,7 @@ func init() {
 	rootCmd.AddCommand(runJobCmd)
 	rootCmd.AddCommand(mcpCmd)
 	rootCmd.AddCommand(checkoutPullRequestCmd)
+	rootCmd.AddCommand(migrateBuildSpecCmd)
 }
 
 func main() {

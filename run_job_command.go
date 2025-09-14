@@ -102,6 +102,7 @@ func (runJobCommand RunJobCommand) Execute(cobraCmd *cobra.Command, args []strin
 	}
 
 	buildId := int(build["id"].(float64))
+	buildNumber := int(build["number"].(float64))
 
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
@@ -111,8 +112,7 @@ func (runJobCommand RunJobCommand) Execute(cobraCmd *cobra.Command, args []strin
 
 	fmt.Println("Streaming job logs...")
 
-	// Stream job logs using the utility function
-	err = streamBuildLog(buildId, signalChannel, &buildFinished, &mutex)
+	err = streamBuildLog(buildId, buildNumber, signalChannel, &buildFinished, &mutex)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

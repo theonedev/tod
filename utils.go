@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -454,6 +455,54 @@ func runLocalJob(jobName string, workingDir string, params map[string][]string,
 	return runJob(project, project, jobMap, logger)
 }
 
+func migrateBuildSpec(workingDir string, logger *log.Logger) error {
+
+	if workingDir == "" {
+		workingDir = "."
+	}
+
+	buildSpecFile := filepath.Join(workingDir, ".onedev-buildspec.yml")
+	if _, err := os.Stat(buildSpecFile); os.IsNotExist(err) {
+		return fmt.Errorf("invalid working dir: OneDev build spec not found: %s", workingDir)
+	}
+
+	// Read the build spec file content
+	buildSpecContent, err := os.ReadFile(buildSpecFile)
+	if err != nil {
+		logger.Printf("Failed to read build spec file: %v", err)
+		return fmt.Errorf("failed to read build spec file: %w", err)
+	}
+
+	apiURL := config.ServerUrl + "/~api/mcp-helper/migrate-build-spec"
+
+	// Create POST request with build spec content
+	req, err := http.NewRequest("POST", apiURL, strings.NewReader(string(buildSpecContent)))
+	if err != nil {
+		logger.Printf("Failed to create request: %v", err)
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "text/plain")
+
+	// Make the API call
+	body, err := makeAPICall(req)
+	if err != nil {
+		logger.Printf("Failed to make API call: %v", err)
+		return fmt.Errorf("failed to make API call: %w", err)
+	}
+
+	// Write the migrated content back to the build spec file
+	err = os.WriteFile(buildSpecFile, body, 0644)
+	if err != nil {
+		logger.Printf("Failed to write migrated build spec: %v", err)
+		return fmt.Errorf("failed to write migrated build spec: %w", err)
+	}
+
+	logger.Printf("Build spec migrated successfully")
+
+	return nil
+}
+
 func checkVersion(serverUrl string, accessToken string) error {
 	// Make a GET request to the API endpoint
 	client := &http.Client{}
@@ -527,8 +576,7 @@ func checkVersion(serverUrl string, accessToken string) error {
 	}
 }
 
-// streamBuildLog streams job logs to stdout/stderr and handles cancellation
-func streamBuildLog(buildId int, signalChannel <-chan os.Signal, buildFinished *bool, mutex *sync.Mutex) error {
+func streamBuildLog(buildId int, buildNumber int, signalChannel <-chan os.Signal, buildFinished *bool, mutex *sync.Mutex) error {
 	targetUrl, err := url.Parse(config.ServerUrl)
 	if err != nil {
 		return fmt.Errorf("error parsing server url: %w", err)
@@ -639,7 +687,7 @@ func streamBuildLog(buildId int, signalChannel <-chan os.Signal, buildFinished *
 
 			buildStatus := string(buildStatusBytes)
 
-			var message = "Build is " + strings.ToLower(buildStatus)
+			var message = "Build #" + strconv.Itoa(buildNumber) + " is " + strings.ToLower(buildStatus)
 			if buildStatus == "SUCCESSFUL" {
 				mutex.Lock()
 				*buildFinished = true

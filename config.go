@@ -27,7 +27,7 @@ func LoadConfig() (*Config, error) {
 		return nil, fmt.Errorf("error getting user home: %w", err)
 	}
 
-	configFilePath := filepath.Join(homeDir, ".tod/config")
+	configFilePath := filepath.Join(homeDir, ".todconfig")
 	config := &Config{}
 
 	if _, err := os.Stat(configFilePath); !os.IsNotExist(err) {
