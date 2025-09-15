@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const version = "1.0.0"
+const version = "2.0.0"
 
 type CompatibleVersions struct {
 	MinVersion string `json:"minVersion"`
@@ -40,9 +40,11 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 
-		// Check version compatibility with server
 		if err := checkVersion(config.ServerUrl, config.AccessToken); err != nil {
-			return err
+			cmd.SilenceUsage = true
+			cmd.SilenceErrors = true
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
 		}
 
 		return nil
