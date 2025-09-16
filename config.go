@@ -24,7 +24,7 @@ type Config struct {
 func LoadConfig() (*Config, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return nil, fmt.Errorf("error getting user home: %w", err)
+		return nil, fmt.Errorf("failed to get user home: %w", err)
 	}
 
 	configFilePath := filepath.Join(homeDir, ".todconfig")
@@ -33,7 +33,7 @@ func LoadConfig() (*Config, error) {
 	if _, err := os.Stat(configFilePath); !os.IsNotExist(err) {
 		cfg, err := ini.Load(configFilePath)
 		if err != nil {
-			return nil, fmt.Errorf("error reading config file: %w", err)
+			return nil, fmt.Errorf("failed to read config file: %w", err)
 		}
 
 		// Read from top-level (default section)

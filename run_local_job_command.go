@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/signal"
 	"strings"
-	"sync"
 	"syscall"
 
 	"github.com/spf13/cobra"
@@ -53,14 +52,11 @@ func (p ParamMap) Set(value string) error {
 	return nil
 }
 
-var buildFinished bool
-var mutex sync.Mutex
-
 // Execute executes the run job command
-func (runLocalJobCommand RunLocalJobCommand) Execute(cobraCmd *cobra.Command, args []string, logger *log.Logger) {
+func (command RunLocalJobCommand) Execute(cobraCmd *cobra.Command, args []string, logger *log.Logger) {
 	// Extract job name from arguments
 	if len(args) != 1 {
-		fmt.Fprintln(os.Stderr, "Error: exactly one job name is required")
+		fmt.Fprintln(os.Stderr, "Exactly one job name is required")
 		os.Exit(1)
 	}
 	jobName := args[0]
@@ -74,7 +70,7 @@ func (runLocalJobCommand RunLocalJobCommand) Execute(cobraCmd *cobra.Command, ar
 	// Get command line parameters
 	paramArray, err := cobraCmd.Flags().GetStringArray("param")
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Error getting parameters:", err)
+		fmt.Fprintln(os.Stderr, "Failed to get parameters:", err)
 		os.Exit(1)
 	}
 
@@ -83,7 +79,7 @@ func (runLocalJobCommand RunLocalJobCommand) Execute(cobraCmd *cobra.Command, ar
 	// Parse parameter array into ParamMap
 	for _, paramStr := range paramArray {
 		if err := params.Set(paramStr); err != nil {
-			fmt.Fprintln(os.Stderr, "Error parsing parameter:", err)
+			fmt.Fprintln(os.Stderr, "Failed to parse parameter:", err)
 			os.Exit(1)
 		}
 	}
@@ -104,7 +100,7 @@ func (runLocalJobCommand RunLocalJobCommand) Execute(cobraCmd *cobra.Command, ar
 
 	fmt.Println("Sending local changes to server...")
 
-	err = streamBuildLog(buildId, buildNumber, signalChannel, &buildFinished, &mutex)
+	err = streamBuildLog(buildId, buildNumber, signalChannel)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

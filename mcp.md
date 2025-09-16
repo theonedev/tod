@@ -1,0 +1,315 @@
+# TOD MCP (Model Context Protocol) Documentation
+
+## Overview
+
+TOD provides a comprehensive Model Context Protocol (MCP) server that enables AI assistants to interact with OneDev 13+ in an intelligent, natural way. When running in MCP server mode, TOD exposes a rich set of tools that allow AI assistants to automate development workflows, manage issues and pull requests, execute builds, and more.
+
+## Configuration
+
+The MCP server uses the same configuration as other TOD commands. Ensure your `~/.todconfig` file is properly configured:
+
+```ini
+server-url=https://onedev.example.com
+access-token=your-personal-access-token
+```
+
+## Start MCP Server
+
+To start the MCP server:
+
+```bash
+# Start MCP server (uses default configuration)
+tod mcp
+
+# Start with debug logging
+tod mcp --log-file /tmp/tod-mcp.log
+```
+
+## Available Tools
+
+TOD's MCP server provides **34 tools** organized into the following categories:
+
+### Issue Management Tools
+
+#### `queryIssues`
+Query issues in current project.
+
+**Parameters:**
+- `query` (optional) - Query string using OneDev's issue query syntax
+- `project` (optional) - Project to query issues in. Leave empty for current project
+- `count` (optional) - Number of issues to return (default: 25, max: 100)
+- `offset` (optional) - Start position for the query (default: 0)
+
+#### `getIssue`
+Get detailed information about a specific issue.
+
+**Parameters:**
+- `issueReference` (required) - Issue reference in form `#<number>`, `<project>#<number>`, or `<project key>-<number>`
+
+#### `getIssueComments`
+Get comments for a specific issue.
+
+**Parameters:**
+- `issueReference` (required) - Issue reference in form `#<number>`, `<project>#<number>`, or `<project key>-<number>`
+
+#### `createIssue`
+Create a new issue.
+
+**Parameters:**
+- `title` (required) - Title of the issue
+- `description` (optional) - Description of the issue
+- `Type` (optional) - One of: New Feature, Improvement, Bug, Task, Support Request
+- `Priority` (optional) - One of: Minor, Normal, Major, Critical
+- `Assignees` (optional) - Array of user login names
+- `iterations` (optional) - Array of iteration names
+- `confidential` (optional) - Whether the issue is confidential
+- `project` (optional) - Project to create issue in. Leave empty for current project
+
+#### `editIssue`
+Edit an existing issue.
+
+**Parameters:**
+- `issueReference` (required) - Reference of the issue to update
+- `title` (optional) - Title of the issue
+- `description` (optional) - Description of the issue
+- `Type` (optional) - One of: New Feature, Improvement, Bug, Task, Support Request
+- `Priority` (optional) - One of: Minor, Normal, Major, Critical
+- `Assignees` (optional) - Array of user login names
+- `iterations` (optional) - Iterations to schedule the issue in
+- `confidential` (optional) - Whether the issue is confidential
+
+#### `transitIssue`
+Transit specified issue to specified state.
+
+**Parameters:**
+- `issueReference` (required) - Reference of the issue to transit state
+- `state` (required) - New state. Must be one of: In Review, Closed, In Progress, Open
+- `comment` (optional) - Comment for the transition
+- `Type` (optional) - One of: New Feature, Improvement, Bug, Task, Support Request
+- `Priority` (optional) - One of: Minor, Normal, Major, Critical
+- `Assignees` (optional) - Array of user login names
+
+#### `linkIssues`
+Set up links between two issues.
+
+**Parameters:**
+- `sourceIssueReference` (required) - Issue reference as source of the link
+- `targetIssueReference` (required) - Issue reference as target of the link
+- `linkName` (required) - Name of the link. Must be one of: Sub Issues, Parent Issue, Related
+
+#### `addIssueComment`
+Add a comment to an issue.
+
+**Parameters:**
+- `issueReference` (required) - Issue reference
+- `commentContent` (required) - Content of the comment to add
+
+#### `logWork`
+Log spent time on an issue.
+
+**Parameters:**
+- `issueReference` (required) - Issue reference
+- `spentHours` (required) - Spent time in hours
+- `comment` (optional) - Comment to add to the work log
+
+### Pull Request Management Tools
+
+#### `queryPullRequests`
+Query pull requests in current project.
+
+**Parameters:**
+- `query` (optional) - Query string using OneDev's pull request query syntax
+- `project` (optional) - Project to query pull requests in. Leave empty for current project
+- `count` (optional) - Number of pull requests to return (default: 25, max: 100)
+- `offset` (optional) - Start position for the query (default: 0)
+
+#### `getPullRequest`
+Get detailed information about a specific pull request.
+
+**Parameters:**
+- `pullRequestReference` (required) - Pull request reference in form `#<number>`, `<project>#<number>`, or `<project key>-<number>`
+
+#### `getPullRequestComments`
+Get comments for a specific pull request.
+
+**Parameters:**
+- `pullRequestReference` (required) - Pull request reference
+
+#### `getPullRequestCodeComments`
+Get code comments for a specific pull request.
+
+**Parameters:**
+- `pullRequestReference` (required) - Pull request reference
+
+#### `getPullRequestFileChanges`
+Get pull request file changes in patch format.
+
+**Parameters:**
+- `pullRequestReference` (required) - Pull request reference
+- `sinceLastReview` (required) - If true, only changes since last review will be returned
+
+#### `getPullRequestFileContent`
+Get content of specified file in pull request.
+
+**Parameters:**
+- `pullRequestReference` (required) - Pull request reference
+- `filePath` (required) - Path of the file relative to repository root
+- `revision` (required) - Must be one of: initial, latest, lastReviewed
+
+#### `createPullRequest`
+Create a new pull request.
+
+**Parameters:**
+- `sourceBranch` (required) - A branch in source project to be used as source branch
+- `title` (optional) - Title of the pull request. Leave empty to use default title
+- `description` (optional) - Description of the pull request
+- `sourceProject` (optional) - Source project. Leave empty to use current project
+- `targetProject` (optional) - Target project. If left empty, defaults to original project when source is a fork
+- `targetBranch` (optional) - Target branch. Leave empty to use default branch
+- `assignees` (optional) - Array of assignee user login names
+- `reviewers` (optional) - Array of reviewer user login names
+- `mergeStrategy` (optional) - One of: CREATE_MERGE_COMMIT, CREATE_MERGE_COMMIT_IF_NECESSARY, SQUASH_SOURCE_BRANCH_COMMITS, REBASE_SOURCE_BRANCH_COMMITS
+
+#### `editPullRequest`
+Edit an existing pull request.
+
+**Parameters:**
+- `pullRequestReference` (required) - Reference of the pull request to edit
+- `title` (optional) - Title of the pull request
+- `description` (optional) - Description of the pull request
+- `assignees` (optional) - Array of assignee user login names
+- `addReviewers` (optional) - Array of reviewer user login names to add
+- `removeReviewers` (optional) - Array of reviewer user login names to remove
+- `mergeStrategy` (optional) - Merge strategy
+- `autoMerge` (optional) - Whether to enable auto merge
+- `autoMergeCommitMessage` (optional) - Preset commit message for auto merge
+
+#### `processPullRequest`
+Process a pull request (approve, merge, etc.).
+
+**Parameters:**
+- `pullRequestReference` (required) - Pull request reference
+- `operation` (required) - One of: approve, requestChanges, merge, discard, reopen, deleteSourceBranch, restoreSourceBranch
+- `comment` (optional) - Comment for the operation
+
+#### `addPullRequestComment`
+Add a comment to a pull request.
+
+**Parameters:**
+- `pullRequestReference` (required) - Pull request reference
+- `commentContent` (required) - Content of the comment to add
+
+#### `checkoutPullRequest`
+Checkout specified pull request in current working directory.
+
+**Parameters:**
+- `pullRequestReference` (required) - Pull request reference
+
+### Build Management Tools
+
+#### `queryBuilds`
+Query builds in current project.
+
+**Parameters:**
+- `query` (optional) - Query string using OneDev's build query syntax
+- `project` (optional) - Project to query builds in. Leave empty for current project
+- `count` (optional) - Number of builds to return (default: 25, max: 100)
+- `offset` (optional) - Start position for the query (default: 0)
+
+#### `getBuild`
+Get detailed information about a specific build.
+
+**Parameters:**
+- `buildReference` (required) - Build reference in form `#<number>`, `<project>#<number>`, or `<project key>-<number>`
+
+#### `getBuildLog`
+Get build log for a specific build.
+
+**Parameters:**
+- `buildReference` (required) - Build reference
+
+#### `getBuildFileContent`
+Get content of specified file in a build.
+
+**Parameters:**
+- `buildReference` (required) - Build reference
+- `filePath` (required) - Path of the file relative to repository root
+
+#### `getFileChangesSincePreviousSuccessfulSimilarBuild`
+Get file changes since previous successful build similar to specified build.
+
+**Parameters:**
+- `buildReference` (required) - Build reference
+
+#### `runJob`
+Run specified job against specified branch or tag in specified project.
+
+**Parameters:**
+- `jobName` (required) - Name of the job to run
+- `project` (optional) - Project to run the job against
+- `branch` (optional) - Branch to run the job against (either branch or tag, not both)
+- `tag` (optional) - Tag to run the job against (either branch or tag, not both)
+- `params` (optional) - Array of parameters in form key=value
+
+#### `runLocalJob`
+Run specified job against local changes in current working directory.
+
+**Parameters:**
+- `jobName` (required) - Name of the job to run
+- `params` (optional) - Array of parameters in form key=value
+
+### Build Spec Management Tools
+
+#### `getBuildSpecSchema`
+Get build spec schema to understand how to edit build spec (`.onedev-buildspec.yml`).
+
+**Parameters:**
+- `random_string` (required) - Dummy parameter for no-parameter tools
+
+#### `checkBuildSpec`
+Check build spec for validity and update it to latest version if needed.
+
+**Parameters:**
+- `random_string` (required) - Dummy parameter for no-parameter tools
+
+### Project and System Tools
+
+#### `getCurrentProject`
+Get default OneDev project for operations.
+
+**Parameters:**
+- `random_string` (required) - Dummy parameter for no-parameter tools
+
+#### `getWorkingDir`
+Get working directory.
+
+**Parameters:**
+- `random_string` (required) - Dummy parameter for no-parameter tools
+
+#### `setWorkingDir`
+Set working directory.
+
+**Parameters:**
+- `workingDir` (required) - Absolute path in the file system
+
+#### `getLoginName`
+Returns login name of specified user or current user.
+
+**Parameters:**
+- `userName` (optional) - Name of the user. If not provided, returns current user's login name
+
+#### `getUnixTimestamp`
+Returns unix timestamp in milliseconds since epoch.
+
+**Parameters:**
+- `dateTimeDescription` (required) - Description of date/time to convert (e.g., "today", "next month", "2025-01-01")
+
+
+## Reference Formats
+
+Many tools accept reference parameters in these formats:
+
+- **Issue References**: `#123`, `myproject#123`, or `PROJ-123`
+- **Pull Request References**: `#456`, `myproject#456`, or `PROJ-456`
+- **Build References**: `#789`, `myproject#789`, or `PROJ-789`
+

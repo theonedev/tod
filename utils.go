@@ -18,54 +18,24 @@ import (
 	"github.com/Masterminds/semver"
 )
 
-// Custom error type for API errors with additional context
-type APIError struct {
-	StatusCode int
-	Endpoint   string
-	Response   string
-}
-
-func (e *APIError) Error() string {
-	if e.StatusCode > 0 {
-		return fmt.Sprintf("HTTP %d: %s", e.StatusCode, e.Response)
-	} else {
-		return e.Response
-	}
-}
-
 func makeAPICall(req *http.Request) ([]byte, error) {
 	req.Header.Set("Authorization", "Bearer "+config.AccessToken)
 
-	// Make the HTTP request
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, &APIError{
-			StatusCode: -1,
-			Endpoint:   req.URL.String(),
-			Response:   fmt.Sprintf("failed to call API: %v", err),
-		}
+		return nil, fmt.Errorf("failed to send request to %s: %v", req.URL.String(), err)
 	}
 	defer resp.Body.Close()
 
-	// Check response status
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return nil, &APIError{
-			StatusCode: resp.StatusCode,
-			Endpoint:   req.URL.String(),
-			Response:   string(body),
-		}
+		return nil, fmt.Errorf("HTTP %d error for endpoint %s: %s", resp.StatusCode, req.URL.String(), string(body))
 	}
 
-	// Read response body
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, &APIError{
-			StatusCode: -1,
-			Endpoint:   req.URL.String(),
-			Response:   fmt.Sprintf("failed to read response: %v", err),
-		}
+		return nil, fmt.Errorf("failed to read response from %s: %v", req.URL.String(), err)
 	}
 
 	return body, nil
@@ -74,47 +44,33 @@ func makeAPICall(req *http.Request) ([]byte, error) {
 func getJSONMapFromAPI(apiURL string) (map[string]interface{}, error) {
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
-		return nil, &APIError{
-			StatusCode: -1,
-			Endpoint:   apiURL,
-			Response:   fmt.Sprintf("failed to create request: %v", err),
-		}
+		return nil, fmt.Errorf("failed to create request: %v", err)
 	}
 
-	// Make the API call
 	body, err := makeAPICall(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to make API call: %v", err)
 	}
 
-	// Parse JSON response
 	var jsonData map[string]interface{}
 	if err := json.Unmarshal(body, &jsonData); err != nil {
-		return nil, &APIError{
-			StatusCode: -1,
-			Endpoint:   apiURL,
-			Response:   fmt.Sprintf("failed to parse JSON response: %v", err),
-		}
+		return nil, fmt.Errorf("failed to parse JSON response: %v", err)
 	}
 
 	return jsonData, nil
 }
 
-// inferProject extracts the project path from a git working directory
 func inferProject(workingDir string) (string, error) {
-	// 1. Check if git executable is in system path
 	_, err := exec.LookPath("git")
 	if err != nil {
 		return "", fmt.Errorf("git executable not found in system path")
 	}
 
-	// 2. Check if workingDir is a git working directory
 	gitDir := filepath.Join(workingDir, ".git")
 	if _, err := os.Stat(gitDir); os.IsNotExist(err) {
 		return "", fmt.Errorf("not a git working directory: %s", workingDir)
 	}
 
-	// 3. Check if the git working directory has a remote named origin
 	cmd := exec.Command("git", "remote", "get-url", "origin")
 	cmd.Dir = workingDir
 	output, err := cmd.Output()
@@ -127,18 +83,14 @@ func inferProject(workingDir string) (string, error) {
 		return "", fmt.Errorf("remote 'origin' not found in git repository")
 	}
 
-	// 4. Check if the remote URL is of the expected format and extract project path
 	var project string
 
-	// Check for HTTP(S) format: http[s]://host[:port]/project
 	if strings.HasPrefix(remoteUrl, "http://") || strings.HasPrefix(remoteUrl, "https://") {
-		// Find the protocol separator
 		protocolIndex := strings.Index(remoteUrl, "://")
 		if protocolIndex == -1 {
 			return "", fmt.Errorf("invalid remote URL format: %s", remoteUrl)
 		}
 
-		// Find the path separator after the host[:port]
 		hostPart := remoteUrl[protocolIndex+3:]
 		pathIndex := strings.Index(hostPart, "/")
 		if pathIndex == -1 {
@@ -147,7 +99,6 @@ func inferProject(workingDir string) (string, error) {
 
 		project = hostPart[pathIndex+1:]
 	} else if strings.HasPrefix(remoteUrl, "ssh://") {
-		// Check for SSH format: ssh://host[:port]/project
 		protocolIndex := strings.Index(remoteUrl, "://")
 		if protocolIndex == -1 {
 			return "", fmt.Errorf("invalid remote URL format: %s", remoteUrl)
@@ -164,10 +115,8 @@ func inferProject(workingDir string) (string, error) {
 		return "", fmt.Errorf("unsupported remote URL format: %s (expected http[s]:// or ssh://)", remoteUrl)
 	}
 
-	// Remove .git suffix if present
 	project = strings.TrimSuffix(project, ".git")
 
-	// Ensure project path is not empty after processing
 	if project == "" {
 		return "", fmt.Errorf("invalid remote URL format: %s (empty project path)", remoteUrl)
 	}
@@ -175,27 +124,23 @@ func inferProject(workingDir string) (string, error) {
 	return project, nil
 }
 
-// hasUncommittedChanges checks if there are uncommitted changes in the working directory
 func hasUncommittedChanges(workingDir string) (bool, error) {
-	// Check for staged and unstaged changes
 	cmd := exec.Command("git", "status", "--porcelain")
 	cmd.Dir = workingDir
 	output, err := cmd.Output()
 	if err != nil {
-		return false, fmt.Errorf("failed to check git status: %w", err)
+		return false, fmt.Errorf("failed to check git status: %v", err)
 	}
 
-	// If output is empty, no changes; if not empty, there are changes
 	return len(strings.TrimSpace(string(output))) > 0, nil
 }
 
 func checkoutPullRequest(workingDir string, pullRequestReference string, logger *log.Logger) error {
 	project, err := inferProject(workingDir)
 	if err != nil {
-		return fmt.Errorf("error inferring project: %w", err)
+		return fmt.Errorf("failed to infer project: %v", err)
 	}
 
-	// Build the API URL
 	urlQuery := url.Values{
 		"currentProject": {project},
 		"reference":      {pullRequestReference},
@@ -203,21 +148,19 @@ func checkoutPullRequest(workingDir string, pullRequestReference string, logger 
 
 	apiURL := config.ServerUrl + "/~api/mcp-helper/get-pull-request?" + urlQuery.Encode()
 
-	// Create HTTP request
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
-		return fmt.Errorf("error creating request: %w", err)
+		return fmt.Errorf("failed to create request: %v", err)
 	}
 
-	// Make the API call
 	body, err := makeAPICall(req)
 	if err != nil {
-		return fmt.Errorf("error making API call: %w", err)
+		return fmt.Errorf("failed to make API call: %v", err)
 	}
 
 	var pullRequest map[string]interface{}
 	if err := json.Unmarshal(body, &pullRequest); err != nil {
-		return fmt.Errorf("error parsing JSON response: %w", err)
+		return fmt.Errorf("failed to parse JSON response: %v", err)
 	}
 
 	state, _ := pullRequest["status"].(string)
@@ -235,7 +178,6 @@ func checkoutPullRequest(workingDir string, pullRequestReference string, logger 
 
 	projectUrl := config.ServerUrl + "/" + targetProject
 
-	// Run 'git fetch' against projectUrl to get headCommitHash
 	cmd := exec.Command("git", "-c", "http.extraHeader=Authorization: Bearer "+config.AccessToken, "fetch", projectUrl, headCommitHash)
 	cmd.Dir = workingDir
 
@@ -243,7 +185,7 @@ func checkoutPullRequest(workingDir string, pullRequestReference string, logger 
 	logger.Printf("Running command: git fetch %s %s\n", projectUrl, headCommitHash)
 	logger.Printf("Command output:\n%s", string(stdoutStderr))
 	if err != nil {
-		return fmt.Errorf("git fetch failed: %w", err)
+		return fmt.Errorf("git fetch failed: %v", err)
 	}
 
 	var localBranch string
@@ -257,75 +199,66 @@ func checkoutPullRequest(workingDir string, pullRequestReference string, logger 
 
 	hasChanges, err := hasUncommittedChanges(workingDir)
 	if err != nil {
-		return fmt.Errorf("error checking for uncommitted changes: %w", err)
+		return fmt.Errorf("failed to check for uncommitted changes: %v", err)
 	}
 
 	if hasChanges {
 		return fmt.Errorf("you have uncommitted changes in your working directory. Please commit or stash your changes first")
 	}
 
-	// Check if the local branch exists
 	checkBranchCmd := exec.Command("git", "rev-parse", "--verify", localBranch)
 	checkBranchCmd.Dir = workingDir
 	if err := checkBranchCmd.Run(); err == nil {
-		// Branch exists, switch to it
 		checkoutCmd := exec.Command("git", "checkout", localBranch)
 		checkoutCmd.Dir = workingDir
 		stdoutStderr, err := checkoutCmd.CombinedOutput()
 		logger.Printf("Running command: git checkout %s\n", localBranch)
 		logger.Printf("Command output:\n%s", string(stdoutStderr))
 		if err != nil {
-			return fmt.Errorf("git checkout failed: %w", err)
+			return fmt.Errorf("git checkout failed: %v", err)
 		}
-		// Fast-forward the branch to headCommitHash
 		mergeCmd := exec.Command("git", "merge", "--ff-only", headCommitHash)
 		mergeCmd.Dir = workingDir
 		stdoutStderr, err = mergeCmd.CombinedOutput()
 		logger.Printf("Running command: git merge --ff-only %s\n", headCommitHash)
 		logger.Printf("Command output:\n%s", string(stdoutStderr))
 		if err != nil {
-			return fmt.Errorf("git merge --ff-only failed: %w", err)
+			return fmt.Errorf("git merge --ff-only failed: %v", err)
 		}
 	} else {
-		// Branch does not exist, create and switch to it
 		checkoutCmd := exec.Command("git", "checkout", "-b", localBranch, headCommitHash)
 		checkoutCmd.Dir = workingDir
 		stdoutStderr, err := checkoutCmd.CombinedOutput()
 		logger.Printf("Running command: git checkout -b %s %s\n", localBranch, headCommitHash)
 		logger.Printf("Command output:\n%s", string(stdoutStderr))
 		if err != nil {
-			return fmt.Errorf("git checkout -b failed: %w", err)
+			return fmt.Errorf("git checkout -b failed: %v", err)
 		}
 	}
 
 	if needsUpstream {
-		// Always ensure remote-tracking branch points to headCommitHash
 		updateRemoteTrackRefCmd := exec.Command("git", "update-ref", fmt.Sprintf("refs/remotes/origin/%s", sourceBranch), headCommitHash)
 		updateRemoteTrackRefCmd.Dir = workingDir
 		if err := updateRemoteTrackRefCmd.Run(); err == nil {
-			// Set up upstream of localBranch to track sourceBranch if the upstream is not set correctly
-			// Check if upstream is already set to the correct branch
 			upstreamCmd := exec.Command("git", "rev-parse", "--abbrev-ref", localBranch+"@{upstream}")
 			upstreamCmd.Dir = workingDir
 			output, err := upstreamCmd.Output()
 			expectedUpstream := fmt.Sprintf("origin/%s", sourceBranch)
 
-			// Set upstream only if it needs to be set/updated
 			if err != nil || strings.TrimSpace(string(output)) != expectedUpstream {
-				// Now set upstream
 				setUpstreamCmd := exec.Command("git", "branch", "--set-upstream-to", expectedUpstream, localBranch)
 				setUpstreamCmd.Dir = workingDir
 				stdoutStderr, err := setUpstreamCmd.CombinedOutput()
 				logger.Printf("Running command: git branch --set-upstream-to %s %s\n", expectedUpstream, localBranch)
 				logger.Printf("Command output:\n%s", string(stdoutStderr))
 				if err != nil {
-					return fmt.Errorf("git branch --set-upstream-to failed: %w", err)
+					return fmt.Errorf("git branch --set-upstream-to failed: %v", err)
 				} else {
 					return nil
 				}
 			}
 		} else {
-			return fmt.Errorf("git update-ref failed: %w", err)
+			return fmt.Errorf("git update-ref failed: %v", err)
 		}
 	}
 
@@ -345,13 +278,10 @@ func checkResponse(resp *http.Response) error {
 	}
 }
 
-func runJob(project string, currentProject string, jobMap map[string]interface{},
-	logger *log.Logger) (map[string]interface{}, error) {
-
+func runJob(project string, currentProject string, jobMap map[string]interface{}) (map[string]interface{}, error) {
 	jobBytes, err := json.Marshal(jobMap)
 	if err != nil {
-		logger.Printf("Failed to marshal map to JSON: %v", createErrorString(err))
-		return nil, fmt.Errorf("failed to marshal map to JSON: %w", err)
+		return nil, fmt.Errorf("failed to marshal map to JSON: %v", err)
 	}
 	jobData := string(jobBytes)
 
@@ -364,22 +294,19 @@ func runJob(project string, currentProject string, jobMap map[string]interface{}
 
 	req, err := http.NewRequest("POST", apiURL, strings.NewReader(jobData))
 	if err != nil {
-		logger.Printf("Failed to create request: %v", createErrorString(err))
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, fmt.Errorf("failed to create request: %v", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
 
 	body, err := makeAPICall(req)
 	if err != nil {
-		logger.Printf("Failed to make API call: %v", createErrorString(err))
-		return nil, fmt.Errorf("failed to make API call: %w", err)
+		return nil, fmt.Errorf("failed to make API call: %v", err)
 	}
 
 	var build map[string]interface{}
 	if err := json.Unmarshal(body, &build); err != nil {
-		logger.Printf("Failed to parse JSON response: %v", err)
-		return nil, fmt.Errorf("failed to parse JSON response: %w", err)
+		return nil, fmt.Errorf("failed to parse JSON response: %v", err)
 	}
 
 	return build, nil
@@ -392,13 +319,11 @@ func runLocalJob(jobName string, workingDir string, params map[string][]string,
 		workingDir = "."
 	}
 
-	// Derive project path from working directory
 	project, err := inferProject(workingDir)
 	if err != nil {
-		return nil, fmt.Errorf("error getting project from working directory: %w", err)
+		return nil, fmt.Errorf("failed to get project from working directory: %v", err)
 	}
 
-	// Construct project URL from server URL and project path
 	projectUrl := config.ServerUrl + "/" + project
 
 	buildSpecFile := filepath.Join(workingDir, ".onedev-buildspec.yml")
@@ -406,7 +331,6 @@ func runLocalJob(jobName string, workingDir string, params map[string][]string,
 		return nil, fmt.Errorf("invalid working dir: OneDev build spec not found: %s", workingDir)
 	}
 
-	// Collect local changes
 	cmd := exec.Command("git", "stash", "create")
 	cmd.Dir = workingDir
 
@@ -414,7 +338,7 @@ func runLocalJob(jobName string, workingDir string, params map[string][]string,
 	out, err := cmd.CombinedOutput()
 	logger.Printf("Command output:\n%s", string(out))
 	if err != nil {
-		return nil, fmt.Errorf("error executing git stash create: %w", err)
+		return nil, fmt.Errorf("failed to execute git stash create: %v", err)
 	}
 
 	runCommit := strings.TrimSpace(string(out))
@@ -427,13 +351,12 @@ func runLocalJob(jobName string, workingDir string, params map[string][]string,
 		out, err := cmd.CombinedOutput()
 		logger.Printf("Command output:\n%s", string(out))
 		if err != nil {
-			return nil, fmt.Errorf("error executing git rev-parse HEAD: %w", err)
+			return nil, fmt.Errorf("failed to execute git rev-parse HEAD: %v", err)
 		}
 
 		runCommit = strings.TrimSpace(string(out))
 	}
 
-	// Push local changes to server
 	cmd = exec.Command("git", "-c", "http.extraHeader=Authorization: Bearer "+config.AccessToken, "push", "-f", projectUrl, runCommit+":refs/onedev/tod")
 	cmd.Dir = workingDir
 
@@ -441,7 +364,7 @@ func runLocalJob(jobName string, workingDir string, params map[string][]string,
 	stdoutStderr, err := cmd.CombinedOutput()
 	logger.Printf("Command output:\n%s", string(stdoutStderr))
 	if err != nil {
-		return nil, fmt.Errorf("error pushing local changes: %w", err)
+		return nil, fmt.Errorf("failed to push local changes: %v", err)
 	}
 
 	jobMap := map[string]interface{}{
@@ -452,93 +375,87 @@ func runLocalJob(jobName string, workingDir string, params map[string][]string,
 		"reason":     reason,
 	}
 
-	return runJob(project, project, jobMap, logger)
+	return runJob(project, project, jobMap)
 }
 
-func migrateBuildSpec(workingDir string, logger *log.Logger) error {
-
+func checkBuildSpec(workingDir string, logger *log.Logger) error {
 	if workingDir == "" {
 		workingDir = "."
 	}
 
+	project, err := inferProject(workingDir)
+	if err != nil {
+		return fmt.Errorf("failed to get project from working directory: %v", err)
+	}
+
 	buildSpecFile := filepath.Join(workingDir, ".onedev-buildspec.yml")
 	if _, err := os.Stat(buildSpecFile); os.IsNotExist(err) {
-		return fmt.Errorf("invalid working dir: OneDev build spec not found: %s", workingDir)
+		return fmt.Errorf("unable to find OneDev build spec in working dir: %s", workingDir)
 	}
 
-	// Read the build spec file content
 	buildSpecContent, err := os.ReadFile(buildSpecFile)
 	if err != nil {
-		logger.Printf("Failed to read build spec file: %v", err)
-		return fmt.Errorf("failed to read build spec file: %w", err)
+		return fmt.Errorf("failed to read build spec: %v", err)
 	}
 
-	apiURL := config.ServerUrl + "/~api/mcp-helper/migrate-build-spec"
+	apiURL := config.ServerUrl + "/~api/mcp-helper/check-build-spec?project=" + url.QueryEscape(project)
 
-	// Create POST request with build spec content
 	req, err := http.NewRequest("POST", apiURL, strings.NewReader(string(buildSpecContent)))
 	if err != nil {
-		logger.Printf("Failed to create request: %v", err)
-		return fmt.Errorf("failed to create request: %w", err)
+		return fmt.Errorf("failed to create request: %v", err)
 	}
 
 	req.Header.Set("Content-Type", "text/plain")
 
-	// Make the API call
 	body, err := makeAPICall(req)
 	if err != nil {
-		logger.Printf("Failed to make API call: %v", err)
-		return fmt.Errorf("failed to make API call: %w", err)
+		return fmt.Errorf("failed to make API call: %v", err)
 	}
 
-	// Write the migrated content back to the build spec file
-	err = os.WriteFile(buildSpecFile, body, 0644)
-	if err != nil {
-		logger.Printf("Failed to write migrated build spec: %v", err)
-		return fmt.Errorf("failed to write migrated build spec: %w", err)
+	// Only write the file if the content has changed
+	if string(body) != string(buildSpecContent) {
+		logger.Printf("Writing updated build spec to file: %s", buildSpecFile)
+		err = os.WriteFile(buildSpecFile, body, 0644)
+		if err != nil {
+			return fmt.Errorf("failed to write updated build spec: %v", err)
+		}
 	}
-
-	logger.Printf("Build spec migrated successfully")
 
 	return nil
 }
 
 func checkVersion(serverUrl string, accessToken string) error {
-	// Make a GET request to the API endpoint
 	client := &http.Client{}
 
-	// Create a new GET request
 	req, err := http.NewRequest("GET", serverUrl+"/~api/version/compatible-tod-versions", nil)
 	if err != nil {
-		return fmt.Errorf("error requesting compatible versions: %w", err)
+		return fmt.Errorf("failed to request compatible versions: %v", err)
 	}
 
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 
-	// Send the request using the HTTP client
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("error requesting compatible versions: %w", err)
+		return fmt.Errorf("failed to request compatible versions: %v", err)
 	}
 
 	defer resp.Body.Close()
 
 	err = checkResponse(resp)
 	if err != nil {
-		return fmt.Errorf("error requesting compatible versions: %w", err)
+		return fmt.Errorf("failed to request compatible versions: %v", err)
 	}
 
-	// Decode the JSON response into a VersionInfo struct
 	var compatibleVersions CompatibleVersions
 
 	err = json.NewDecoder(resp.Body).Decode(&compatibleVersions)
 	if err != nil {
-		return fmt.Errorf("error decoding compatible versions response: %w", err)
+		return fmt.Errorf("failed to decode compatible versions response: %v", err)
 	}
 
 	semVer, err := semver.NewVersion(version)
 	if err != nil {
-		return fmt.Errorf("error parsing semver: %w", err)
+		return fmt.Errorf("failed to parse semver: %v", err)
 	}
 
 	var minVersionSatisfied = true
@@ -546,7 +463,7 @@ func checkVersion(serverUrl string, accessToken string) error {
 	if compatibleVersions.MinVersion != "" {
 		minSemVer, err := semver.NewVersion(compatibleVersions.MinVersion)
 		if err != nil {
-			return fmt.Errorf("error parsing semver: %w", err)
+			return fmt.Errorf("failed to parse semver: %v", err)
 		}
 		if semVer.LessThan(minSemVer) {
 			minVersionSatisfied = false
@@ -558,7 +475,7 @@ func checkVersion(serverUrl string, accessToken string) error {
 	if compatibleVersions.MaxVersion != "" {
 		maxSemVer, err := semver.NewVersion(compatibleVersions.MaxVersion)
 		if err != nil {
-			return fmt.Errorf("error parsing semver: %w", err)
+			return fmt.Errorf("failed to parse semver: %v", err)
 		}
 		if semVer.GreaterThan(maxSemVer) {
 			maxVersionSatisfied = false
@@ -576,37 +493,38 @@ func checkVersion(serverUrl string, accessToken string) error {
 	}
 }
 
-func streamBuildLog(buildId int, buildNumber int, signalChannel <-chan os.Signal, buildFinished *bool, mutex *sync.Mutex) error {
+func streamBuildLog(buildId int, buildNumber int, signalChannel <-chan os.Signal) error {
+	buildFinished := false
+	var mutex sync.Mutex
 	targetUrl, err := url.Parse(config.ServerUrl)
 	if err != nil {
-		return fmt.Errorf("error parsing server url: %w", err)
+		return fmt.Errorf("failed to parse server url: %v", err)
 	}
 	targetUrl.Path = fmt.Sprintf("~api/streaming/build-logs/%d", buildId)
 
 	req, err := http.NewRequest("GET", targetUrl.String(), nil)
 	if err != nil {
-		return fmt.Errorf("error streaming build log: %w", err)
+		return fmt.Errorf("failed to stream build log: %v", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+config.AccessToken)
 
 	client := http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("error streaming build log: %w", err)
+		return fmt.Errorf("failed to stream build log: %v", err)
 	}
 	defer resp.Body.Close()
 
 	err = checkResponse(resp)
 	if err != nil {
-		return fmt.Errorf("error streaming build log: %w", err)
+		return fmt.Errorf("failed to stream build log: %v", err)
 	}
 
-	// Handle cancellation in background goroutine
 	go func() {
 		<-signalChannel
 		mutex.Lock()
 		defer mutex.Unlock()
-		if !*buildFinished {
+		if !buildFinished {
 			fmt.Println("Cancelling build...")
 			client := &http.Client{}
 
@@ -614,21 +532,21 @@ func streamBuildLog(buildId int, buildNumber int, signalChannel <-chan os.Signal
 
 			req, err := http.NewRequest("DELETE", targetUrl, nil)
 			if err != nil {
-				fmt.Fprintln(os.Stderr, "Error cancelling build:", err)
+				fmt.Fprintln(os.Stderr, "Failed to cancel build:", err)
 				return
 			}
 			req.Header.Set("Authorization", "Bearer "+config.AccessToken)
 
 			resp, err := client.Do(req)
 			if err != nil {
-				fmt.Fprintln(os.Stderr, "Error cancelling build:", err)
+				fmt.Fprintln(os.Stderr, "Failed to cancel build:", err)
 				return
 			}
 			defer resp.Body.Close()
 
 			err = checkResponse(resp)
 			if err != nil {
-				fmt.Fprintln(os.Stderr, "Error cancelling build:", err)
+				fmt.Fprintln(os.Stderr, "Failed to cancel build:", err)
 				os.Exit(1)
 			}
 		}
@@ -638,20 +556,20 @@ func streamBuildLog(buildId int, buildNumber int, signalChannel <-chan os.Signal
 		var len int32
 		err := binary.Read(resp.Body, binary.BigEndian, &len)
 		if err != nil {
-			return fmt.Errorf("error streaming build log: %w", err)
+			return fmt.Errorf("failed to stream build log: %v", err)
 		}
 
 		if len > 0 {
 			logEntryBytes := make([]byte, len)
 			_, err := io.ReadFull(resp.Body, logEntryBytes)
 			if err != nil {
-				return fmt.Errorf("error streaming build log: %s", resp.Status)
+				return fmt.Errorf("failed to stream build log: %v", err)
 			}
 
 			var logEntry map[string]interface{}
 			err = json.Unmarshal(logEntryBytes, &logEntry)
 			if err != nil {
-				return fmt.Errorf("error decoding log entry json: %w", err)
+				return fmt.Errorf("failed to decode log entry json: %v", err)
 			}
 
 			line := ""
@@ -682,7 +600,7 @@ func streamBuildLog(buildId int, buildNumber int, signalChannel <-chan os.Signal
 			buildStatusBytes := make([]byte, -len)
 			_, err := io.ReadFull(resp.Body, buildStatusBytes)
 			if err != nil {
-				return fmt.Errorf("error reading build status: %w", err)
+				return fmt.Errorf("failed to read build status: %v", err)
 			}
 
 			buildStatus := string(buildStatusBytes)
@@ -690,13 +608,13 @@ func streamBuildLog(buildId int, buildNumber int, signalChannel <-chan os.Signal
 			var message = "Build #" + strconv.Itoa(buildNumber) + " is " + strings.ToLower(buildStatus)
 			if buildStatus == "SUCCESSFUL" {
 				mutex.Lock()
-				*buildFinished = true
+				buildFinished = true
 				mutex.Unlock()
 				fmt.Println(wrapWithBold(wrapWithGreen(message)))
 				break
 			} else if buildStatus == "FAILED" || buildStatus == "CANCELLED" || buildStatus == "TIMED_OUT" {
 				mutex.Lock()
-				*buildFinished = true
+				buildFinished = true
 				mutex.Unlock()
 				fmt.Println(wrapWithBold(wrapWithRed(message)))
 				break
@@ -706,4 +624,20 @@ func streamBuildLog(buildId int, buildNumber int, signalChannel <-chan os.Signal
 		}
 	}
 	return nil
+}
+
+func wrapWithRed(message string) string {
+	return fmt.Sprintf("\033[31m%s\033[0m", message)
+}
+
+func wrapWithGreen(message string) string {
+	return fmt.Sprintf("\033[32m%s\033[0m", message)
+}
+
+func wrapWithColor(message, color string) string {
+	return fmt.Sprintf("\033[%sm%s\033[0m", color, message)
+}
+
+func wrapWithBold(message string) string {
+	return fmt.Sprintf("\033[1m%s\033[0m", message)
 }

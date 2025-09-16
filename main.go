@@ -72,6 +72,11 @@ var mcpCmd = &cobra.Command{
 	Use:   "mcp",
 	Short: "Start MCP server",
 	Long:  `Start the Model Context Protocol server for tool integration.`,
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		// Skip global config validation for MCP command
+		// MCP will handle its own config validation after logger initialization
+		return nil
+	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// MCP command
 		mcpCommand := MCPCommand{}
@@ -111,19 +116,17 @@ var checkoutPullRequestCmd = &cobra.Command{
 	},
 }
 
-var migrateBuildSpecCmd = &cobra.Command{
-	Use:   "migrate-build-spec",
-	Short: "Migrate build spec to current version",
-	Long: `Migrate the .onedev-buildspec.yml file in the current directory to current version.
-This command reads the current build spec, sends it to the server for migration,
-and writes the updated version back to the file.`,
-	Args: cobra.NoArgs,
+var checkBuildSpecCmd = &cobra.Command{
+	Use:   "check-build-spec",
+	Short: "Check build spec",
+	Long:  "Check build spec for its validity, as well as updating it to latest version if needed",
+	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// Migrate build spec command
-		migrateBuildSpecCommand := MigrateBuildSpecCommand{}
+		// Check build spec command
+		checkBuildSpecCommand := CheckBuildSpecCommand{}
 		// Create a logger that prints to stdout
-		logger := log.New(os.Stdout, "[MIGRATE] ", log.LstdFlags)
-		migrateBuildSpecCommand.Execute(cmd, args, logger)
+		logger := log.New(os.Stdout, "[CHECK] ", log.LstdFlags)
+		checkBuildSpecCommand.Execute(cmd, args, logger)
 		return nil
 	},
 }
@@ -146,8 +149,8 @@ func init() {
 	// Checkout command specific flags
 	checkoutPullRequestCmd.Flags().String("working-dir", "", "Specify working directory to checkout pull request against (defaults to current directory)")
 
-	// Migrate build spec command specific flags
-	migrateBuildSpecCmd.Flags().String("working-dir", "", "Specify working directory containing build spec file (defaults to current directory)")
+	// Check build spec command specific flags
+	checkBuildSpecCmd.Flags().String("working-dir", "", "Specify working directory containing build spec file (defaults to current directory)")
 
 	// MCP command specific flags
 	mcpCmd.Flags().String("log-file", "", "Specify log file path for debug logging")
@@ -157,7 +160,7 @@ func init() {
 	rootCmd.AddCommand(runJobCmd)
 	rootCmd.AddCommand(mcpCmd)
 	rootCmd.AddCommand(checkoutPullRequestCmd)
-	rootCmd.AddCommand(migrateBuildSpecCmd)
+	rootCmd.AddCommand(checkBuildSpecCmd)
 }
 
 func main() {

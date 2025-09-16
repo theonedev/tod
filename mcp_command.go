@@ -15,16 +15,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type MCPCommand struct{}
+type MCPCommand struct {
+	workingDir          string
+	currentProjectCache string
+	logger              *log.Logger
+}
 
-// Global config instance is declared in main.go
-var workingDir string
-var currentProjectCache string
-
-// Global logger instance
-var logger *log.Logger
-
-// JSON-RPC 2.0 standard error codes
 const (
 	ErrorCodeParseError      = -32700 // Parse error – Invalid JSON was received
 	ErrorCodeInvalidRequest  = -32600 // Invalid Request – The JSON sent is not a valid Request object
@@ -130,8 +126,8 @@ type PromptMessageContent struct {
 	Text string `json:"text"`
 }
 
-// initializeLogging sets up the global logger based on the logfile parameter
-func initializeLogging(logFile string) {
+// initializeLogging sets up the instance logger based on the command.logfile parameter
+func (command *MCPCommand) initializeLogging(logFile string) {
 	if logFile != "" {
 		// Open log file for writing (create if not exists, append if exists)
 		file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
@@ -139,34 +135,60 @@ func initializeLogging(logFile string) {
 			// If we can't open the log file, fall back to stderr for this error
 			fmt.Fprintf(os.Stderr, "Failed to open log file %q: %v\n", logFile, err)
 			// Initialize with discard writer so logging calls don't panic
-			logger = log.New(io.Discard, "", 0)
+			command.logger = log.New(io.Discard, "", 0)
 			return
 		}
 		// Create logger that writes to the file
-		logger = log.New(file, "[MCP] ", log.LstdFlags|log.Lmicroseconds)
+		command.logger = log.New(file, "[MCP] ", log.LstdFlags|log.Lmicroseconds)
 	} else {
 		// If no log file specified, create a logger that discards output
-		logger = log.New(io.Discard, "", 0)
+		command.logger = log.New(io.Discard, "", 0)
 	}
 }
 
-// logf logs a formatted message if logging is enabled
-func logf(format string, v ...interface{}) {
-	if logger != nil {
-		logger.Printf(format, v...)
+// command.logf logs a formatted message if logging is enabled
+func (command *MCPCommand) logf(format string, v ...interface{}) {
+	if command.logger != nil {
+		command.logger.Printf(format, v...)
 	}
 }
 
-func (mcpCommand MCPCommand) Execute(cobraCmd *cobra.Command, args []string) {
-	// Initialize variables
+func (command *MCPCommand) Execute(cobraCmd *cobra.Command, args []string) {
 	var logFile string
 
 	logFile, _ = cobraCmd.Flags().GetString("log-file")
 
-	// Initialize logging based on logfile parameter
-	initializeLogging(logFile)
+	command.initializeLogging(logFile)
 
-	logf("MCP server starting with serverUrl=%s, logFile=%s", config.ServerUrl, logFile)
+	// Load configuration after logger is initialized
+	var err error
+	config, err = LoadConfig()
+	if err != nil {
+		command.logf("Failed to load config: %v", err)
+		fmt.Fprintf(os.Stderr, "Failed to load config: %v\n", err)
+		os.Exit(1)
+	}
+
+	if serverUrl, _ := cobraCmd.Flags().GetString("server-url"); serverUrl != "" {
+		config.ServerUrl = serverUrl
+	}
+	if accessToken, _ := cobraCmd.Flags().GetString("access-token"); accessToken != "" {
+		config.AccessToken = accessToken
+	}
+
+	if err := config.Validate(); err != nil {
+		command.logf("Config validation failed: %v", err)
+		fmt.Fprintf(os.Stderr, "Config validation failed: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := checkVersion(config.ServerUrl, config.AccessToken); err != nil {
+		command.logf("Version check failed: %v", err)
+		fmt.Fprintf(os.Stderr, "Version check failed: %v\n", err)
+		os.Exit(1)
+	}
+
+	command.logf("MCP server starting with serverUrl=%s, logFile=%s", config.ServerUrl, logFile)
 
 	scanner := bufio.NewScanner(os.Stdin)
 
@@ -178,58 +200,49 @@ func (mcpCommand MCPCommand) Execute(cobraCmd *cobra.Command, args []string) {
 
 		var request MCPRequest
 		if err := json.Unmarshal([]byte(line), &request); err != nil {
-			sendError(nil, ErrorCodeParseError, fmt.Sprintf("Failed to parse JSON request: %v, line: %s", err, line))
+			command.sendError(nil, ErrorCodeParseError, fmt.Sprintf("Failed to parse JSON request: %v, line: %s", err, line))
 			continue
 		}
 
-		logf("Received request: method=%s, id=%v", request.Method, request.ID)
+		command.logf("Received request: method=%s, id=%v", request.Method, request.ID)
 
-		// Validate required fields
 		if request.JSONRPC != "2.0" {
-			sendError(request.ID, ErrorCodeInvalidRequest, "Invalid Request: jsonrpc must be '2.0'")
+			command.sendError(request.ID, ErrorCodeInvalidRequest, "Invalid Request: jsonrpc must be '2.0'")
 			continue
 		}
 
 		if request.Method == "" {
-			sendError(request.ID, ErrorCodeInvalidRequest, "Invalid Request: method is required")
+			command.sendError(request.ID, ErrorCodeInvalidRequest, "Invalid Request: method is required")
 			continue
 		}
 
-		// Check if this is a notification (no ID field or ID is null)
 		isNotification := request.ID == nil
 
 		switch request.Method {
 		case "initialize":
-			handleInitialize(request)
+			command.handleInitialize(request)
 		case "initialized", "notifications/initialized":
-			// Client sends this after successful initialization - just acknowledge
-			// For notifications (no ID), don't send a response
 			if !isNotification {
-				sendResponse(request.ID, map[string]interface{}{})
+				command.sendResponse(request.ID, map[string]interface{}{})
 			}
 		case "tools/list":
-			handleToolsList(request)
+			command.handleToolsList(request)
 		case "tools/call":
-			handleToolsCall(request)
+			command.handleToolsCall(request)
 		case "ping":
-			// Standard ping/pong for keepalive
-			sendResponse(request.ID, map[string]interface{}{})
+			command.sendResponse(request.ID, map[string]interface{}{})
 		case "notifications/cancelled":
-			// Handle notification cancellations gracefully
-			// No response needed for notifications
 		default:
-			// Log the unknown method for debugging
-			logf("Unknown method requested: %s (ID: %v, isNotification: %v)", request.Method, request.ID, isNotification)
-			// Only send error response for requests (not notifications)
+			command.logf("Unknown method requested: %s (ID: %v, isNotification: %v)", request.Method, request.ID, isNotification)
 			if !isNotification {
-				sendError(request.ID, ErrorCodeMethodNotFound, fmt.Sprintf("Unknown method requested: %s", request.Method))
+				command.sendError(request.ID, ErrorCodeMethodNotFound, fmt.Sprintf("Unknown method requested: %s", request.Method))
 			}
 		}
 	}
 }
 
-func handleInitialize(request MCPRequest) {
-	logf("Handling initialize request")
+func (command *MCPCommand) handleInitialize(request MCPRequest) {
+	command.logf("Handling initialize request")
 
 	// Validate required configuration before initializing
 	var missingArgs []string
@@ -242,8 +255,8 @@ func handleInitialize(request MCPRequest) {
 
 	if len(missingArgs) > 0 {
 		message := fmt.Sprintf("MCP server initialization failed: missing required arguments: %s. Please restart with -server and -token flags.", strings.Join(missingArgs, ", "))
-		logf(message)
-		sendError(request.ID, ErrorCodeInvalidRequest, message)
+		command.logf(message)
+		command.sendError(request.ID, ErrorCodeInvalidRequest, message)
 		return
 	}
 
@@ -260,12 +273,12 @@ func handleInitialize(request MCPRequest) {
 		wd, err = os.Getwd()
 		if err != nil {
 			message := fmt.Sprintf("Failed to get working directory: %v", err)
-			logf(message)
-			sendError(request.ID, ErrorCodeInternalError, message)
+			command.logf(message)
+			command.sendError(request.ID, ErrorCodeInternalError, message)
 			return
 		}
 	}
-	workingDir = wd
+	command.workingDir = wd
 
 	serverName := "tod"
 	if config.ServerUrl != "" {
@@ -285,36 +298,26 @@ func handleInitialize(request MCPRequest) {
 		},
 	}
 
-	logf("Initialize successful, sending response")
-	sendResponse(request.ID, result)
+	command.logf("Initialize successful, sending response")
+	command.sendResponse(request.ID, result)
 }
 
-// createErrorString creates a well-formatted string for logging purposes
-func createErrorString(err error) string {
-	// If this is an APIError, include additional structured details
-	if apiErr, ok := err.(*APIError); ok {
-		return fmt.Sprintf("%s, endpoint: %s", apiErr.Error(), apiErr.Endpoint)
-	} else {
-		return err.Error()
-	}
-}
-
-func handleToolsList(request MCPRequest) {
-	logf("Handling tools/list request")
+func (command *MCPCommand) handleToolsList(request MCPRequest) {
+	command.logf("Handling tools/list request")
 
 	schemas, err := getJSONMapFromAPI(config.ServerUrl + "/~api/mcp-helper/get-tool-input-schemas")
 	if err != nil {
-		logf("Failed to get tool input schemas: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInternalError, "Failed to get tool input schemas: "+err.Error())
+		command.logf("Failed to get tool input schemas: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to get tool input schemas: "+err.Error())
 		return
 	}
 
 	tools := []Tool{}
 
-	queryIssuesSchema := getInputSchemaForTool("queryIssues", schemas)
+	queryIssuesSchema := command.getInputSchemaForTool("queryIssues", schemas)
 	if queryIssuesSchema.Type == "" {
-		logf("Failed to get input schema for queryIssues tool")
-		sendError(request.ID, ErrorCodeInternalError, "Failed to get input schema for queryIssues tool")
+		command.logf("Failed to get input schema for queryIssues tool")
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to get input schema for queryIssues tool")
 		return
 	}
 	tools = append(tools, Tool{
@@ -351,10 +354,10 @@ func handleToolsList(request MCPRequest) {
 		},
 	})
 
-	createIssueSchema := getInputSchemaForTool("createIssue", schemas)
+	createIssueSchema := command.getInputSchemaForTool("createIssue", schemas)
 	if createIssueSchema.Type == "" {
-		logf("Failed to get input schema for createIssue tool")
-		sendError(request.ID, ErrorCodeInternalError, "Failed to get input schema for createIssue tool")
+		command.logf("Failed to get input schema for createIssue tool")
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to get input schema for createIssue tool")
 		return
 	}
 	tools = append(tools, Tool{
@@ -363,10 +366,10 @@ func handleToolsList(request MCPRequest) {
 		InputSchema: createIssueSchema,
 	})
 
-	editIssueSchema := getInputSchemaForTool("editIssue", schemas)
+	editIssueSchema := command.getInputSchemaForTool("editIssue", schemas)
 	if editIssueSchema.Type == "" {
-		logf("Failed to get input schema for editIssue tool")
-		sendError(request.ID, ErrorCodeInternalError, "Failed to get input schema for editIssue tool")
+		command.logf("Failed to get input schema for editIssue tool")
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to get input schema for editIssue tool")
 		return
 	}
 	tools = append(tools, Tool{
@@ -375,7 +378,7 @@ func handleToolsList(request MCPRequest) {
 		InputSchema: editIssueSchema,
 	})
 
-	transitIssueSchema := getInputSchemaForTool("transitIssue", schemas)
+	transitIssueSchema := command.getInputSchemaForTool("transitIssue", schemas)
 	if transitIssueSchema.Type != "" {
 		tools = append(tools, Tool{
 			Name:        "transitIssue",
@@ -384,7 +387,7 @@ func handleToolsList(request MCPRequest) {
 		})
 	}
 
-	linkIssuesSchema := getInputSchemaForTool("linkIssues", schemas)
+	linkIssuesSchema := command.getInputSchemaForTool("linkIssues", schemas)
 	if linkIssuesSchema.Type != "" {
 		tools = append(tools, Tool{
 			Name:        "linkIssues",
@@ -435,10 +438,10 @@ func handleToolsList(request MCPRequest) {
 		},
 	})
 
-	queryPullRequestsSchema := getInputSchemaForTool("queryPullRequests", schemas)
+	queryPullRequestsSchema := command.getInputSchemaForTool("queryPullRequests", schemas)
 	if queryPullRequestsSchema.Type == "" {
-		logf("Failed to get input schema for queryPullRequests tool")
-		sendError(request.ID, ErrorCodeInternalError, "Failed to get input schema for queryPullRequests tool")
+		command.logf("Failed to get input schema for queryPullRequests tool")
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to get input schema for queryPullRequests tool")
 		return
 	}
 	tools = append(tools, Tool{
@@ -534,10 +537,10 @@ func handleToolsList(request MCPRequest) {
 		},
 	})
 
-	createPullRequestSchema := getInputSchemaForTool("createPullRequest", schemas)
+	createPullRequestSchema := command.getInputSchemaForTool("createPullRequest", schemas)
 	if createPullRequestSchema.Type == "" {
-		logf("Failed to get input schema for createPullRequest tool")
-		sendError(request.ID, ErrorCodeInternalError, "Failed to get input schema for createPullRequest tool")
+		command.logf("Failed to get input schema for createPullRequest tool")
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to get input schema for createPullRequest tool")
 		return
 	}
 	tools = append(tools, Tool{
@@ -546,10 +549,10 @@ func handleToolsList(request MCPRequest) {
 		InputSchema: createPullRequestSchema,
 	})
 
-	editPullRequestSchema := getInputSchemaForTool("editPullRequest", schemas)
+	editPullRequestSchema := command.getInputSchemaForTool("editPullRequest", schemas)
 	if editPullRequestSchema.Type == "" {
-		logf("Failed to get input schema for editPullRequest tool")
-		sendError(request.ID, ErrorCodeInternalError, "Failed to get input schema for editPullRequest tool")
+		command.logf("Failed to get input schema for editPullRequest tool")
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to get input schema for editPullRequest tool")
 		return
 	}
 	tools = append(tools, Tool{
@@ -615,10 +618,10 @@ func handleToolsList(request MCPRequest) {
 		},
 	})
 
-	queryBuildsSchema := getInputSchemaForTool("queryBuilds", schemas)
+	queryBuildsSchema := command.getInputSchemaForTool("queryBuilds", schemas)
 	if queryBuildsSchema.Type == "" {
-		logf("Failed to get input schema for queryBuilds tool")
-		sendError(request.ID, ErrorCodeInternalError, "Failed to get input schema for queryBuilds tool")
+		command.logf("Failed to get input schema for queryBuilds tool")
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to get input schema for queryBuilds tool")
 		return
 	}
 	tools = append(tools, Tool{
@@ -749,7 +752,7 @@ func handleToolsList(request MCPRequest) {
 
 	tools = append(tools, Tool{
 		Name:        "getBuildSpecSchema",
-		Description: "Get schema of OneDev build spec, which can be used to edit or validate file .onedev-buildspec.yml",
+		Description: "Get build spec schema. AI assistant should call this tool to know how to edit build spec (.onedev-buildspec.yml)",
 		InputSchema: InputSchema{
 			Type:       "object",
 			Properties: map[string]interface{}{},
@@ -758,8 +761,8 @@ func handleToolsList(request MCPRequest) {
 	})
 
 	tools = append(tools, Tool{
-		Name:        "migrateBuildSpec",
-		Description: "Migrate build spec to latest version. When edit or validate build spec, AI assistant should first check build spec version against version specified in build spec schema, and migrate it if outdated",
+		Name:        "checkBuildSpec",
+		Description: "Check build spec for its validity, as well as updating it to latest version if needed. AI assistant should call this tool before and after editing build spec (.onedev-buildspec.yml) to make sure it is valid and update to date",
 		InputSchema: InputSchema{
 			Type:       "object",
 			Properties: map[string]interface{}{},
@@ -832,44 +835,44 @@ func handleToolsList(request MCPRequest) {
 		"tools": tools,
 	}
 
-	logf("Sending tools list with %d tools", len(tools))
-	sendResponse(request.ID, result)
+	command.logf("Sending tools list with %d tools", len(tools))
+	command.sendResponse(request.ID, result)
 }
 
-func handleGetWorkingDirTool(request MCPRequest) {
-	logf("Handling getWorkingDir tool call")
+func (command *MCPCommand) handleGetWorkingDirTool(request MCPRequest) {
+	command.logf("Handling getWorkingDir tool call")
 
 	result := CallToolResult{
 		Content: []ToolContent{
 			{
 				Type: "text",
-				Text: workingDir,
+				Text: command.workingDir,
 			},
 		},
 	}
 
-	logf("getWorkingDir tool call successful")
-	sendResponse(request.ID, result)
+	command.logf("getWorkingDir tool call successful")
+	command.sendResponse(request.ID, result)
 }
 
-func getCurrentProject() (string, error) {
-	if currentProjectCache == "" {
+func (command *MCPCommand) getCurrentProject() (string, error) {
+	if command.currentProjectCache == "" {
 		var err error
-		currentProjectCache, err = inferProject(workingDir)
+		command.currentProjectCache, err = inferProject(command.workingDir)
 		if err != nil {
 			return "", err
 		}
 	}
-	return currentProjectCache, nil
+	return command.currentProjectCache, nil
 }
 
-func handleGetCurrentProjectTool(request MCPRequest) {
-	logf("Handling getCurrentProject tool call")
+func (command *MCPCommand) handleGetCurrentProjectTool(request MCPRequest) {
+	command.logf("Handling getCurrentProject tool call")
 
-	currentProject, err := getCurrentProject()
+	currentProject, err := command.getCurrentProject()
 	if err != nil {
-		logf("Failed to get current project: %v", err)
-		sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
+		command.logf("Failed to get current project: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
 		return
 	}
 
@@ -882,58 +885,58 @@ func handleGetCurrentProjectTool(request MCPRequest) {
 		},
 	}
 
-	logf("getCurrentProject tool call successful")
-	sendResponse(request.ID, result)
+	command.logf("getCurrentProject tool call successful")
+	command.sendResponse(request.ID, result)
 }
 
-func handleSetWorkingDirTool(request MCPRequest, params CallToolParams) {
-	logf("Handling setWorkingDir tool call")
+func (command *MCPCommand) handleSetWorkingDirTool(request MCPRequest, params CallToolParams) {
+	command.logf("Handling setWorkingDir tool call")
 
 	workingDirArg, exists := params.Arguments["workingDir"]
 	if !exists {
-		logf("Missing required parameter: workingDir")
-		sendError(request.ID, ErrorCodeInvalidParams, "Missing required parameter: workingDir")
+		command.logf("Missing required parameter: workingDir")
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Missing required parameter: workingDir")
 		return
 	}
 
 	var ok bool
-	workingDir, ok = workingDirArg.(string)
+	command.workingDir, ok = workingDirArg.(string)
 	if !ok {
-		logf("Invalid type for workingDir parameter: expected string")
-		sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for workingDir parameter: expected string")
+		command.logf("Invalid type for workingDir parameter: expected string")
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for workingDir parameter: expected string")
 		return
 	}
 
-	if workingDir == "" {
-		logf("workingDir parameter cannot be empty")
-		sendError(request.ID, ErrorCodeInvalidParams, "workingDir parameter cannot be empty")
+	if command.workingDir == "" {
+		command.logf("workingDir parameter cannot be empty")
+		command.sendError(request.ID, ErrorCodeInvalidParams, "workingDir parameter cannot be empty")
 		return
 	}
 
-	if !filepath.IsAbs(workingDir) {
-		logf("workingDir parameter must be an absolute path")
-		sendError(request.ID, ErrorCodeInvalidParams, "workingDir parameter must be an absolute path")
+	if !filepath.IsAbs(command.workingDir) {
+		command.logf("workingDir parameter must be an absolute path")
+		command.sendError(request.ID, ErrorCodeInvalidParams, "workingDir parameter must be an absolute path")
 		return
 	}
 
-	currentProjectCache = ""
+	command.currentProjectCache = ""
 
 	result := CallToolResult{
 		Content: []ToolContent{
 			{
 				Type: "text",
-				Text: "Working directory set to " + workingDir,
+				Text: "Working directory set to " + command.workingDir,
 			},
 		},
 	}
 
-	logf("setWorkingDir tool call successful")
-	sendResponse(request.ID, result)
+	command.logf("setWorkingDir tool call successful")
+	command.sendResponse(request.ID, result)
 }
 
 // handleGetLoginNameTool handles the getLoginName tool call
-func handleGetLoginNameTool(request MCPRequest, params CallToolParams) {
-	logf("Handling getLoginName tool call")
+func (command *MCPCommand) handleGetLoginNameTool(request MCPRequest, params CallToolParams) {
+	command.logf("Handling getLoginName tool call")
 
 	// Get userName parameter if provided
 	var userName string
@@ -949,16 +952,16 @@ func handleGetLoginNameTool(request MCPRequest, params CallToolParams) {
 	// Create HTTP request
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
-		logf("Failed to create request: %v", err)
-		sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
+		command.logf("Failed to create request: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
 		return
 	}
 
 	// Make the API call
 	body, err := makeAPICall(req)
 	if err != nil {
-		logf("Failed to make API call: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInternalError, "Failed to make API call: "+err.Error())
+		command.logf("Failed to make API call: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to make API call: "+err.Error())
 		return
 	}
 
@@ -973,25 +976,25 @@ func handleGetLoginNameTool(request MCPRequest, params CallToolParams) {
 		},
 	}
 
-	logf("getLoginName tool call successful")
-	sendResponse(request.ID, result)
+	command.logf("getLoginName tool call successful")
+	command.sendResponse(request.ID, result)
 }
 
 // handleGetUnixTimestampTool handles the getUnixTimestamp tool call
-func handleGetUnixTimestampTool(request MCPRequest, params CallToolParams) {
-	logf("Handling getUnixTimestamp tool call")
+func (command *MCPCommand) handleGetUnixTimestampTool(request MCPRequest, params CallToolParams) {
+	command.logf("Handling getUnixTimestamp tool call")
 
 	// Get dateTimeDescription parameter, report error if not provided
 	dateTimeDescriptionArg, exists := params.Arguments["dateTimeDescription"]
 	if !exists {
-		logf("Missing required parameter: dateTimeDescription")
-		sendError(request.ID, ErrorCodeInvalidParams, "Missing required parameter: dateTimeDescription")
+		command.logf("Missing required parameter: dateTimeDescription")
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Missing required parameter: dateTimeDescription")
 		return
 	}
 	dateTimeDescription, ok := dateTimeDescriptionArg.(string)
 	if !ok {
-		logf("Invalid type for dateTimeDescription parameter: expected string")
-		sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for dateTimeDescription parameter: expected string")
+		command.logf("Invalid type for dateTimeDescription parameter: expected string")
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for dateTimeDescription parameter: expected string")
 		return
 	}
 
@@ -1004,16 +1007,16 @@ func handleGetUnixTimestampTool(request MCPRequest, params CallToolParams) {
 	// Create HTTP request
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
-		logf("Failed to create request: %v", err)
-		sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
+		command.logf("Failed to create request: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
 		return
 	}
 
 	// Make the API call
 	body, err := makeAPICall(req)
 	if err != nil {
-		logf("Failed to make API call: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInternalError, "Failed to make API call: "+err.Error())
+		command.logf("Failed to make API call: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to make API call: "+err.Error())
 		return
 	}
 
@@ -1028,89 +1031,89 @@ func handleGetUnixTimestampTool(request MCPRequest, params CallToolParams) {
 		},
 	}
 
-	logf("getUnixTimestamp tool call successful")
-	sendResponse(request.ID, result)
+	command.logf("getUnixTimestamp tool call successful")
+	command.sendResponse(request.ID, result)
 }
 
-func getBuild(buildReference string, currentProject string) (map[string]interface{}, error) {
-	data, err := getEntityData(buildReference, currentProject, "get-build")
+func (command *MCPCommand) getBuild(buildReference string, currentProject string) (map[string]interface{}, error) {
+	data, err := command.getEntityData(buildReference, currentProject, "get-build")
 	if err != nil {
 		return nil, err
 	}
 
 	var build map[string]interface{}
 	if err := json.Unmarshal(data, &build); err != nil {
-		logf("Failed to parse JSON response: %v", err)
+		command.logf("Failed to parse JSON response: %v", err)
 		return nil, err
 	}
 
 	return build, nil
 }
 
-func getPullRequest(pullRequestReference string, currentProject string) (map[string]interface{}, error) {
-	data, err := getEntityData(pullRequestReference, currentProject, "get-pull-request")
+func (command *MCPCommand) getPullRequest(pullRequestReference string, currentProject string) (map[string]interface{}, error) {
+	data, err := command.getEntityData(pullRequestReference, currentProject, "get-pull-request")
 	if err != nil {
 		return nil, err
 	}
 
 	var pullRequest map[string]interface{}
 	if err := json.Unmarshal(data, &pullRequest); err != nil {
-		logf("Failed to parse JSON response: %v", err)
+		command.logf("Failed to parse JSON response: %v", err)
 		return nil, err
 	}
 
 	return pullRequest, nil
 }
 
-func handleGetPullRequestFileContentTool(request MCPRequest, params CallToolParams) {
-	logf("Handling getPullRequestFileContent tool call")
+func (command *MCPCommand) handleGetPullRequestFileContentTool(request MCPRequest, params CallToolParams) {
+	command.logf("Handling getPullRequestFileContent tool call")
 
-	currentProject, err := getCurrentProject()
+	currentProject, err := command.getCurrentProject()
 	if err != nil {
-		logf("Failed to get current project: %v", err)
-		sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
+		command.logf("Failed to get current project: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
 		return
 	}
 
-	reference, err := getNonEmptyStringParam(params, "pullRequestReference")
+	reference, err := command.getNonEmptyStringParam(params, "pullRequestReference")
 	if err != nil {
-		logf("Failed to extract pullRequestReference: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract pullRequestReference: "+err.Error())
+		command.logf("Failed to extract pullRequestReference: %v", err)
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract pullRequestReference: "+err.Error())
 		return
 	}
 
-	filePath, err := getNonEmptyStringParam(params, "filePath")
+	filePath, err := command.getNonEmptyStringParam(params, "filePath")
 	if err != nil {
-		logf("Failed to extract filePath: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract filePath: "+err.Error())
+		command.logf("Failed to extract filePath: %v", err)
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract filePath: "+err.Error())
 		return
 	}
 
-	revision, err := getNonEmptyStringParam(params, "revision")
+	revision, err := command.getNonEmptyStringParam(params, "revision")
 	if err != nil {
-		logf("Failed to extract revision: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract revision: "+err.Error())
+		command.logf("Failed to extract revision: %v", err)
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract revision: "+err.Error())
 		return
 	}
 
-	pullRequest, err := getPullRequest(reference, currentProject)
+	pullRequest, err := command.getPullRequest(reference, currentProject)
 
 	var commitHash string
 	if revision == "latest" {
 		commitHash = pullRequest["headCommitHash"].(string)
 	} else {
-		patchInfo, err := getPullRequestPatchInfo(currentProject, reference, revision != "initial")
+		patchInfo, err := command.getPullRequestPatchInfo(currentProject, reference, revision != "initial")
 		if err != nil {
-			logf("Failed to get pull request patch info: %v", err)
-			sendError(request.ID, ErrorCodeInternalError, "Failed to get pull request patch info: "+err.Error())
+			command.logf("Failed to get pull request patch info: %v", err)
+			command.sendError(request.ID, ErrorCodeInternalError, "Failed to get pull request patch info: "+err.Error())
 			return
 		}
 		commitHash = patchInfo["oldCommitHash"].(string)
 	}
 
 	if err != nil {
-		logf("Failed to get pull request info: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInternalError, "Failed to get pull request info: "+err.Error())
+		command.logf("Failed to get pull request info: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to get pull request info: "+err.Error())
 		return
 	}
 
@@ -1124,16 +1127,16 @@ func handleGetPullRequestFileContentTool(request MCPRequest, params CallToolPara
 	// Create HTTP request
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
-		logf("Failed to create request: %v", err)
-		sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
+		command.logf("Failed to create request: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
 		return
 	}
 
 	// Make the API call
 	body, err := makeAPICall(req)
 	if err != nil {
-		logf("Failed to make API call: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInternalError, "Failed to make API call: "+err.Error())
+		command.logf("Failed to make API call: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to make API call: "+err.Error())
 		return
 	}
 
@@ -1146,39 +1149,39 @@ func handleGetPullRequestFileContentTool(request MCPRequest, params CallToolPara
 		},
 	}
 
-	logf("getPullRequestFileContent tool call successful")
-	sendResponse(request.ID, result)
+	command.logf("getPullRequestFileContent tool call successful")
+	command.sendResponse(request.ID, result)
 }
 
-func handleGetBuildFileContentTool(request MCPRequest, params CallToolParams) {
-	logf("Handling getBuildFileContent tool call")
+func (command *MCPCommand) handleGetBuildFileContentTool(request MCPRequest, params CallToolParams) {
+	command.logf("Handling getBuildFileContent tool call")
 
-	currentProject, err := getCurrentProject()
+	currentProject, err := command.getCurrentProject()
 	if err != nil {
-		logf("Failed to get current project: %v", err)
-		sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
+		command.logf("Failed to get current project: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
 		return
 	}
 
-	reference, err := getNonEmptyStringParam(params, "buildReference")
+	reference, err := command.getNonEmptyStringParam(params, "buildReference")
 	if err != nil {
-		logf("Failed to extract buildReference: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract buildReference: "+err.Error())
+		command.logf("Failed to extract buildReference: %v", err)
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract buildReference: "+err.Error())
 		return
 	}
 
-	filePath, err := getNonEmptyStringParam(params, "filePath")
+	filePath, err := command.getNonEmptyStringParam(params, "filePath")
 	if err != nil {
-		logf("Failed to extract filePath: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract filePath: "+err.Error())
+		command.logf("Failed to extract filePath: %v", err)
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract filePath: "+err.Error())
 		return
 	}
 
-	build, err := getBuild(reference, currentProject)
+	build, err := command.getBuild(reference, currentProject)
 
 	if err != nil {
-		logf("Failed to get build info: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInternalError, "Failed to get build info: "+err.Error())
+		command.logf("Failed to get build info: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to get build info: "+err.Error())
 		return
 	}
 
@@ -1192,16 +1195,16 @@ func handleGetBuildFileContentTool(request MCPRequest, params CallToolParams) {
 	// Create HTTP request
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
-		logf("Failed to create request: %v", err)
-		sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
+		command.logf("Failed to create request: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
 		return
 	}
 
 	// Make the API call
 	body, err := makeAPICall(req)
 	if err != nil {
-		logf("Failed to make API call: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInternalError, "Failed to make API call: "+err.Error())
+		command.logf("Failed to make API call: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to make API call: "+err.Error())
 		return
 	}
 
@@ -1214,31 +1217,31 @@ func handleGetBuildFileContentTool(request MCPRequest, params CallToolParams) {
 		},
 	}
 
-	logf("getBuildFileContent tool call successful")
-	sendResponse(request.ID, result)
+	command.logf("getBuildFileContent tool call successful")
+	command.sendResponse(request.ID, result)
 }
 
-func handleGetFileChangesSincePreviousSuccessfulSimilarBuildTool(request MCPRequest, params CallToolParams) {
-	logf("Handling getFileChangesSincePreviousSuccessfulSimilarBuild tool call")
+func (command *MCPCommand) handleGetFileChangesSincePreviousSuccessfulSimilarBuildTool(request MCPRequest, params CallToolParams) {
+	command.logf("Handling getFileChangesSincePreviousSuccessfulSimilarBuild tool call")
 
-	currentProject, err := getCurrentProject()
+	currentProject, err := command.getCurrentProject()
 	if err != nil {
-		logf("Failed to get current project: %v", err)
-		sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
+		command.logf("Failed to get current project: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
 		return
 	}
 
-	reference, err := getNonEmptyStringParam(params, "buildReference")
+	reference, err := command.getNonEmptyStringParam(params, "buildReference")
 	if err != nil {
-		logf("Failed to extract buildReference: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract buildReference: "+err.Error())
+		command.logf("Failed to extract buildReference: %v", err)
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract buildReference: "+err.Error())
 		return
 	}
 
-	build, err := getBuild(reference, currentProject)
+	build, err := command.getBuild(reference, currentProject)
 	if err != nil {
-		logf("Failed to get build info: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInternalError, "Failed to get build info: "+err.Error())
+		command.logf("Failed to get build info: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to get build info: "+err.Error())
 		return
 	}
 
@@ -1253,23 +1256,23 @@ func handleGetFileChangesSincePreviousSuccessfulSimilarBuildTool(request MCPRequ
 	// Create HTTP request
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
-		logf("Failed to create request: %v", err)
-		sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
+		command.logf("Failed to create request: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
 		return
 	}
 
 	// Make the API call
 	body, err := makeAPICall(req)
 	if err != nil {
-		logf("Failed to make API call: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInternalError, "Failed to make API call: "+err.Error())
+		command.logf("Failed to make API call: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to make API call: "+err.Error())
 		return
 	}
 
 	var previousSuccessfulBuild map[string]interface{}
 	if err := json.Unmarshal(body, &previousSuccessfulBuild); err != nil {
-		logf("Failed to parse JSON response: %v", err)
-		sendError(request.ID, ErrorCodeInternalError, "Failed to parse JSON response: "+err.Error())
+		command.logf("Failed to parse JSON response: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to parse JSON response: "+err.Error())
 		return
 	}
 
@@ -1283,15 +1286,15 @@ func handleGetFileChangesSincePreviousSuccessfulSimilarBuildTool(request MCPRequ
 
 	req, err = http.NewRequest("GET", apiURL, nil)
 	if err != nil {
-		logf("Failed to create request: %v", err)
-		sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
+		command.logf("Failed to create request: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
 		return
 	}
 
 	body, err = makeAPICall(req)
 	if err != nil {
-		logf("Failed to make API call: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInternalError, "Failed to make API call: "+err.Error())
+		command.logf("Failed to make API call: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to make API call: "+err.Error())
 		return
 	}
 
@@ -1304,22 +1307,22 @@ func handleGetFileChangesSincePreviousSuccessfulSimilarBuildTool(request MCPRequ
 		},
 	}
 
-	logf("getFileChangesSincePreviousSuccessfulSimilarBuild tool call successful")
-	sendResponse(request.ID, result)
+	command.logf("getFileChangesSincePreviousSuccessfulSimilarBuild tool call successful")
+	command.sendResponse(request.ID, result)
 }
 
-func handleQueryEntitiesTool(request MCPRequest, params CallToolParams, toolName string,
+func (command *MCPCommand) handleQueryEntitiesTool(request MCPRequest, params CallToolParams, toolName string,
 	endpointSuffix string) {
 
-	logf("Handling %s tool call", toolName)
+	command.logf("Handling %s tool call", toolName)
 
 	var project string
 	if projectArg, exists := params.Arguments["project"]; exists {
 		var ok bool
 		project, ok = projectArg.(string)
 		if !ok {
-			logf("Invalid type for project parameter: expected string")
-			sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for project parameter: expected string")
+			command.logf("Invalid type for project parameter: expected string")
+			command.sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for project parameter: expected string")
 			return
 		}
 	}
@@ -1329,8 +1332,8 @@ func handleQueryEntitiesTool(request MCPRequest, params CallToolParams, toolName
 		var ok bool
 		query, ok = queryVal.(string)
 		if !ok {
-			logf("Invalid type for query parameter: expected string")
-			sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for query parameter: expected string")
+			command.logf("Invalid type for query parameter: expected string")
+			command.sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for query parameter: expected string")
 			return
 		}
 	}
@@ -1340,8 +1343,8 @@ func handleQueryEntitiesTool(request MCPRequest, params CallToolParams, toolName
 		var ok bool
 		offset, ok = offsetVal.(float64)
 		if !ok {
-			logf("Invalid type for offset parameter: expected integer")
-			sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for offset parameter: expected integer")
+			command.logf("Invalid type for offset parameter: expected integer")
+			command.sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for offset parameter: expected integer")
 			return
 		}
 	} else {
@@ -1353,18 +1356,18 @@ func handleQueryEntitiesTool(request MCPRequest, params CallToolParams, toolName
 		var ok bool
 		count, ok = countVal.(float64)
 		if !ok {
-			logf("Invalid type for count parameter: expected integer")
-			sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for count parameter: expected integer")
+			command.logf("Invalid type for count parameter: expected integer")
+			command.sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for count parameter: expected integer")
 			return
 		}
 	} else {
 		count = DefaultQueryCount
 	}
 
-	currentProject, err := getCurrentProject()
+	currentProject, err := command.getCurrentProject()
 	if err != nil {
-		logf("Failed to get current project: %v", err)
-		sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
+		command.logf("Failed to get current project: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
 		return
 	}
 
@@ -1380,16 +1383,16 @@ func handleQueryEntitiesTool(request MCPRequest, params CallToolParams, toolName
 
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
-		logf("Failed to create request: %v", err)
-		sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
+		command.logf("Failed to create request: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
 		return
 	}
 
 	// Make the API call
 	body, err := makeAPICall(req)
 	if err != nil {
-		logf("Failed to make API call: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInternalError, "Failed to make API call: "+err.Error())
+		command.logf("Failed to make API call: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to make API call: "+err.Error())
 		return
 	}
 
@@ -1404,11 +1407,11 @@ func handleQueryEntitiesTool(request MCPRequest, params CallToolParams, toolName
 		},
 	}
 
-	logf("%s tool call successful", toolName)
-	sendResponse(request.ID, result)
+	command.logf("%s tool call successful", toolName)
+	command.sendResponse(request.ID, result)
 }
 
-func getNonEmptyStringParam(params CallToolParams, paramName string) (string, error) {
+func (command *MCPCommand) getNonEmptyStringParam(params CallToolParams, paramName string) (string, error) {
 	// Extract required parameter
 	paramVal, exists := params.Arguments[paramName]
 	if !exists {
@@ -1427,29 +1430,29 @@ func getNonEmptyStringParam(params CallToolParams, paramName string) (string, er
 	return param, nil
 }
 
-func handleGetEntityDataTool(request MCPRequest, params CallToolParams, toolName string,
+func (command *MCPCommand) handleGetEntityDataTool(request MCPRequest, params CallToolParams, toolName string,
 	endpointSuffix string, referenceParamName string) {
 
-	logf("Handling %s tool call", toolName)
+	command.logf("Handling %s tool call", toolName)
 
-	reference, err := getNonEmptyStringParam(params, referenceParamName)
+	reference, err := command.getNonEmptyStringParam(params, referenceParamName)
 	if err != nil {
-		logf("Failed to extract %s: %v", referenceParamName, createErrorString(err))
-		sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract "+referenceParamName+": "+err.Error())
+		command.logf("Failed to extract %s: %v", referenceParamName, err)
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract "+referenceParamName+": "+err.Error())
 		return
 	}
 
-	currentProject, err := getCurrentProject()
+	currentProject, err := command.getCurrentProject()
 	if err != nil {
-		logf("Failed to get current project: %v", err)
-		sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
+		command.logf("Failed to get current project: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
 		return
 	}
 
-	data, err := getEntityData(reference, currentProject, endpointSuffix)
+	data, err := command.getEntityData(reference, currentProject, endpointSuffix)
 	if err != nil {
-		logf("Failed to get entity data: %v", err)
-		sendError(request.ID, ErrorCodeInternalError, "Failed to get entity data: "+err.Error())
+		command.logf("Failed to get entity data: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to get entity data: "+err.Error())
 		return
 	}
 
@@ -1462,11 +1465,11 @@ func handleGetEntityDataTool(request MCPRequest, params CallToolParams, toolName
 		},
 	}
 
-	logf("%s tool call successful", toolName)
-	sendResponse(request.ID, result)
+	command.logf("%s tool call successful", toolName)
+	command.sendResponse(request.ID, result)
 }
 
-func getEntityData(reference string, currentProject string, endpointSuffix string) ([]byte, error) {
+func (command *MCPCommand) getEntityData(reference string, currentProject string, endpointSuffix string) ([]byte, error) {
 	// Build the API URL
 	urlQuery := url.Values{
 		"currentProject": {currentProject},
@@ -1478,34 +1481,34 @@ func getEntityData(reference string, currentProject string, endpointSuffix strin
 	// Create HTTP request
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
-		logf("Failed to create request: %v", err)
+		command.logf("Failed to create request: %v", err)
 		return nil, err
 	}
 
 	// Make the API call
 	body, err := makeAPICall(req)
 	if err != nil {
-		logf("Failed to make API call: %v", createErrorString(err))
+		command.logf("Failed to make API call: %v", err)
 		return nil, err
 	}
 
 	return body, nil
 }
 
-func handleCheckoutPullRequestTool(request MCPRequest, params CallToolParams) {
-	logf("Handling checkoutPullRequest tool call")
+func (command *MCPCommand) handleCheckoutPullRequestTool(request MCPRequest, params CallToolParams) {
+	command.logf("Handling checkoutPullRequest tool call")
 
-	reference, err := getNonEmptyStringParam(params, "pullRequestReference")
+	reference, err := command.getNonEmptyStringParam(params, "pullRequestReference")
 	if err != nil {
-		logf("Failed to extract pullRequestReference: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract pullRequestReference: "+err.Error())
+		command.logf("Failed to extract pullRequestReference: %v", err)
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract pullRequestReference: "+err.Error())
 		return
 	}
 
-	err = checkoutPullRequest(workingDir, reference, logger)
+	err = checkoutPullRequest(command.workingDir, reference, command.logger)
 	if err != nil {
-		logf("Failed to checkout pull request: %v", err)
-		sendError(request.ID, ErrorCodeInternalError, "Failed to checkout pull request: "+err.Error())
+		command.logf("Failed to checkout pull request: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to checkout pull request: "+err.Error())
 		return
 	}
 
@@ -1518,11 +1521,11 @@ func handleCheckoutPullRequestTool(request MCPRequest, params CallToolParams) {
 		},
 	}
 
-	logf("checkoutPullRequest tool call successful")
-	sendResponse(request.ID, result)
+	command.logf("checkoutPullRequest tool call successful")
+	command.sendResponse(request.ID, result)
 }
 
-func getPullRequestPatchInfo(currentProject string, reference string, sinceLastReview bool) (map[string]interface{}, error) {
+func (command *MCPCommand) getPullRequestPatchInfo(currentProject string, reference string, sinceLastReview bool) (map[string]interface{}, error) {
 	// Build the API URL
 	urlQuery := url.Values{
 		"currentProject":  {currentProject},
@@ -1535,62 +1538,62 @@ func getPullRequestPatchInfo(currentProject string, reference string, sinceLastR
 	// Create HTTP request
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
-		logf("Failed to create request: %v", err)
+		command.logf("Failed to create request: %v", err)
 		return nil, err
 	}
 
 	// Make the API call
 	body, err := makeAPICall(req)
 	if err != nil {
-		logf("Failed to make API call: %v", createErrorString(err))
+		command.logf("Failed to make API call: %v", err)
 		return nil, err
 	}
 
 	var patchInfo map[string]interface{}
 	if err := json.Unmarshal(body, &patchInfo); err != nil {
-		logf("Failed to parse JSON response: %v", err)
+		command.logf("Failed to parse JSON response: %v", err)
 		return nil, err
 	}
 
 	return patchInfo, nil
 }
 
-func handleGetPullRequestFileChangesTool(request MCPRequest, params CallToolParams) {
-	logf("Handling getPullRequestFileChanges tool call")
+func (command *MCPCommand) handleGetPullRequestFileChangesTool(request MCPRequest, params CallToolParams) {
+	command.logf("Handling getPullRequestFileChanges tool call")
 
-	reference, err := getNonEmptyStringParam(params, "pullRequestReference")
+	reference, err := command.getNonEmptyStringParam(params, "pullRequestReference")
 	if err != nil {
-		logf("Failed to extract pullRequestReference: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract pullRequestReference: "+err.Error())
+		command.logf("Failed to extract pullRequestReference: %v", err)
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract pullRequestReference: "+err.Error())
 		return
 	}
 
 	sinceLastReviewVal, exists := params.Arguments["sinceLastReview"]
 
 	if !exists {
-		logf("Missing required parameter: sinceLastReview")
-		sendError(request.ID, ErrorCodeInvalidParams, "Missing required parameter: sinceLastReview")
+		command.logf("Missing required parameter: sinceLastReview")
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Missing required parameter: sinceLastReview")
 		return
 	}
 
 	sinceLastReview, ok := sinceLastReviewVal.(bool)
 	if !ok {
-		logf("Invalid type for sinceLastReview parameter: expected boolean")
-		sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for sinceLastReview parameter: expected boolean")
+		command.logf("Invalid type for sinceLastReview parameter: expected boolean")
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for sinceLastReview parameter: expected boolean")
 		return
 	}
 
-	currentProject, err := getCurrentProject()
+	currentProject, err := command.getCurrentProject()
 	if err != nil {
-		logf("Failed to get current project: %v", err)
-		sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
+		command.logf("Failed to get current project: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
 		return
 	}
 
-	patchInfo, err := getPullRequestPatchInfo(currentProject, reference, sinceLastReview)
+	patchInfo, err := command.getPullRequestPatchInfo(currentProject, reference, sinceLastReview)
 	if err != nil {
-		logf("Failed to get pull request patch info: %v", err)
-		sendError(request.ID, ErrorCodeInternalError, "Failed to get pull request patch info: "+err.Error())
+		command.logf("Failed to get pull request patch info: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to get pull request patch info: "+err.Error())
 		return
 	}
 
@@ -1607,15 +1610,15 @@ func handleGetPullRequestFileChangesTool(request MCPRequest, params CallToolPara
 
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
-		logf("Failed to create request: %v", err)
-		sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
+		command.logf("Failed to create request: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
 		return
 	}
 
 	body, err := makeAPICall(req)
 	if err != nil {
-		logf("Failed to make API call: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInternalError, "Failed to make API call: "+err.Error())
+		command.logf("Failed to make API call: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to make API call: "+err.Error())
 		return
 	}
 
@@ -1628,24 +1631,24 @@ func handleGetPullRequestFileChangesTool(request MCPRequest, params CallToolPara
 		},
 	}
 
-	logf("getPullRequestFileChanges tool call successful")
-	sendResponse(request.ID, result)
+	command.logf("getPullRequestFileChanges tool call successful")
+	command.sendResponse(request.ID, result)
 }
 
-func handleGetBuildLogTool(request MCPRequest, params CallToolParams) {
-	logf("Handling getBuildLog tool call")
+func (command *MCPCommand) handleGetBuildLogTool(request MCPRequest, params CallToolParams) {
+	command.logf("Handling getBuildLog tool call")
 
-	reference, err := getNonEmptyStringParam(params, "buildReference")
+	reference, err := command.getNonEmptyStringParam(params, "buildReference")
 	if err != nil {
-		logf("Failed to extract buildReference: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract buildReference: "+err.Error())
+		command.logf("Failed to extract buildReference: %v", err)
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract buildReference: "+err.Error())
 		return
 	}
 
-	currentProject, err := getCurrentProject()
+	currentProject, err := command.getCurrentProject()
 	if err != nil {
-		logf("Failed to get current project: %v", err)
-		sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
+		command.logf("Failed to get current project: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
 		return
 	}
 
@@ -1660,23 +1663,23 @@ func handleGetBuildLogTool(request MCPRequest, params CallToolParams) {
 	// Create HTTP request
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
-		logf("Failed to create request: %v", err)
-		sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
+		command.logf("Failed to create request: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
 		return
 	}
 
 	// Make the API call
 	body, err := makeAPICall(req)
 	if err != nil {
-		logf("Failed to make API call: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInternalError, "Failed to make API call: "+err.Error())
+		command.logf("Failed to make API call: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to make API call: "+err.Error())
 		return
 	}
 
 	var buildInfo map[string]interface{}
 	if err := json.Unmarshal(body, &buildInfo); err != nil {
-		logf("Failed to parse JSON response: %v", err)
-		sendError(request.ID, ErrorCodeInternalError, "Failed to parse JSON response: "+err.Error())
+		command.logf("Failed to parse JSON response: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to parse JSON response: "+err.Error())
 		return
 	}
 
@@ -1688,15 +1691,15 @@ func handleGetBuildLogTool(request MCPRequest, params CallToolParams) {
 
 	req, err = http.NewRequest("GET", apiURL, nil)
 	if err != nil {
-		logf("Failed to create request: %v", err)
-		sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
+		command.logf("Failed to create request: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
 		return
 	}
 
 	body, err = makeAPICall(req)
 	if err != nil {
-		logf("Failed to make API call: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInternalError, "Failed to make API call: "+err.Error())
+		command.logf("Failed to make API call: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to make API call: "+err.Error())
 		return
 	}
 
@@ -1709,26 +1712,26 @@ func handleGetBuildLogTool(request MCPRequest, params CallToolParams) {
 		},
 	}
 
-	logf("getBuildLog tool call successful")
-	sendResponse(request.ID, result)
+	command.logf("getBuildLog tool call successful")
+	command.sendResponse(request.ID, result)
 }
 
-func handleAddEntityCommentTool(request MCPRequest, params CallToolParams, toolName string,
+func (command *MCPCommand) handleAddEntityCommentTool(request MCPRequest, params CallToolParams, toolName string,
 	endpointSuffix string, referenceParamName string) {
 
-	logf("Handling %s tool call", toolName)
+	command.logf("Handling %s tool call", toolName)
 
-	reference, err := getNonEmptyStringParam(params, referenceParamName)
+	reference, err := command.getNonEmptyStringParam(params, referenceParamName)
 	if err != nil {
-		logf("Failed to extract %s: %v", referenceParamName, createErrorString(err))
-		sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract "+referenceParamName+": "+err.Error())
+		command.logf("Failed to extract %s: %v", referenceParamName, err)
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract "+referenceParamName+": "+err.Error())
 		return
 	}
 
-	currentProject, err := getCurrentProject()
+	currentProject, err := command.getCurrentProject()
 	if err != nil {
-		logf("Failed to get current project: %v", err)
-		sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
+		command.logf("Failed to get current project: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
 		return
 	}
 
@@ -1741,28 +1744,28 @@ func handleAddEntityCommentTool(request MCPRequest, params CallToolParams, toolN
 
 	commentContentVal, exists := params.Arguments["commentContent"]
 	if !exists {
-		logf("Missing required parameter: commentContent")
-		sendError(request.ID, ErrorCodeInvalidParams, "Missing required parameter: commentContent")
+		command.logf("Missing required parameter: commentContent")
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Missing required parameter: commentContent")
 		return
 	}
 
 	commentContent, ok := commentContentVal.(string)
 	if !ok {
-		logf("Invalid type for commentContent parameter: expected string")
-		sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for commentContent parameter: expected string")
+		command.logf("Invalid type for commentContent parameter: expected string")
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for commentContent parameter: expected string")
 		return
 	}
 
 	if commentContent == "" {
-		logf("Empty commentContent parameter")
-		sendError(request.ID, ErrorCodeInvalidParams, "commentContent parameter cannot be empty")
+		command.logf("Empty commentContent parameter")
+		command.sendError(request.ID, ErrorCodeInvalidParams, "commentContent parameter cannot be empty")
 		return
 	}
 
 	req, err := http.NewRequest("POST", apiURL, strings.NewReader(commentContent))
 	if err != nil {
-		logf("Failed to create request: %v", err)
-		sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
+		command.logf("Failed to create request: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
 		return
 	}
 
@@ -1771,8 +1774,8 @@ func handleAddEntityCommentTool(request MCPRequest, params CallToolParams, toolN
 	// Make the API call
 	body, err := makeAPICall(req)
 	if err != nil {
-		logf("Failed to make API call: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInternalError, "Failed to make API call: "+err.Error())
+		command.logf("Failed to make API call: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to make API call: "+err.Error())
 		return
 	}
 
@@ -1787,31 +1790,31 @@ func handleAddEntityCommentTool(request MCPRequest, params CallToolParams, toolN
 		},
 	}
 
-	logf("%s tool call successful", toolName)
-	sendResponse(request.ID, response)
+	command.logf("%s tool call successful", toolName)
+	command.sendResponse(request.ID, response)
 }
 
-func handleProcessPullRequestTool(request MCPRequest, params CallToolParams) {
-	logf("Handling processPullRequest tool call")
+func (command *MCPCommand) handleProcessPullRequestTool(request MCPRequest, params CallToolParams) {
+	command.logf("Handling processPullRequest tool call")
 
-	reference, err := getNonEmptyStringParam(params, "pullRequestReference")
+	reference, err := command.getNonEmptyStringParam(params, "pullRequestReference")
 	if err != nil {
-		logf("Failed to extract pullRequestReference: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract pullRequestReference: "+err.Error())
+		command.logf("Failed to extract pullRequestReference: %v", err)
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract pullRequestReference: "+err.Error())
 		return
 	}
 
 	operationVal, exists := params.Arguments["operation"]
 	if !exists {
-		logf("Missing required parameter: operation")
-		sendError(request.ID, ErrorCodeInvalidParams, "Missing required parameter: operation")
+		command.logf("Missing required parameter: operation")
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Missing required parameter: operation")
 		return
 	}
 
 	operation, ok := operationVal.(string)
 	if !ok {
-		logf("Invalid type for operation parameter: expected string")
-		sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for operation parameter: expected string")
+		command.logf("Invalid type for operation parameter: expected string")
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for operation parameter: expected string")
 		return
 	}
 
@@ -1820,16 +1823,16 @@ func handleProcessPullRequestTool(request MCPRequest, params CallToolParams) {
 	if exists {
 		comment, ok = commentVal.(string)
 		if !ok {
-			logf("Invalid type for comment parameter: expected string")
-			sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for comment parameter: expected string")
+			command.logf("Invalid type for comment parameter: expected string")
+			command.sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for comment parameter: expected string")
 			return
 		}
 	}
 
-	currentProject, err := getCurrentProject()
+	currentProject, err := command.getCurrentProject()
 	if err != nil {
-		logf("Failed to get current project: %v", err)
-		sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
+		command.logf("Failed to get current project: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
 		return
 	}
 
@@ -1844,8 +1847,8 @@ func handleProcessPullRequestTool(request MCPRequest, params CallToolParams) {
 	// Create HTTP POST request with comment content as body
 	req, err := http.NewRequest("POST", apiURL, strings.NewReader(comment))
 	if err != nil {
-		logf("Failed to create request: %v", err)
-		sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
+		command.logf("Failed to create request: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
 		return
 	}
 
@@ -1854,8 +1857,8 @@ func handleProcessPullRequestTool(request MCPRequest, params CallToolParams) {
 	// Make the API call
 	body, err := makeAPICall(req)
 	if err != nil {
-		logf("Failed to make API call: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInternalError, "Failed to make API call: "+err.Error())
+		command.logf("Failed to make API call: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to make API call: "+err.Error())
 		return
 	}
 
@@ -1870,31 +1873,31 @@ func handleProcessPullRequestTool(request MCPRequest, params CallToolParams) {
 		},
 	}
 
-	logf("processPullRequest tool call successful")
-	sendResponse(request.ID, response)
+	command.logf("processPullRequest tool call successful")
+	command.sendResponse(request.ID, response)
 }
 
-func handleLogWorkTool(request MCPRequest, params CallToolParams) {
-	logf("Handling logWork tool call")
+func (command *MCPCommand) handleLogWorkTool(request MCPRequest, params CallToolParams) {
+	command.logf("Handling logWork tool call")
 
-	issueReference, err := getNonEmptyStringParam(params, "issueReference")
+	issueReference, err := command.getNonEmptyStringParam(params, "issueReference")
 	if err != nil {
-		logf("Failed to extract issue reference: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract issue reference: "+err.Error())
+		command.logf("Failed to extract issue reference: %v", err)
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract issue reference: "+err.Error())
 		return
 	}
 
 	spentHoursVal, exists := params.Arguments["spentHours"]
 	if !exists {
-		logf("Missing required parameter: spentHours")
-		sendError(request.ID, ErrorCodeInvalidParams, "Missing required parameter: spentHours")
+		command.logf("Missing required parameter: spentHours")
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Missing required parameter: spentHours")
 		return
 	}
 
 	spentHours, ok := spentHoursVal.(float64)
 	if !ok {
-		logf("Invalid type for spentHours parameter: expected float64")
-		sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for spentHours parameter: expected float64")
+		command.logf("Invalid type for spentHours parameter: expected float64")
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for spentHours parameter: expected float64")
 		return
 	}
 
@@ -1904,16 +1907,16 @@ func handleLogWorkTool(request MCPRequest, params CallToolParams) {
 	if exists {
 		comment, ok = commentVal.(string)
 		if !ok {
-			logf("Invalid type for comment parameter: expected string")
-			sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for comment parameter: expected string")
+			command.logf("Invalid type for comment parameter: expected string")
+			command.sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for comment parameter: expected string")
 			return
 		}
 	}
 
-	currentProject, err := getCurrentProject()
+	currentProject, err := command.getCurrentProject()
 	if err != nil {
-		logf("Failed to get current project: %v", err)
-		sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
+		command.logf("Failed to get current project: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
 		return
 	}
 
@@ -1928,8 +1931,8 @@ func handleLogWorkTool(request MCPRequest, params CallToolParams) {
 	// Create HTTP POST request with comment content as body
 	req, err := http.NewRequest("POST", apiURL, strings.NewReader(comment))
 	if err != nil {
-		logf("Failed to create request: %v", err)
-		sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
+		command.logf("Failed to create request: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
 		return
 	}
 
@@ -1938,8 +1941,8 @@ func handleLogWorkTool(request MCPRequest, params CallToolParams) {
 	// Make the API call
 	body, err := makeAPICall(req)
 	if err != nil {
-		logf("Failed to make API call: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInternalError, "Failed to make API call: "+err.Error())
+		command.logf("Failed to make API call: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to make API call: "+err.Error())
 		return
 	}
 
@@ -1954,13 +1957,13 @@ func handleLogWorkTool(request MCPRequest, params CallToolParams) {
 		},
 	}
 
-	logf("logWork tool call successful")
-	sendResponse(request.ID, response)
+	command.logf("logWork tool call successful")
+	command.sendResponse(request.ID, response)
 }
 
-func handleCreateIssueTool(request MCPRequest, params CallToolParams, toolName string, endpointSuffix string) {
+func (command *MCPCommand) handleCreateIssueTool(request MCPRequest, params CallToolParams, toolName string, endpointSuffix string) {
 
-	logf("Handling %s tool call", toolName)
+	command.logf("Handling %s tool call", toolName)
 
 	entityMap := make(map[string]interface{})
 
@@ -1969,8 +1972,8 @@ func handleCreateIssueTool(request MCPRequest, params CallToolParams, toolName s
 		var ok bool
 		project, ok = projectArg.(string)
 		if !ok {
-			logf("Invalid type for project parameter: expected string")
-			sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for project parameter: expected string")
+			command.logf("Invalid type for project parameter: expected string")
+			command.sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for project parameter: expected string")
 			return
 		}
 	}
@@ -1983,16 +1986,16 @@ func handleCreateIssueTool(request MCPRequest, params CallToolParams, toolName s
 
 	entityBytes, err := json.Marshal(entityMap)
 	if err != nil {
-		logf("Failed to marshal map to JSON: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInternalError, "Failed to marshal map to JSON: "+err.Error())
+		command.logf("Failed to marshal map to JSON: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to marshal map to JSON: "+err.Error())
 		return
 	}
 	entityData := string(entityBytes)
 
-	currentProject, err := getCurrentProject()
+	currentProject, err := command.getCurrentProject()
 	if err != nil {
-		logf("Failed to get current project: %v", err)
-		sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
+		command.logf("Failed to get current project: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
 		return
 	}
 
@@ -2005,8 +2008,8 @@ func handleCreateIssueTool(request MCPRequest, params CallToolParams, toolName s
 
 	req, err := http.NewRequest("POST", apiURL, strings.NewReader(entityData))
 	if err != nil {
-		logf("Failed to create request: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
+		command.logf("Failed to create request: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
 		return
 	}
 
@@ -2014,8 +2017,8 @@ func handleCreateIssueTool(request MCPRequest, params CallToolParams, toolName s
 
 	body, err := makeAPICall(req)
 	if err != nil {
-		logf("Failed to make API call: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInternalError, "Failed to make API call: "+err.Error())
+		command.logf("Failed to make API call: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to make API call: "+err.Error())
 		return
 	}
 
@@ -2028,28 +2031,28 @@ func handleCreateIssueTool(request MCPRequest, params CallToolParams, toolName s
 		},
 	}
 
-	logf("%s tool call successful", toolName)
-	sendResponse(request.ID, response)
+	command.logf("%s tool call successful", toolName)
+	command.sendResponse(request.ID, response)
 }
 
-func handleRunJobTool(request MCPRequest, params CallToolParams) {
-	logf("Handling runJob tool call")
+func (command *MCPCommand) handleRunJobTool(request MCPRequest, params CallToolParams) {
+	command.logf("Handling runJob tool call")
 
 	var project string
 	if projectArg, exists := params.Arguments["project"]; exists {
 		var ok bool
 		project, ok = projectArg.(string)
 		if !ok {
-			logf("Invalid type for project parameter: expected string")
-			sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for project parameter: expected string")
+			command.logf("Invalid type for project parameter: expected string")
+			command.sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for project parameter: expected string")
 			return
 		}
 	}
 
-	currentProject, err := getCurrentProject()
+	currentProject, err := command.getCurrentProject()
 	if err != nil {
-		logf("Failed to get current project: %v", err)
-		sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
+		command.logf("Failed to get current project: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
 		return
 	}
 
@@ -2063,10 +2066,10 @@ func handleRunJobTool(request MCPRequest, params CallToolParams) {
 
 	jobMap["reason"] = "Submitted via MCP"
 
-	build, err := runJob(project, currentProject, jobMap, logger)
+	build, err := runJob(project, currentProject, jobMap)
 	if err != nil {
-		logf("Failed to run job: %v", err)
-		sendError(request.ID, ErrorCodeInternalError, "Failed to run job: "+err.Error())
+		command.logf("Failed to run job: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to run job: "+err.Error())
 		return
 	}
 
@@ -2082,13 +2085,13 @@ func handleRunJobTool(request MCPRequest, params CallToolParams) {
 		},
 	}
 
-	logf("runJob tool call successful")
-	sendResponse(request.ID, response)
+	command.logf("runJob tool call successful")
+	command.sendResponse(request.ID, response)
 }
 
-func handleCreatePullRequestTool(request MCPRequest, params CallToolParams) {
+func (command *MCPCommand) handleCreatePullRequestTool(request MCPRequest, params CallToolParams) {
 
-	logf("Handling createPullRequest tool call")
+	command.logf("Handling createPullRequest tool call")
 
 	entityMap := make(map[string]interface{})
 
@@ -2097,8 +2100,8 @@ func handleCreatePullRequestTool(request MCPRequest, params CallToolParams) {
 		var ok bool
 		targetProject, ok = targetProjectArg.(string)
 		if !ok {
-			logf("Invalid type for targetProject parameter: expected string")
-			sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for targetProject parameter: expected string")
+			command.logf("Invalid type for targetProject parameter: expected string")
+			command.sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for targetProject parameter: expected string")
 			return
 		}
 	}
@@ -2108,8 +2111,8 @@ func handleCreatePullRequestTool(request MCPRequest, params CallToolParams) {
 		var ok bool
 		sourceProject, ok = sourceProjectArg.(string)
 		if !ok {
-			logf("Invalid type for sourceProject parameter: expected string")
-			sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for sourceProject parameter: expected string")
+			command.logf("Invalid type for sourceProject parameter: expected string")
+			command.sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for sourceProject parameter: expected string")
 			return
 		}
 	}
@@ -2122,16 +2125,16 @@ func handleCreatePullRequestTool(request MCPRequest, params CallToolParams) {
 
 	entityBytes, err := json.Marshal(entityMap)
 	if err != nil {
-		logf("Failed to marshal map to JSON: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInternalError, "Failed to marshal map to JSON: "+err.Error())
+		command.logf("Failed to marshal map to JSON: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to marshal map to JSON: "+err.Error())
 		return
 	}
 	entityData := string(entityBytes)
 
-	currentProject, err := getCurrentProject()
+	currentProject, err := command.getCurrentProject()
 	if err != nil {
-		logf("Failed to get current project: %v", err)
-		sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
+		command.logf("Failed to get current project: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
 		return
 	}
 
@@ -2145,8 +2148,8 @@ func handleCreatePullRequestTool(request MCPRequest, params CallToolParams) {
 
 	req, err := http.NewRequest("POST", apiURL, strings.NewReader(entityData))
 	if err != nil {
-		logf("Failed to create request: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
+		command.logf("Failed to create request: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
 		return
 	}
 
@@ -2154,8 +2157,8 @@ func handleCreatePullRequestTool(request MCPRequest, params CallToolParams) {
 
 	body, err := makeAPICall(req)
 	if err != nil {
-		logf("Failed to make API call: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInternalError, "Failed to make API call: "+err.Error())
+		command.logf("Failed to make API call: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to make API call: "+err.Error())
 		return
 	}
 
@@ -2168,14 +2171,14 @@ func handleCreatePullRequestTool(request MCPRequest, params CallToolParams) {
 		},
 	}
 
-	logf("createPullRequest tool call successful")
-	sendResponse(request.ID, response)
+	command.logf("createPullRequest tool call successful")
+	command.sendResponse(request.ID, response)
 }
 
-func handleEditEntityTool(request MCPRequest, params CallToolParams, toolName string,
+func (command *MCPCommand) handleEditEntityTool(request MCPRequest, params CallToolParams, toolName string,
 	endpointSuffix string, referenceParamName string) {
 
-	logf("Handling %s tool call", toolName)
+	command.logf("Handling %s tool call", toolName)
 
 	entityMap := make(map[string]interface{})
 
@@ -2188,23 +2191,23 @@ func handleEditEntityTool(request MCPRequest, params CallToolParams, toolName st
 
 	entityBytes, err := json.Marshal(entityMap)
 	if err != nil {
-		logf("Failed to marshal map to JSON: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInternalError, "Failed to marshal map to JSON: "+err.Error())
+		command.logf("Failed to marshal map to JSON: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to marshal map to JSON: "+err.Error())
 		return
 	}
 	entityData := string(entityBytes)
 
-	reference, err := getNonEmptyStringParam(params, referenceParamName)
+	reference, err := command.getNonEmptyStringParam(params, referenceParamName)
 	if err != nil {
-		logf("Failed to extract %s: %v", referenceParamName, createErrorString(err))
-		sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract "+referenceParamName+": "+err.Error())
+		command.logf("Failed to extract %s: %v", referenceParamName, err)
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract "+referenceParamName+": "+err.Error())
 		return
 	}
 
-	currentProject, err := getCurrentProject()
+	currentProject, err := command.getCurrentProject()
 	if err != nil {
-		logf("Failed to get current project: %v", err)
-		sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
+		command.logf("Failed to get current project: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
 		return
 	}
 
@@ -2218,8 +2221,8 @@ func handleEditEntityTool(request MCPRequest, params CallToolParams, toolName st
 
 	req, err := http.NewRequest("POST", apiURL, strings.NewReader(entityData))
 	if err != nil {
-		logf("Failed to create request: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
+		command.logf("Failed to create request: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
 		return
 	}
 
@@ -2227,8 +2230,8 @@ func handleEditEntityTool(request MCPRequest, params CallToolParams, toolName st
 
 	body, err := makeAPICall(req)
 	if err != nil {
-		logf("Failed to make API call: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInternalError, "Failed to make API call: "+err.Error())
+		command.logf("Failed to make API call: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to make API call: "+err.Error())
 		return
 	}
 
@@ -2241,12 +2244,12 @@ func handleEditEntityTool(request MCPRequest, params CallToolParams, toolName st
 		},
 	}
 
-	logf("%s tool call successful", toolName)
-	sendResponse(request.ID, response)
+	command.logf("%s tool call successful", toolName)
+	command.sendResponse(request.ID, response)
 }
 
-func handleTransitIssueTool(request MCPRequest, params CallToolParams) {
-	logf("Handling transitIssue tool call")
+func (command *MCPCommand) handleTransitIssueTool(request MCPRequest, params CallToolParams) {
+	command.logf("Handling transitIssue tool call")
 
 	issueMap := make(map[string]interface{})
 
@@ -2259,23 +2262,23 @@ func handleTransitIssueTool(request MCPRequest, params CallToolParams) {
 
 	issueBytes, err := json.Marshal(issueMap)
 	if err != nil {
-		logf("Failed to marshal map to JSON: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInternalError, "Failed to marshal map to JSON: "+err.Error())
+		command.logf("Failed to marshal map to JSON: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to marshal map to JSON: "+err.Error())
 		return
 	}
 	issueData := string(issueBytes)
 
-	issueReference, err := getNonEmptyStringParam(params, "issueReference")
+	issueReference, err := command.getNonEmptyStringParam(params, "issueReference")
 	if err != nil {
-		logf("Failed to extract issue reference: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract issue reference: "+err.Error())
+		command.logf("Failed to extract issue reference: %v", err)
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract issue reference: "+err.Error())
 		return
 	}
 
-	currentProject, err := getCurrentProject()
+	currentProject, err := command.getCurrentProject()
 	if err != nil {
-		logf("Failed to get current project: %v", err)
-		sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
+		command.logf("Failed to get current project: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
 		return
 	}
 
@@ -2288,8 +2291,8 @@ func handleTransitIssueTool(request MCPRequest, params CallToolParams) {
 
 	req, err := http.NewRequest("POST", apiURL, strings.NewReader(issueData))
 	if err != nil {
-		logf("Failed to create request: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
+		command.logf("Failed to create request: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
 		return
 	}
 
@@ -2297,8 +2300,8 @@ func handleTransitIssueTool(request MCPRequest, params CallToolParams) {
 
 	body, err := makeAPICall(req)
 	if err != nil {
-		logf("Failed to make API call: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInvalidParams, "Failed to make API call: "+err.Error())
+		command.logf("Failed to make API call: %v", err)
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Failed to make API call: "+err.Error())
 		return
 	}
 
@@ -2311,42 +2314,42 @@ func handleTransitIssueTool(request MCPRequest, params CallToolParams) {
 		},
 	}
 
-	logf("transitIssue tool call successful")
-	sendResponse(request.ID, response)
+	command.logf("transitIssue tool call successful")
+	command.sendResponse(request.ID, response)
 }
 
-func handleLinkIssuesTool(request MCPRequest, params CallToolParams) {
-	logf("Handling linkIssues tool call")
+func (command *MCPCommand) handleLinkIssuesTool(request MCPRequest, params CallToolParams) {
+	command.logf("Handling linkIssues tool call")
 
-	sourceReference, err := getNonEmptyStringParam(params, "sourceIssueReference")
+	sourceReference, err := command.getNonEmptyStringParam(params, "sourceIssueReference")
 	if err != nil {
-		logf("Failed to extract source issue reference: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract source issuereference: "+err.Error())
+		command.logf("Failed to extract source issue reference: %v", err)
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract source issuereference: "+err.Error())
 		return
 	}
-	targetReference, err := getNonEmptyStringParam(params, "targetIssueReference")
+	targetReference, err := command.getNonEmptyStringParam(params, "targetIssueReference")
 	if err != nil {
-		logf("Failed to extract target issue reference: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract target issue reference: "+err.Error())
+		command.logf("Failed to extract target issue reference: %v", err)
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract target issue reference: "+err.Error())
 		return
 	}
 	linkNameArg, exists := params.Arguments["linkName"]
 	if !exists {
-		logf("Missing required parameter: linkName")
-		sendError(request.ID, ErrorCodeInvalidParams, "Missing required parameter: linkName")
+		command.logf("Missing required parameter: linkName")
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Missing required parameter: linkName")
 		return
 	}
 	linkName, ok := linkNameArg.(string)
 	if !ok {
-		logf("Invalid type for linkName parameter: expected string")
-		sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for linkName parameter: expected string")
+		command.logf("Invalid type for linkName parameter: expected string")
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for linkName parameter: expected string")
 		return
 	}
 
-	currentProject, err := getCurrentProject()
+	currentProject, err := command.getCurrentProject()
 	if err != nil {
-		logf("Failed to get current project: %v", err)
-		sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
+		command.logf("Failed to get current project: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to get current project: "+err.Error())
 		return
 	}
 
@@ -2360,8 +2363,8 @@ func handleLinkIssuesTool(request MCPRequest, params CallToolParams) {
 
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
-		logf("Failed to create request: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
+		command.logf("Failed to create request: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
 		return
 	}
 
@@ -2369,8 +2372,8 @@ func handleLinkIssuesTool(request MCPRequest, params CallToolParams) {
 
 	body, err := makeAPICall(req)
 	if err != nil {
-		logf("Failed to make API call: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInternalError, "Failed to make API call: "+err.Error())
+		command.logf("Failed to make API call: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to make API call: "+err.Error())
 		return
 	}
 
@@ -2383,117 +2386,117 @@ func handleLinkIssuesTool(request MCPRequest, params CallToolParams) {
 		},
 	}
 
-	logf("createIssue tool call successful")
-	sendResponse(request.ID, response)
+	command.logf("createIssue tool call successful")
+	command.sendResponse(request.ID, response)
 }
 
-func handleToolsCall(request MCPRequest) {
-	logf("Handling tools/call request")
+func (command *MCPCommand) handleToolsCall(request MCPRequest) {
+	command.logf("Handling tools/call request")
 
 	paramsBytes, _ := json.Marshal(request.Params)
 	var params CallToolParams
 	if err := json.Unmarshal(paramsBytes, &params); err != nil {
-		logf("Failed to parse tool call params: %v", err)
-		sendError(request.ID, ErrorCodeInvalidParams, "Invalid params: "+err.Error())
+		command.logf("Failed to parse tool call params: %v", err)
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Invalid params: "+err.Error())
 		return
 	}
 
-	logf("Calling tool: %s", params.Name)
+	command.logf("Calling tool: %s", params.Name)
 	switch params.Name {
 	case "queryIssues":
-		handleQueryEntitiesTool(request, params, "queryIssues", "query-issues")
+		command.handleQueryEntitiesTool(request, params, "queryIssues", "query-issues")
 	case "getIssue":
-		handleGetEntityDataTool(request, params, "getIssue", "get-issue", "issueReference")
+		command.handleGetEntityDataTool(request, params, "getIssue", "get-issue", "issueReference")
 	case "getIssueComments":
-		handleGetEntityDataTool(request, params, "getIssueComments", "get-issue-comments", "issueReference")
+		command.handleGetEntityDataTool(request, params, "getIssueComments", "get-issue-comments", "issueReference")
 	case "createIssue":
-		handleCreateIssueTool(request, params, "createIssue", "create-issue")
+		command.handleCreateIssueTool(request, params, "createIssue", "create-issue")
 	case "editIssue":
-		handleEditEntityTool(request, params, "editIssue", "edit-issue", "issueReference")
+		command.handleEditEntityTool(request, params, "editIssue", "edit-issue", "issueReference")
 	case "transitIssue":
-		handleTransitIssueTool(request, params)
+		command.handleTransitIssueTool(request, params)
 	case "linkIssues":
-		handleLinkIssuesTool(request, params)
+		command.handleLinkIssuesTool(request, params)
 	case "addIssueComment":
-		handleAddEntityCommentTool(request, params, "addIssueComment", "add-issue-comment", "issueReference")
+		command.handleAddEntityCommentTool(request, params, "addIssueComment", "add-issue-comment", "issueReference")
 	case "logWork":
-		handleLogWorkTool(request, params)
+		command.handleLogWorkTool(request, params)
 	case "queryPullRequests":
-		handleQueryEntitiesTool(request, params, "queryPullRequests", "query-pull-requests")
+		command.handleQueryEntitiesTool(request, params, "queryPullRequests", "query-pull-requests")
 	case "getPullRequest":
-		handleGetEntityDataTool(request, params, "getPullRequest", "get-pull-request", "pullRequestReference")
+		command.handleGetEntityDataTool(request, params, "getPullRequest", "get-pull-request", "pullRequestReference")
 	case "getPullRequestComments":
-		handleGetEntityDataTool(request, params, "getPullRequestComments", "get-pull-request-comments", "pullRequestReference")
+		command.handleGetEntityDataTool(request, params, "getPullRequestComments", "get-pull-request-comments", "pullRequestReference")
 	case "getPullRequestCodeComments":
-		handleGetEntityDataTool(request, params, "getPullRequestCodeComments", "get-pull-request-code-comments", "pullRequestReference")
+		command.handleGetEntityDataTool(request, params, "getPullRequestCodeComments", "get-pull-request-code-comments", "pullRequestReference")
 	case "getPullRequestFileChanges":
-		handleGetPullRequestFileChangesTool(request, params)
+		command.handleGetPullRequestFileChangesTool(request, params)
 	case "getPullRequestFileContent":
-		handleGetPullRequestFileContentTool(request, params)
+		command.handleGetPullRequestFileContentTool(request, params)
 	case "createPullRequest":
-		handleCreatePullRequestTool(request, params)
+		command.handleCreatePullRequestTool(request, params)
 	case "editPullRequest":
-		handleEditEntityTool(request, params, "editPullRequest", "edit-pull-request", "pullRequestReference")
+		command.handleEditEntityTool(request, params, "editPullRequest", "edit-pull-request", "pullRequestReference")
 	case "processPullRequest":
-		handleProcessPullRequestTool(request, params)
+		command.handleProcessPullRequestTool(request, params)
 	case "addPullRequestComment":
-		handleAddEntityCommentTool(request, params, "addPullRequestComment", "add-pull-request-comment", "pullRequestReference")
+		command.handleAddEntityCommentTool(request, params, "addPullRequestComment", "add-pull-request-comment", "pullRequestReference")
 	case "checkoutPullRequest":
-		handleCheckoutPullRequestTool(request, params)
+		command.handleCheckoutPullRequestTool(request, params)
 	case "queryBuilds":
-		handleQueryEntitiesTool(request, params, "queryBuilds", "query-builds")
+		command.handleQueryEntitiesTool(request, params, "queryBuilds", "query-builds")
 	case "getBuild":
-		handleGetEntityDataTool(request, params, "getBuild", "get-build", "buildReference")
+		command.handleGetEntityDataTool(request, params, "getBuild", "get-build", "buildReference")
 	case "getBuildLog":
-		handleGetBuildLogTool(request, params)
+		command.handleGetBuildLogTool(request, params)
 	case "getBuildFileContent":
-		handleGetBuildFileContentTool(request, params)
+		command.handleGetBuildFileContentTool(request, params)
 	case "getFileChangesSincePreviousSuccessfulSimilarBuild":
-		handleGetFileChangesSincePreviousSuccessfulSimilarBuildTool(request, params)
+		command.handleGetFileChangesSincePreviousSuccessfulSimilarBuildTool(request, params)
 	case "runJob":
-		handleRunJobTool(request, params)
+		command.handleRunJobTool(request, params)
 	case "runLocalJob":
-		handleRunLocalJobTool(request, params)
+		command.handleRunLocalJobTool(request, params)
 	case "getBuildSpecSchema":
-		handleGetBuildSpecSchemaTool(request)
-	case "migrateBuildSpec":
-		handleMigrateBuildSpecTool(request)
+		command.handleGetBuildSpecSchemaTool(request)
+	case "checkBuildSpec":
+		command.handleCheckBuildSpecTool(request)
 	case "getCurrentProject":
-		handleGetCurrentProjectTool(request)
+		command.handleGetCurrentProjectTool(request)
 	case "getWorkingDir":
-		handleGetWorkingDirTool(request)
+		command.handleGetWorkingDirTool(request)
 	case "setWorkingDir":
-		handleSetWorkingDirTool(request, params)
+		command.handleSetWorkingDirTool(request, params)
 	case "getLoginName":
-		handleGetLoginNameTool(request, params)
+		command.handleGetLoginNameTool(request, params)
 	case "getUnixTimestamp":
-		handleGetUnixTimestampTool(request, params)
+		command.handleGetUnixTimestampTool(request, params)
 	default:
-		logf("Unknown tool requested: %s", params.Name)
-		sendError(request.ID, ErrorCodeInvalidParams, "Unknown tool: "+params.Name)
+		command.logf("Unknown tool requested: %s", params.Name)
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Unknown tool: "+params.Name)
 	}
 }
 
-func handleRunLocalJobTool(request MCPRequest, params CallToolParams) {
-	logf("Handling runLocalJob tool call")
+func (command *MCPCommand) handleRunLocalJobTool(request MCPRequest, params CallToolParams) {
+	command.logf("Handling runLocalJob tool call")
 
 	jobNameVal, exists := params.Arguments["jobName"]
 	if !exists {
-		logf("Missing required parameter: jobName")
-		sendError(request.ID, ErrorCodeInvalidParams, "Missing required parameter: jobName")
+		command.logf("Missing required parameter: jobName")
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Missing required parameter: jobName")
 		return
 	}
 
 	jobName, ok := jobNameVal.(string)
 	if !ok {
-		logf("Invalid type for jobName parameter: expected string")
-		sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for jobName parameter: expected string")
+		command.logf("Invalid type for jobName parameter: expected string")
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for jobName parameter: expected string")
 		return
 	}
 
 	if jobName == "" {
-		logf("jobName parameter cannot be empty")
-		sendError(request.ID, ErrorCodeInvalidParams, "jobName parameter cannot be empty")
+		command.logf("jobName parameter cannot be empty")
+		command.sendError(request.ID, ErrorCodeInvalidParams, "jobName parameter cannot be empty")
 		return
 	}
 
@@ -2505,8 +2508,8 @@ func handleRunLocalJobTool(request MCPRequest, params CallToolParams) {
 				if paramStr, ok := paramInterface.(string); ok {
 					parts := strings.Split(paramStr, "=")
 					if len(parts) != 2 {
-						logf("Invalid parameter format (expected key=value): %s", paramStr)
-						sendError(request.ID, ErrorCodeInvalidParams, fmt.Sprintf("Invalid parameter format (expected key=value): %s", paramStr))
+						command.logf("Invalid parameter format (expected key=value): %s", paramStr)
+						command.sendError(request.ID, ErrorCodeInvalidParams, fmt.Sprintf("Invalid parameter format (expected key=value): %s", paramStr))
 						return
 					}
 
@@ -2514,14 +2517,14 @@ func handleRunLocalJobTool(request MCPRequest, params CallToolParams) {
 					val := strings.TrimSpace(parts[1])
 
 					if len(key) == 0 {
-						logf("Parameter key cannot be empty: %s", paramStr)
-						sendError(request.ID, ErrorCodeInvalidParams, fmt.Sprintf("Parameter key cannot be empty: %s", paramStr))
+						command.logf("Parameter key cannot be empty: %s", paramStr)
+						command.sendError(request.ID, ErrorCodeInvalidParams, fmt.Sprintf("Parameter key cannot be empty: %s", paramStr))
 						return
 					}
 
 					if len(val) == 0 {
-						logf("Parameter value cannot be empty: %s", paramStr)
-						sendError(request.ID, ErrorCodeInvalidParams, fmt.Sprintf("Parameter value cannot be empty: %s", paramStr))
+						command.logf("Parameter value cannot be empty: %s", paramStr)
+						command.sendError(request.ID, ErrorCodeInvalidParams, fmt.Sprintf("Parameter value cannot be empty: %s", paramStr))
 						return
 					}
 
@@ -2532,23 +2535,23 @@ func handleRunLocalJobTool(request MCPRequest, params CallToolParams) {
 						paramMap[key] = []string{val}
 					}
 				} else {
-					logf("Invalid type for param element: expected string")
-					sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for param element: expected string")
+					command.logf("Invalid type for param element: expected string")
+					command.sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for param element: expected string")
 					return
 				}
 			}
 		} else {
-			logf("Invalid type for params parameter: expected array")
-			sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for params parameter: expected array")
+			command.logf("Invalid type for params parameter: expected array")
+			command.sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for params parameter: expected array")
 			return
 		}
 	}
 
 	// Use the common prepareLocalJob function
-	build, err := runLocalJob(jobName, workingDir, paramMap, "Submitted via MCP", logger)
+	build, err := runLocalJob(jobName, command.workingDir, paramMap, "Submitted via MCP", command.logger)
 	if err != nil {
-		logf("Failed to prepare local job: %v", err)
-		sendError(request.ID, ErrorCodeInternalError, "Failed to prepare local job: "+err.Error())
+		command.logf("Failed to prepare local job: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to prepare local job: "+err.Error())
 		return
 	}
 
@@ -2564,27 +2567,27 @@ func handleRunLocalJobTool(request MCPRequest, params CallToolParams) {
 		},
 	}
 
-	logf("runLocalJob tool call successful")
-	sendResponse(request.ID, result)
+	command.logf("runLocalJob tool call successful")
+	command.sendResponse(request.ID, result)
 }
 
-func handleGetBuildSpecSchemaTool(request MCPRequest) {
-	logf("Handling getBuildSpecSchema tool call")
+func (command *MCPCommand) handleGetBuildSpecSchemaTool(request MCPRequest) {
+	command.logf("Handling getBuildSpecSchema tool call")
 
 	// Build the API URL
 	apiURL := config.ServerUrl + "/~api/build-spec-schema.yml"
 
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
-		logf("Failed to create request: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
+		command.logf("Failed to create request: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to create request: "+err.Error())
 		return
 	}
 
 	body, err := makeAPICall(req)
 	if err != nil {
-		logf("Failed to make API call: %v", createErrorString(err))
-		sendError(request.ID, ErrorCodeInvalidParams, "Failed to make API call: "+err.Error())
+		command.logf("Failed to make API call: %v", err)
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Failed to make API call: "+err.Error())
 		return
 	}
 
@@ -2597,18 +2600,18 @@ func handleGetBuildSpecSchemaTool(request MCPRequest) {
 		},
 	}
 
-	logf("getBuildSpecSchema tool call successful")
-	sendResponse(request.ID, response)
+	command.logf("getBuildSpecSchema tool call successful")
+	command.sendResponse(request.ID, response)
 }
 
-func handleMigrateBuildSpecTool(request MCPRequest) {
-	logf("Handling migrateBuildSpec tool call")
+func (command *MCPCommand) handleCheckBuildSpecTool(request MCPRequest) {
+	command.logf("Handling checkBuildSpec tool call")
 
-	// Call the migrateBuildSpec method using the global logger
-	err := migrateBuildSpec(workingDir, logger)
+	// Call the checkBuildSpec method using the global logger
+	err := checkBuildSpec(command.workingDir, command.logger)
 	if err != nil {
-		logf("Failed to migrate build spec: %v", err)
-		sendError(request.ID, ErrorCodeInternalError, "Failed to migrate build spec: "+err.Error())
+		command.logf("Failed to check build spec: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to check build spec: "+err.Error())
 		return
 	}
 
@@ -2616,34 +2619,34 @@ func handleMigrateBuildSpecTool(request MCPRequest) {
 		Content: []ToolContent{
 			{
 				Type: "text",
-				Text: "Build spec migrated successfully",
+				Text: "Build spec checked successfully",
 			},
 		},
 	}
 
-	logf("migrateBuildSpec tool call successful")
-	sendResponse(request.ID, response)
+	command.logf("checkBuildSpec tool call successful")
+	command.sendResponse(request.ID, response)
 }
 
 // getInputSchemaForTool retrieves and converts a tool's input schema from the schemas map
 // Returns an empty InputSchema if the tool is not found or conversion fails
-func getInputSchemaForTool(toolName string, schemas map[string]interface{}) InputSchema {
+func (command *MCPCommand) getInputSchemaForTool(toolName string, schemas map[string]interface{}) InputSchema {
 	schemaData, exists := schemas[toolName]
 	if !exists {
-		logf("%s schema not found in API response", toolName)
+		command.logf("%s schema not found in API response", toolName)
 		return InputSchema{}
 	}
 
 	// Check if schemaData is nil
 	if schemaData == nil {
-		logf("Schema data for %s is nil", toolName)
+		command.logf("Schema data for %s is nil", toolName)
 		return InputSchema{}
 	}
 
 	// Check if schemaData is the expected map type
 	schemaMap, ok := schemaData.(map[string]interface{})
 	if !ok {
-		logf("Schema data for %s is not a map[string]interface{}, got %T", toolName, schemaData)
+		command.logf("Schema data for %s is not a map[string]interface{}, got %T", toolName, schemaData)
 		return InputSchema{}
 	}
 
@@ -2658,7 +2661,7 @@ func getInputSchemaForTool(toolName string, schemas map[string]interface{}) Inpu
 		if typeStr, ok := typeVal.(string); ok {
 			schema.Type = typeStr
 		} else {
-			logf("Type field for %s is not a string, got %T", toolName, typeVal)
+			command.logf("Type field for %s is not a string, got %T", toolName, typeVal)
 			return InputSchema{}
 		}
 	}
@@ -2668,7 +2671,7 @@ func getInputSchemaForTool(toolName string, schemas map[string]interface{}) Inpu
 		if properties, ok := propertiesVal.(map[string]interface{}); ok {
 			schema.Properties = properties
 		} else {
-			logf("Properties field for %s is not a map[string]interface{}, got %T", toolName, propertiesVal)
+			command.logf("Properties field for %s is not a map[string]interface{}, got %T", toolName, propertiesVal)
 			return InputSchema{}
 		}
 	}
@@ -2681,13 +2684,13 @@ func getInputSchemaForTool(toolName string, schemas map[string]interface{}) Inpu
 				if str, ok := item.(string); ok {
 					required = append(required, str)
 				} else {
-					logf("Required field at index %d for %s is not a string, got %T", i, toolName, item)
+					command.logf("Required field at index %d for %s is not a string, got %T", i, toolName, item)
 					return InputSchema{}
 				}
 			}
 			schema.Required = required
 		} else {
-			logf("Required field for %s is not a []interface{}, got %T", toolName, requiredVal)
+			command.logf("Required field for %s is not a []interface{}, got %T", toolName, requiredVal)
 			return InputSchema{}
 		}
 	}
@@ -2695,7 +2698,7 @@ func getInputSchemaForTool(toolName string, schemas map[string]interface{}) Inpu
 	return schema
 }
 
-func sendResponse(id interface{}, result interface{}) {
+func (command *MCPCommand) sendResponse(id interface{}, result interface{}) {
 	// Ensure ID is never nil for JSON-RPC compliance
 	if id == nil {
 		id = 0
@@ -2711,7 +2714,7 @@ func sendResponse(id interface{}, result interface{}) {
 	fmt.Println(string(data))
 }
 
-func sendError(id interface{}, code int, message string) {
+func (command *MCPCommand) sendError(id interface{}, code int, message string) {
 	// Ensure ID is never nil for JSON-RPC compliance
 	if id == nil {
 		id = 0

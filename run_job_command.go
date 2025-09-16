@@ -5,7 +5,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 
 	"github.com/spf13/cobra"
@@ -15,10 +14,10 @@ type RunJobCommand struct {
 }
 
 // Execute executes the run job command
-func (runJobCommand RunJobCommand) Execute(cobraCmd *cobra.Command, args []string, logger *log.Logger) {
+func (command RunJobCommand) Execute(cobraCmd *cobra.Command, args []string, logger *log.Logger) {
 	// Extract job name from arguments
 	if len(args) != 1 {
-		fmt.Fprintln(os.Stderr, "Error: exactly one job name is required")
+		fmt.Fprintln(os.Stderr, "Exactly one job name is required")
 		os.Exit(1)
 	}
 	jobName := args[0]
@@ -32,24 +31,24 @@ func (runJobCommand RunJobCommand) Execute(cobraCmd *cobra.Command, args []strin
 		var err error
 		project, err = inferProject(".")
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "Error: could not infer project from current directory: "+err.Error())
+			fmt.Fprintln(os.Stderr, "Unable to infer project from current directory: "+err.Error())
 			os.Exit(1)
 		}
 	}
 	// Validate that either branch or tag is specified, but not both
 	if branch == "" && tag == "" {
-		fmt.Fprintln(os.Stderr, "Error: either --branch or --tag must be specified")
+		fmt.Fprintln(os.Stderr, "Either --branch or --tag must be specified")
 		os.Exit(1)
 	}
 	if branch != "" && tag != "" {
-		fmt.Fprintln(os.Stderr, "Error: --branch and --tag cannot be specified at the same time")
+		fmt.Fprintln(os.Stderr, "Option --branch and --tag cannot be specified at the same time")
 		os.Exit(1)
 	}
 
 	// Get command line parameters
 	paramArray, err := cobraCmd.Flags().GetStringArray("param")
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Error getting parameters:", err)
+		fmt.Fprintln(os.Stderr, "Failed to get parameters:", err)
 		os.Exit(1)
 	}
 
@@ -58,7 +57,7 @@ func (runJobCommand RunJobCommand) Execute(cobraCmd *cobra.Command, args []strin
 	// Parse parameter array into ParamMap
 	for _, paramStr := range paramArray {
 		if err := params.Set(paramStr); err != nil {
-			fmt.Fprintln(os.Stderr, "Error parsing parameter:", err)
+			fmt.Fprintln(os.Stderr, "Failed to parse parameter:", err)
 			os.Exit(1)
 		}
 	}
@@ -95,7 +94,7 @@ func (runJobCommand RunJobCommand) Execute(cobraCmd *cobra.Command, args []strin
 	}
 
 	// Run the job
-	build, err := runJob(project, project, jobMap, logger)
+	build, err := runJob(project, project, jobMap)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -107,12 +106,7 @@ func (runJobCommand RunJobCommand) Execute(cobraCmd *cobra.Command, args []strin
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
 
-	buildFinished := false
-	var mutex sync.Mutex
-
-	fmt.Println("Streaming job logs...")
-
-	err = streamBuildLog(buildId, buildNumber, signalChannel, &buildFinished, &mutex)
+	err = streamBuildLog(buildId, buildNumber, signalChannel)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
