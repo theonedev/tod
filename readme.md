@@ -1,7 +1,5 @@
 # TOD - TheOneDev CLI Tool
 
-[![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://code.onedev.io/onedev/tod)
-
 TOD (**T**he**O**ne**D**ev) is a powerful command-line tool for OneDev 13+ that streamlines your development workflow by enabling you to run CI/CD jobs against local changes, set up local working directory to work on pull requests, etc. It also provides a MCP (Model Context Protocol) server, allowing you to work with OneDev in an intelligent, natural way via AI assistants.
 
 ## Features
