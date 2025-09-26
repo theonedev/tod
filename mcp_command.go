@@ -169,12 +169,7 @@ func (command *MCPCommand) Execute(cobraCmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	if serverUrl, _ := cobraCmd.Flags().GetString("server-url"); serverUrl != "" {
-		config.ServerUrl = serverUrl
-	}
-	if accessToken, _ := cobraCmd.Flags().GetString("access-token"); accessToken != "" {
-		config.AccessToken = accessToken
-	}
+	// Configuration is loaded from file only
 
 	if err := config.Validate(); err != nil {
 		command.logf("Config validation failed: %v", err)
@@ -245,16 +240,10 @@ func (command *MCPCommand) handleInitialize(request MCPRequest) {
 	command.logf("Handling initialize request")
 
 	// Validate required configuration before initializing
-	var missingArgs []string
-	if config.ServerUrl == "" {
-		missingArgs = append(missingArgs, "server")
-	}
-	if config.AccessToken == "" {
-		missingArgs = append(missingArgs, "token")
-	}
-
-	if len(missingArgs) > 0 {
-		message := fmt.Sprintf("MCP server initialization failed: missing required arguments: %s. Please restart with -server and -token flags.", strings.Join(missingArgs, ", "))
+	if config.ServerUrl == "" || config.AccessToken == "" {
+		homeDir, _ := os.UserHomeDir()
+		configFilePath := filepath.Join(homeDir, ".todconfig")
+		message := fmt.Sprintf("MCP server initialization failed: missing configuration in %s. Please ensure both 'server-url' and 'access-token' are configured.", configFilePath)
 		command.logf(message)
 		command.sendError(request.ID, ErrorCodeInvalidRequest, message)
 		return

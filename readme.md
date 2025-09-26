@@ -185,13 +185,6 @@ tod check-build-spec
 tod check-build-spec --working-dir /path/to/project
 ```
 
-## Global Options
-
-These optional options can be used with any command:
-
-- `--server-url <url>` - OneDev server URL (overrides config file)
-- `--access-token <token>` - Access token (overrides config file)
-
 ## Usage Examples
 
 ### Complete Workflow Example

@@ -24,7 +24,7 @@ type Config struct {
 func LoadConfig() (*Config, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get user home: %w", err)
+		return nil, fmt.Errorf("failed to get user home directory: %w", err)
 	}
 
 	configFilePath := filepath.Join(homeDir, ".todconfig")
@@ -33,7 +33,7 @@ func LoadConfig() (*Config, error) {
 	if _, err := os.Stat(configFilePath); !os.IsNotExist(err) {
 		cfg, err := ini.Load(configFilePath)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read config file: %w", err)
+			return nil, fmt.Errorf("failed to read config file %s: %w", configFilePath, err)
 		}
 
 		// Read from top-level (default section)
@@ -47,11 +47,14 @@ func LoadConfig() (*Config, error) {
 
 // Validate validates the common configuration
 func (config *Config) Validate() error {
+	homeDir, _ := os.UserHomeDir()
+	configFilePath := filepath.Join(homeDir, ".todconfig")
+
 	if config.ServerUrl == "" {
-		return fmt.Errorf("missing server url. Check https://code.onedev.io/onedev/tod for details")
+		return fmt.Errorf("missing setting 'server-url' in %s", configFilePath)
 	}
 	if config.AccessToken == "" {
-		return fmt.Errorf("missing access token. Check https://code.onedev.io/onedev/tod for details")
+		return fmt.Errorf("missing setting 'access-token' in %s", configFilePath)
 	}
 
 	// Validate server URL format: must start with http:// or https://, and trim trailing slash

@@ -19,7 +19,7 @@ var config *Config
 
 var rootCmd = &cobra.Command{
 	Use:   "tod",
-	Short: "TOD (TheOneDev) is a command line tool for OneDev 12.1+",
+	Short: "TOD (TheOneDev) is a command line tool for OneDev 13+",
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// Load configuration from file
 		var err error
@@ -28,13 +28,7 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 
-		// Override with flags if provided
-		if serverUrl, _ := cmd.Flags().GetString("server-url"); serverUrl != "" {
-			config.ServerUrl = serverUrl
-		}
-		if accessToken, _ := cmd.Flags().GetString("access-token"); accessToken != "" {
-			config.AccessToken = accessToken
-		}
+		// Configuration is loaded from file only
 
 		if err := config.Validate(); err != nil {
 			return err
@@ -132,10 +126,6 @@ var checkBuildSpecCmd = &cobra.Command{
 }
 
 func init() {
-	// Global persistent flags
-	rootCmd.PersistentFlags().String("server-url", "", "Specify OneDev server url, for instance: https://onedev.example.com. If not specified, it will use the server url specified in config file (<user home>/.todconfig).")
-	rootCmd.PersistentFlags().String("access-token", "", "Specify access token for OneDev server. If not specified, it will use the access token specified in config file (<user home>/.todconfig).")
-
 	// Run-local command specific flags
 	runLocalJobCmd.Flags().String("working-dir", "", "Specify working directory to run job against (defaults to current directory)")
 	runLocalJobCmd.Flags().StringArrayP("param", "p", nil, "Specify job parameters in form of key=value (can be used multiple times)")
