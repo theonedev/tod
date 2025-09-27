@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const version = "2.0.0"
+const version = "2.0.1"
 
 type CompatibleVersions struct {
 	MinVersion string `json:"minVersion"`
@@ -131,7 +131,6 @@ func init() {
 	runLocalJobCmd.Flags().StringArrayP("param", "p", nil, "Specify job parameters in form of key=value (can be used multiple times)")
 
 	// Run job command specific flags
-	runJobCmd.Flags().String("project", "", "Specify target project to run job against. If not specified, it will infer project from current directory")
 	runJobCmd.Flags().String("branch", "", "Specify branch to run job against (either --branch or --tag is required)")
 	runJobCmd.Flags().String("tag", "", "Specify tag to run job against (either --branch or --tag is required)")
 	runJobCmd.Flags().StringArrayP("param", "p", nil, "Specify job parameters in form of key=value (can be used multiple times)")

@@ -25,6 +25,14 @@ tod mcp
 tod mcp --log-file /tmp/tod-mcp.log
 ```
 
+Before integrating this MCP server with your AI assistant, it is highly recommended to run above command from your terminal first to make sure there isn't any errors.
+
+> [!IMPORTANT] Working directory 
+> This MCP server has a notion of working directory, which is set to project root initially for many 
+> AI assistants. This directory is expected to be inside a git repository, with one of the remote 
+> pointing to a OneDev project. Tool `getWorkingDir` and `setWorkingDir` is available to get 
+> and set the working directory
+
 ## Available Tools
 
 TOD's MCP server provides **34 tools** organized into the following categories:
@@ -161,7 +169,7 @@ Create a new pull request.
 
 **Parameters:**
 - `sourceBranch` (required) - A branch in source project to be used as source branch
-- `title` (optional) - Title of the pull request. Leave empty to use default title
+- `title` (required) - Title of the pull request. Leave empty to use default title
 - `description` (optional) - Description of the pull request
 - `sourceProject` (optional) - Source project. Leave empty to use current project
 - `targetProject` (optional) - Target project. If left empty, defaults to original project when source is a fork
@@ -242,11 +250,10 @@ Get file changes since previous successful build similar to specified build.
 - `buildReference` (required) - Build reference
 
 #### `runJob`
-Run specified job against specified branch or tag in specified project.
+Run specified job against specified branch or tag in current project.
 
 **Parameters:**
 - `jobName` (required) - Name of the job to run
-- `project` (optional) - Project to run the job against
 - `branch` (optional) - Branch to run the job against (either branch or tag, not both)
 - `tag` (optional) - Tag to run the job against (either branch or tag, not both)
 - `params` (optional) - Array of parameters in form key=value
@@ -323,14 +330,15 @@ This prompt guides the AI assistant through the process of creating or editing a
 4. Validate the resulting build spec
 5. Save the changes to the file
 
-### `investigate-build-failure`
-Investigate failure of a build.
+### `investigate-build-problems`
+Investigate problems of a build.
 
 **Parameters:**
-- `buildReference` (required) - Reference of the build to investigate, for instance #123, project#123, or projectkey-123
+- `buildReference` (required) - Reference of the build to investigate problems, for instance #123, project#123, or projectkey-123
+- `instruction` (optional) - Instruction to investigate problems of the build
 
 **Description:**
-This prompt guides the AI assistant through a systematic investigation of a failed build. The assistant will:
+This prompt guides the AI assistant through a systematic investigation of build problems. The assistant will:
 1. Get the build details and status
 2. Retrieve the build log to identify error messages
 3. Examine the build spec file to understand the build configuration
@@ -343,6 +351,7 @@ Review a pull request.
 **Parameters:**
 - `pullRequestReference` (required) - Reference of the pull request to review, for instance #123, project#123, or projectkey-123
 - `sinceLastReview` (required) - Either true or false. If true, only changes since last review will be reviewed; otherwise all changes of the pull request will be reviewed
+- `instruction` (optional) - Instruction to review the pull request
 
 **Description:**
 This prompt guides the AI assistant through a comprehensive pull request review process. The assistant will:

@@ -60,68 +60,171 @@ func getJSONMapFromAPI(apiURL string) (map[string]interface{}, error) {
 	return jsonData, nil
 }
 
-func inferProject(workingDir string) (string, error) {
+func inferProject(workingDir string, logger *log.Logger) (string, string, error) {
 	_, err := exec.LookPath("git")
 	if err != nil {
-		return "", fmt.Errorf("git executable not found in system path")
+		return "", "", fmt.Errorf("git executable not found in system path")
 	}
 
-	// Check if the working directory is a git repository
+	var prefix = "failed to infer OneDev project from working directory '" + workingDir + "': "
+	var suffix = ". Working directory is expected to be inside a git repository, with one of the remote pointing to OneDev project"
+
 	cmd := exec.Command("git", "rev-parse", "--git-dir")
 	cmd.Dir = workingDir
 	_, err = cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("not a git working directory: %s", workingDir)
+		return "", "", fmt.Errorf(prefix + "working directory is not inside a git repository" + suffix)
 	}
 
-	cmd = exec.Command("git", "remote", "get-url", "origin")
+	apiURL := config.ServerUrl + "/~api/mcp-helper/get-clone-roots"
+
+	req, err := http.NewRequest("GET", apiURL, nil)
+	if err != nil {
+		return "", "", fmt.Errorf(prefix+"failed to create request: %v"+suffix, err)
+	}
+
+	body, err := makeAPICall(req)
+	if err != nil {
+		return "", "", fmt.Errorf(prefix+"failed to make API call: %v"+suffix, err)
+	}
+
+	var cloneRoots map[string]interface{}
+	if err := json.Unmarshal(body, &cloneRoots); err != nil {
+		return "", "", fmt.Errorf(prefix+"failed to parse JSON response: %v"+suffix, err)
+	}
+
+	httpCloneRoot, _ := cloneRoots["http"].(string)
+	sshCloneRoot, _ := cloneRoots["ssh"].(string)
+
+	cmd = exec.Command("git", "remote")
 	cmd.Dir = workingDir
 	output, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("remote 'origin' not found in git repository")
+		return "", "", fmt.Errorf(prefix+"failed to list git remotes: %v"+suffix, err)
 	}
 
-	remoteUrl := strings.TrimSpace(string(output))
-	if remoteUrl == "" {
-		return "", fmt.Errorf("remote 'origin' not found in git repository")
+	remotes := strings.Fields(strings.TrimSpace(string(output)))
+	if len(remotes) == 0 {
+		return "", "", fmt.Errorf(prefix + "no git remotes found in repository" + suffix)
 	}
 
+	if len(remotes) == 1 {
+		remote := remotes[0]
+		logger.Printf("Using remote '%s' to infer project", remote)
+
+		cmd = exec.Command("git", "remote", "get-url", remote)
+		cmd.Dir = workingDir
+		output, err := cmd.Output()
+		if err != nil {
+			return "", "", fmt.Errorf(prefix+"failed to get URL for remote '%s': %v"+suffix, remote, err)
+		}
+
+		remoteUrl := strings.TrimSpace(string(output))
+		if remoteUrl == "" {
+			return "", "", fmt.Errorf(prefix+"remote '%s' has no URL"+suffix, remote)
+		}
+
+		project, err := extractProjectFromUrl(remoteUrl)
+		if err != nil {
+			return "", "", fmt.Errorf(prefix+"failed to extract project from remote '%s': %v"+suffix, remote, err)
+		}
+
+		return remote, project, nil
+	}
+
+	for _, remote := range remotes {
+		cmd = exec.Command("git", "remote", "get-url", remote)
+		cmd.Dir = workingDir
+		output, err := cmd.Output()
+		if err != nil {
+			continue
+		}
+
+		remoteUrl := strings.TrimSpace(string(output))
+		if remoteUrl == "" {
+			continue
+		}
+
+		if matchesCloneRoot(remoteUrl, httpCloneRoot, sshCloneRoot) {
+			logger.Printf("Using remote '%s' to infer project", remote)
+
+			project, err := extractProjectFromUrl(remoteUrl)
+			if err != nil {
+				return "", "", fmt.Errorf(prefix+"failed to extract project from remote '%s': %v"+suffix, remote, err)
+			}
+			return remote, project, nil
+		}
+	}
+
+	return "", "", fmt.Errorf(prefix + "no remote found corresponding to a OneDev project" + suffix)
+}
+
+func matchesCloneRoot(remoteUrl, httpCloneRoot, sshCloneRoot string) bool {
+	remoteProtocol, remoteHostAndPort, err := parseUrlComponents(remoteUrl)
+	if err != nil {
+		return false
+	}
+
+	httpProtocol, httpHostAndPort, err := parseUrlComponents(httpCloneRoot)
+	if err == nil && remoteProtocol == httpProtocol && remoteHostAndPort == httpHostAndPort {
+		return true
+	}
+
+	if sshCloneRoot != "" {
+		sshProtocol, sshHostAndPort, err := parseUrlComponents(sshCloneRoot)
+		if err == nil && remoteProtocol == sshProtocol && remoteHostAndPort == sshHostAndPort {
+			return true
+		}
+	}
+
+	return false
+}
+
+func parseUrlComponents(url string) (protocol, hostAndPort string, err error) {
+	if strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://") || strings.HasPrefix(url, "ssh://") {
+		protocolIndex := strings.Index(url, "://")
+		protocol = url[:protocolIndex+3]
+		remainingPart := url[protocolIndex+3:]
+
+		if atIndex := strings.Index(remainingPart, "@"); atIndex != -1 {
+			remainingPart = remainingPart[atIndex+1:]
+		}
+
+		pathIndex := strings.Index(remainingPart, "/")
+		if pathIndex == -1 {
+			hostAndPort = remainingPart
+		} else {
+			hostAndPort = remainingPart[:pathIndex]
+		}
+	}
+
+	return protocol, hostAndPort, nil
+}
+
+func extractProjectFromUrl(remoteUrl string) (string, error) {
 	var project string
 
-	if strings.HasPrefix(remoteUrl, "http://") || strings.HasPrefix(remoteUrl, "https://") {
+	if strings.HasPrefix(remoteUrl, "http://") || strings.HasPrefix(remoteUrl, "https://") || strings.HasPrefix(remoteUrl, "ssh://") {
 		protocolIndex := strings.Index(remoteUrl, "://")
 		if protocolIndex == -1 {
-			return "", fmt.Errorf("invalid remote URL format: %s", remoteUrl)
+			return "", fmt.Errorf("invalid URL format")
 		}
 
 		hostPart := remoteUrl[protocolIndex+3:]
 		pathIndex := strings.Index(hostPart, "/")
 		if pathIndex == -1 {
-			return "", fmt.Errorf("invalid remote URL format: %s", remoteUrl)
-		}
-
-		project = hostPart[pathIndex+1:]
-	} else if strings.HasPrefix(remoteUrl, "ssh://") {
-		protocolIndex := strings.Index(remoteUrl, "://")
-		if protocolIndex == -1 {
-			return "", fmt.Errorf("invalid remote URL format: %s", remoteUrl)
-		}
-
-		hostPart := remoteUrl[protocolIndex+3:]
-		pathIndex := strings.Index(hostPart, "/")
-		if pathIndex == -1 {
-			return "", fmt.Errorf("invalid remote URL format: %s", remoteUrl)
+			return "", fmt.Errorf("invalid URL format")
 		}
 
 		project = hostPart[pathIndex+1:]
 	} else {
-		return "", fmt.Errorf("unsupported remote URL format: %s (expected http[s]:// or ssh://)", remoteUrl)
+		return "", fmt.Errorf("unsupported URL format")
 	}
 
 	project = strings.TrimSuffix(project, ".git")
 
 	if project == "" {
-		return "", fmt.Errorf("invalid remote URL format: %s (empty project path)", remoteUrl)
+		return "", fmt.Errorf("project path is empty in URL")
 	}
 
 	return project, nil
@@ -139,9 +242,9 @@ func hasUncommittedChanges(workingDir string) (bool, error) {
 }
 
 func checkoutPullRequest(workingDir string, pullRequestReference string, logger *log.Logger) error {
-	project, err := inferProject(workingDir)
+	remote, project, err := inferProject(workingDir, logger)
 	if err != nil {
-		return fmt.Errorf("failed to infer project: %v", err)
+		return err
 	}
 
 	urlQuery := url.Values{
@@ -181,10 +284,9 @@ func checkoutPullRequest(workingDir string, pullRequestReference string, logger 
 
 	projectUrl := config.ServerUrl + "/" + targetProject
 
-	cmd := exec.Command("git", "-c", "http.extraHeader=Authorization: Bearer "+config.AccessToken, "fetch", projectUrl, headCommitHash)
-	cmd.Dir = workingDir
-
-	stdoutStderr, err := cmd.CombinedOutput()
+	fetchCmd := exec.Command("git", "-c", "http.extraHeader=Authorization: Bearer "+config.AccessToken, "fetch", projectUrl, headCommitHash)
+	fetchCmd.Dir = workingDir
+	stdoutStderr, err := fetchCmd.CombinedOutput()
 	logger.Printf("Running command: git fetch %s %s\n", projectUrl, headCommitHash)
 	logger.Printf("Command output:\n%s", string(stdoutStderr))
 	if err != nil {
@@ -211,7 +313,11 @@ func checkoutPullRequest(workingDir string, pullRequestReference string, logger 
 
 	checkBranchCmd := exec.Command("git", "rev-parse", "--verify", localBranch)
 	checkBranchCmd.Dir = workingDir
-	if err := checkBranchCmd.Run(); err == nil {
+	stdoutStderr, err = checkBranchCmd.CombinedOutput()
+	logger.Printf("Running command: git rev-parse --verify %s\n", localBranch)
+	logger.Printf("Command output:\n%s", string(stdoutStderr))
+
+	if err == nil {
 		checkoutCmd := exec.Command("git", "checkout", localBranch)
 		checkoutCmd.Dir = workingDir
 		stdoutStderr, err := checkoutCmd.CombinedOutput()
@@ -240,13 +346,16 @@ func checkoutPullRequest(workingDir string, pullRequestReference string, logger 
 	}
 
 	if needsUpstream {
-		updateRemoteTrackRefCmd := exec.Command("git", "update-ref", fmt.Sprintf("refs/remotes/origin/%s", sourceBranch), headCommitHash)
+		updateRemoteTrackRefCmd := exec.Command("git", "update-ref", fmt.Sprintf("refs/remotes/%s/%s", remote, sourceBranch), headCommitHash)
 		updateRemoteTrackRefCmd.Dir = workingDir
-		if err := updateRemoteTrackRefCmd.Run(); err == nil {
+		stdoutStderr, err = updateRemoteTrackRefCmd.CombinedOutput()
+		logger.Printf("Running command: git update-ref %s %s\n", fmt.Sprintf("refs/remotes/%s/%s", remote, sourceBranch), headCommitHash)
+		logger.Printf("Command output:\n%s", string(stdoutStderr))
+		if err == nil {
 			upstreamCmd := exec.Command("git", "rev-parse", "--abbrev-ref", localBranch+"@{upstream}")
 			upstreamCmd.Dir = workingDir
 			output, err := upstreamCmd.Output()
-			expectedUpstream := fmt.Sprintf("origin/%s", sourceBranch)
+			expectedUpstream := fmt.Sprintf("%s/%s", remote, sourceBranch)
 
 			if err != nil || strings.TrimSpace(string(output)) != expectedUpstream {
 				setUpstreamCmd := exec.Command("git", "branch", "--set-upstream-to", expectedUpstream, localBranch)
@@ -281,19 +390,14 @@ func checkResponse(resp *http.Response) error {
 	}
 }
 
-func runJob(project string, currentProject string, jobMap map[string]interface{}) (map[string]interface{}, error) {
+func runJob(currentProject string, jobMap map[string]interface{}) (map[string]interface{}, error) {
 	jobBytes, err := json.Marshal(jobMap)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal map to JSON: %v", err)
 	}
 	jobData := string(jobBytes)
 
-	var urlQuery = url.Values{
-		"project":        {project},
-		"currentProject": {currentProject},
-	}
-
-	apiURL := config.ServerUrl + "/~api/mcp-helper/run-job?" + urlQuery.Encode()
+	apiURL := config.ServerUrl + "/~api/mcp-helper/run-job?currentProject=" + url.QueryEscape(currentProject)
 
 	req, err := http.NewRequest("POST", apiURL, strings.NewReader(jobData))
 	if err != nil {
@@ -318,13 +422,9 @@ func runJob(project string, currentProject string, jobMap map[string]interface{}
 func runLocalJob(jobName string, workingDir string, params map[string][]string,
 	reason string, logger *log.Logger) (map[string]interface{}, error) {
 
-	if workingDir == "" {
-		workingDir = "."
-	}
-
-	project, err := inferProject(workingDir)
+	_, project, err := inferProject(workingDir, logger)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get project from working directory: %v", err)
+		return nil, err
 	}
 
 	projectUrl := config.ServerUrl + "/" + project
@@ -373,7 +473,7 @@ func runLocalJob(jobName string, workingDir string, params map[string][]string,
 		"reason":     reason,
 	}
 
-	return runJob(project, project, jobMap)
+	return runJob(project, jobMap)
 }
 
 func findGitRoot(workingDir string) (string, error) {
@@ -394,13 +494,9 @@ func findGitRoot(workingDir string) (string, error) {
 }
 
 func checkBuildSpec(workingDir string, logger *log.Logger) error {
-	if workingDir == "" {
-		workingDir = "."
-	}
-
-	project, err := inferProject(workingDir)
+	_, project, err := inferProject(workingDir, logger)
 	if err != nil {
-		return fmt.Errorf("failed to get project from working directory: %v", err)
+		return err
 	}
 
 	gitRoot, err := findGitRoot(workingDir)
@@ -410,8 +506,7 @@ func checkBuildSpec(workingDir string, logger *log.Logger) error {
 
 	buildSpecFile := filepath.Join(gitRoot, ".onedev-buildspec.yml")
 	if _, err := os.Stat(buildSpecFile); os.IsNotExist(err) {
-		logger.Printf("No need to check build spec as it is not created yet")
-		return nil
+		return fmt.Errorf("build spec not found: %v", err)
 	}
 
 	buildSpecContent, err := os.ReadFile(buildSpecFile)
