@@ -66,12 +66,15 @@ func inferProject(workingDir string) (string, error) {
 		return "", fmt.Errorf("git executable not found in system path")
 	}
 
-	gitDir := filepath.Join(workingDir, ".git")
-	if _, err := os.Stat(gitDir); os.IsNotExist(err) {
+	// Check if the working directory is a git repository
+	cmd := exec.Command("git", "rev-parse", "--git-dir")
+	cmd.Dir = workingDir
+	_, err = cmd.Output()
+	if err != nil {
 		return "", fmt.Errorf("not a git working directory: %s", workingDir)
 	}
 
-	cmd := exec.Command("git", "remote", "get-url", "origin")
+	cmd = exec.Command("git", "remote", "get-url", "origin")
 	cmd.Dir = workingDir
 	output, err := cmd.Output()
 	if err != nil {
@@ -326,11 +329,6 @@ func runLocalJob(jobName string, workingDir string, params map[string][]string,
 
 	projectUrl := config.ServerUrl + "/" + project
 
-	buildSpecFile := filepath.Join(workingDir, ".onedev-buildspec.yml")
-	if _, err := os.Stat(buildSpecFile); os.IsNotExist(err) {
-		return nil, fmt.Errorf("invalid working dir: OneDev build spec not found: %s", workingDir)
-	}
-
 	cmd := exec.Command("git", "stash", "create")
 	cmd.Dir = workingDir
 
@@ -378,6 +376,23 @@ func runLocalJob(jobName string, workingDir string, params map[string][]string,
 	return runJob(project, project, jobMap)
 }
 
+func findGitRoot(workingDir string) (string, error) {
+	_, err := exec.LookPath("git")
+	if err != nil {
+		return "", fmt.Errorf("git executable not found in system path")
+	}
+
+	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
+	cmd.Dir = workingDir
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("not a git working directory: %s", workingDir)
+	}
+
+	gitRoot := strings.TrimSpace(string(output))
+	return gitRoot, nil
+}
+
 func checkBuildSpec(workingDir string, logger *log.Logger) error {
 	if workingDir == "" {
 		workingDir = "."
@@ -388,9 +403,15 @@ func checkBuildSpec(workingDir string, logger *log.Logger) error {
 		return fmt.Errorf("failed to get project from working directory: %v", err)
 	}
 
-	buildSpecFile := filepath.Join(workingDir, ".onedev-buildspec.yml")
+	gitRoot, err := findGitRoot(workingDir)
+	if err != nil {
+		return fmt.Errorf("failed to find git root directory: %v", err)
+	}
+
+	buildSpecFile := filepath.Join(gitRoot, ".onedev-buildspec.yml")
 	if _, err := os.Stat(buildSpecFile); os.IsNotExist(err) {
-		return fmt.Errorf("unable to find OneDev build spec in working dir: %s", workingDir)
+		logger.Printf("No need to check build spec as it is not created yet")
+		return nil
 	}
 
 	buildSpecContent, err := os.ReadFile(buildSpecFile)

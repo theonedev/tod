@@ -305,6 +305,53 @@ Returns unix timestamp in milliseconds since epoch.
 - `dateTimeDescription` (required) - Description of date/time to convert (e.g., "today", "next month", "2025-01-01")
 
 
+## Available Prompts
+
+TOD's MCP server provides **3 prompts** that guide AI assistants through complex workflows:
+
+### `edit-build-spec`
+Create or edit OneDev build spec (.onedev-buildspec.yml).
+
+**Parameters:**
+- `instruction` (required) - Instruction to create or edit OneDev build spec
+
+**Description:**
+This prompt guides the AI assistant through the process of creating or editing a OneDev build specification file. The assistant will:
+1. Get the current build spec schema to understand the structure
+2. Read the existing build spec file if it exists
+3. Apply the provided instruction to create or modify the build spec
+4. Validate the resulting build spec
+5. Save the changes to the file
+
+### `investigate-build-failure`
+Investigate failure of a build.
+
+**Parameters:**
+- `buildReference` (required) - Reference of the build to investigate, for instance #123, project#123, or projectkey-123
+
+**Description:**
+This prompt guides the AI assistant through a systematic investigation of a failed build. The assistant will:
+1. Get the build details and status
+2. Retrieve the build log to identify error messages
+3. Examine the build spec file to understand the build configuration
+4. Check for file changes since the previous successful build
+5. Analyze the failure and provide recommendations
+
+### `review-pull-request`
+Review a pull request.
+
+**Parameters:**
+- `pullRequestReference` (required) - Reference of the pull request to review, for instance #123, project#123, or projectkey-123
+- `sinceLastReview` (required) - Either true or false. If true, only changes since last review will be reviewed; otherwise all changes of the pull request will be reviewed
+
+**Description:**
+This prompt guides the AI assistant through a comprehensive pull request review process. The assistant will:
+1. Get the pull request details including title and description
+2. Retrieve file changes for review (either all changes or only since last review based on the parameter)
+3. Examine file contents as needed to understand the changes
+4. Check if the pull request is pending the current user's review
+5. Provide an approval, request changes, or leave a comment based on the review findings
+
 ## Reference Formats
 
 Many tools accept reference parameters in these formats:

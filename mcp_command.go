@@ -34,7 +34,6 @@ const (
 	BuildReferenceDesc       = "Build reference is of form &#35;&lt;number&gt;, &lt;project&gt;&#35;&lt;number&gt;, or &lt;project key&gt;-&lt;number&gt;"
 )
 
-// MCP Protocol Messages
 type MCPRequest struct {
 	JSONRPC string      `json:"jsonrpc"`
 	ID      interface{} `json:"id"`
@@ -49,13 +48,17 @@ type MCPResponse struct {
 	Error   *MCPError   `json:"error,omitempty"`
 }
 
+type MCPParams struct {
+	Name      string                 `json:"name"`
+	Arguments map[string]interface{} `json:"arguments,omitempty"`
+}
+
 type MCPError struct {
 	Code    int         `json:"code"`
 	Message string      `json:"message"`
 	Data    interface{} `json:"data,omitempty"`
 }
 
-// Initialize response
 type InitializeResult struct {
 	ProtocolVersion string      `json:"protocolVersion"`
 	Capabilities    interface{} `json:"capabilities"`
@@ -80,11 +83,6 @@ type InputSchema struct {
 	Required   []string               `json:"required"`
 }
 
-type CallToolParams struct {
-	Name      string                 `json:"name"`
-	Arguments map[string]interface{} `json:"arguments,omitempty"`
-}
-
 type CallToolResult struct {
 	Content []ToolContent `json:"content"`
 }
@@ -94,7 +92,6 @@ type ToolContent struct {
 	Text string `json:"text"`
 }
 
-// Prompts
 type Prompt struct {
 	Name        string           `json:"name"`
 	Description string           `json:"description"`
@@ -105,11 +102,6 @@ type PromptArgument struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	Required    bool   `json:"required"`
-}
-
-type GetPromptParams struct {
-	Name      string                 `json:"name"`
-	Arguments map[string]interface{} `json:"arguments,omitempty"`
 }
 
 type GetPromptResult struct {
@@ -224,6 +216,10 @@ func (command *MCPCommand) Execute(cobraCmd *cobra.Command, args []string) {
 			command.handleToolsList(request)
 		case "tools/call":
 			command.handleToolsCall(request)
+		case "prompts/list":
+			command.handlePromptsList(request)
+		case "prompts/get":
+			command.handleGetPrompt(request)
 		case "ping":
 			command.sendResponse(request.ID, map[string]interface{}{})
 		case "notifications/cancelled":
@@ -278,6 +274,9 @@ func (command *MCPCommand) handleInitialize(request MCPRequest) {
 		ProtocolVersion: "2024-11-05",
 		Capabilities: map[string]interface{}{
 			"tools": map[string]interface{}{
+				"listChanged": true,
+			},
+			"prompts": map[string]interface{}{
 				"listChanged": true,
 			},
 		},
@@ -878,7 +877,7 @@ func (command *MCPCommand) handleGetCurrentProjectTool(request MCPRequest) {
 	command.sendResponse(request.ID, result)
 }
 
-func (command *MCPCommand) handleSetWorkingDirTool(request MCPRequest, params CallToolParams) {
+func (command *MCPCommand) handleSetWorkingDirTool(request MCPRequest, params MCPParams) {
 	command.logf("Handling setWorkingDir tool call")
 
 	workingDirArg, exists := params.Arguments["workingDir"]
@@ -924,7 +923,7 @@ func (command *MCPCommand) handleSetWorkingDirTool(request MCPRequest, params Ca
 }
 
 // handleGetLoginNameTool handles the getLoginName tool call
-func (command *MCPCommand) handleGetLoginNameTool(request MCPRequest, params CallToolParams) {
+func (command *MCPCommand) handleGetLoginNameTool(request MCPRequest, params MCPParams) {
 	command.logf("Handling getLoginName tool call")
 
 	// Get userName parameter if provided
@@ -970,7 +969,7 @@ func (command *MCPCommand) handleGetLoginNameTool(request MCPRequest, params Cal
 }
 
 // handleGetUnixTimestampTool handles the getUnixTimestamp tool call
-func (command *MCPCommand) handleGetUnixTimestampTool(request MCPRequest, params CallToolParams) {
+func (command *MCPCommand) handleGetUnixTimestampTool(request MCPRequest, params MCPParams) {
 	command.logf("Handling getUnixTimestamp tool call")
 
 	// Get dateTimeDescription parameter, report error if not provided
@@ -1054,7 +1053,7 @@ func (command *MCPCommand) getPullRequest(pullRequestReference string, currentPr
 	return pullRequest, nil
 }
 
-func (command *MCPCommand) handleGetPullRequestFileContentTool(request MCPRequest, params CallToolParams) {
+func (command *MCPCommand) handleGetPullRequestFileContentTool(request MCPRequest, params MCPParams) {
 	command.logf("Handling getPullRequestFileContent tool call")
 
 	currentProject, err := command.getCurrentProject()
@@ -1142,7 +1141,7 @@ func (command *MCPCommand) handleGetPullRequestFileContentTool(request MCPReques
 	command.sendResponse(request.ID, result)
 }
 
-func (command *MCPCommand) handleGetBuildFileContentTool(request MCPRequest, params CallToolParams) {
+func (command *MCPCommand) handleGetBuildFileContentTool(request MCPRequest, params MCPParams) {
 	command.logf("Handling getBuildFileContent tool call")
 
 	currentProject, err := command.getCurrentProject()
@@ -1210,7 +1209,7 @@ func (command *MCPCommand) handleGetBuildFileContentTool(request MCPRequest, par
 	command.sendResponse(request.ID, result)
 }
 
-func (command *MCPCommand) handleGetFileChangesSincePreviousSuccessfulSimilarBuildTool(request MCPRequest, params CallToolParams) {
+func (command *MCPCommand) handleGetFileChangesSincePreviousSuccessfulSimilarBuildTool(request MCPRequest, params MCPParams) {
 	command.logf("Handling getFileChangesSincePreviousSuccessfulSimilarBuild tool call")
 
 	currentProject, err := command.getCurrentProject()
@@ -1300,7 +1299,7 @@ func (command *MCPCommand) handleGetFileChangesSincePreviousSuccessfulSimilarBui
 	command.sendResponse(request.ID, result)
 }
 
-func (command *MCPCommand) handleQueryEntitiesTool(request MCPRequest, params CallToolParams, toolName string,
+func (command *MCPCommand) handleQueryEntitiesTool(request MCPRequest, params MCPParams, toolName string,
 	endpointSuffix string) {
 
 	command.logf("Handling %s tool call", toolName)
@@ -1400,8 +1399,7 @@ func (command *MCPCommand) handleQueryEntitiesTool(request MCPRequest, params Ca
 	command.sendResponse(request.ID, result)
 }
 
-func (command *MCPCommand) getNonEmptyStringParam(params CallToolParams, paramName string) (string, error) {
-	// Extract required parameter
+func (command *MCPCommand) getNonEmptyStringParam(params MCPParams, paramName string) (string, error) {
 	paramVal, exists := params.Arguments[paramName]
 	if !exists {
 		return "", fmt.Errorf("missing required parameter: %s", paramName)
@@ -1409,17 +1407,17 @@ func (command *MCPCommand) getNonEmptyStringParam(params CallToolParams, paramNa
 
 	param, ok := paramVal.(string)
 	if !ok {
-		return "", fmt.Errorf("invalid type for %s parameter: expected string", paramName)
+		return "", fmt.Errorf("expect string type for parameter: %s", paramName)
 	}
 
 	if param == "" {
-		return "", fmt.Errorf("%s parameter cannot be empty", paramName)
+		return "", fmt.Errorf("parameter cannot be empty: %s", paramName)
 	}
 
 	return param, nil
 }
 
-func (command *MCPCommand) handleGetEntityDataTool(request MCPRequest, params CallToolParams, toolName string,
+func (command *MCPCommand) handleGetEntityDataTool(request MCPRequest, params MCPParams, toolName string,
 	endpointSuffix string, referenceParamName string) {
 
 	command.logf("Handling %s tool call", toolName)
@@ -1484,7 +1482,7 @@ func (command *MCPCommand) getEntityData(reference string, currentProject string
 	return body, nil
 }
 
-func (command *MCPCommand) handleCheckoutPullRequestTool(request MCPRequest, params CallToolParams) {
+func (command *MCPCommand) handleCheckoutPullRequestTool(request MCPRequest, params MCPParams) {
 	command.logf("Handling checkoutPullRequest tool call")
 
 	reference, err := command.getNonEmptyStringParam(params, "pullRequestReference")
@@ -1547,7 +1545,7 @@ func (command *MCPCommand) getPullRequestPatchInfo(currentProject string, refere
 	return patchInfo, nil
 }
 
-func (command *MCPCommand) handleGetPullRequestFileChangesTool(request MCPRequest, params CallToolParams) {
+func (command *MCPCommand) handleGetPullRequestFileChangesTool(request MCPRequest, params MCPParams) {
 	command.logf("Handling getPullRequestFileChanges tool call")
 
 	reference, err := command.getNonEmptyStringParam(params, "pullRequestReference")
@@ -1624,7 +1622,7 @@ func (command *MCPCommand) handleGetPullRequestFileChangesTool(request MCPReques
 	command.sendResponse(request.ID, result)
 }
 
-func (command *MCPCommand) handleGetBuildLogTool(request MCPRequest, params CallToolParams) {
+func (command *MCPCommand) handleGetBuildLogTool(request MCPRequest, params MCPParams) {
 	command.logf("Handling getBuildLog tool call")
 
 	reference, err := command.getNonEmptyStringParam(params, "buildReference")
@@ -1705,7 +1703,7 @@ func (command *MCPCommand) handleGetBuildLogTool(request MCPRequest, params Call
 	command.sendResponse(request.ID, result)
 }
 
-func (command *MCPCommand) handleAddEntityCommentTool(request MCPRequest, params CallToolParams, toolName string,
+func (command *MCPCommand) handleAddEntityCommentTool(request MCPRequest, params MCPParams, toolName string,
 	endpointSuffix string, referenceParamName string) {
 
 	command.logf("Handling %s tool call", toolName)
@@ -1783,7 +1781,7 @@ func (command *MCPCommand) handleAddEntityCommentTool(request MCPRequest, params
 	command.sendResponse(request.ID, response)
 }
 
-func (command *MCPCommand) handleProcessPullRequestTool(request MCPRequest, params CallToolParams) {
+func (command *MCPCommand) handleProcessPullRequestTool(request MCPRequest, params MCPParams) {
 	command.logf("Handling processPullRequest tool call")
 
 	reference, err := command.getNonEmptyStringParam(params, "pullRequestReference")
@@ -1866,7 +1864,7 @@ func (command *MCPCommand) handleProcessPullRequestTool(request MCPRequest, para
 	command.sendResponse(request.ID, response)
 }
 
-func (command *MCPCommand) handleLogWorkTool(request MCPRequest, params CallToolParams) {
+func (command *MCPCommand) handleLogWorkTool(request MCPRequest, params MCPParams) {
 	command.logf("Handling logWork tool call")
 
 	issueReference, err := command.getNonEmptyStringParam(params, "issueReference")
@@ -1950,7 +1948,7 @@ func (command *MCPCommand) handleLogWorkTool(request MCPRequest, params CallTool
 	command.sendResponse(request.ID, response)
 }
 
-func (command *MCPCommand) handleCreateIssueTool(request MCPRequest, params CallToolParams, toolName string, endpointSuffix string) {
+func (command *MCPCommand) handleCreateIssueTool(request MCPRequest, params MCPParams, toolName string, endpointSuffix string) {
 
 	command.logf("Handling %s tool call", toolName)
 
@@ -2024,7 +2022,7 @@ func (command *MCPCommand) handleCreateIssueTool(request MCPRequest, params Call
 	command.sendResponse(request.ID, response)
 }
 
-func (command *MCPCommand) handleRunJobTool(request MCPRequest, params CallToolParams) {
+func (command *MCPCommand) handleRunJobTool(request MCPRequest, params MCPParams) {
 	command.logf("Handling runJob tool call")
 
 	var project string
@@ -2078,7 +2076,7 @@ func (command *MCPCommand) handleRunJobTool(request MCPRequest, params CallToolP
 	command.sendResponse(request.ID, response)
 }
 
-func (command *MCPCommand) handleCreatePullRequestTool(request MCPRequest, params CallToolParams) {
+func (command *MCPCommand) handleCreatePullRequestTool(request MCPRequest, params MCPParams) {
 
 	command.logf("Handling createPullRequest tool call")
 
@@ -2164,7 +2162,7 @@ func (command *MCPCommand) handleCreatePullRequestTool(request MCPRequest, param
 	command.sendResponse(request.ID, response)
 }
 
-func (command *MCPCommand) handleEditEntityTool(request MCPRequest, params CallToolParams, toolName string,
+func (command *MCPCommand) handleEditEntityTool(request MCPRequest, params MCPParams, toolName string,
 	endpointSuffix string, referenceParamName string) {
 
 	command.logf("Handling %s tool call", toolName)
@@ -2237,7 +2235,7 @@ func (command *MCPCommand) handleEditEntityTool(request MCPRequest, params CallT
 	command.sendResponse(request.ID, response)
 }
 
-func (command *MCPCommand) handleTransitIssueTool(request MCPRequest, params CallToolParams) {
+func (command *MCPCommand) handleTransitIssueTool(request MCPRequest, params MCPParams) {
 	command.logf("Handling transitIssue tool call")
 
 	issueMap := make(map[string]interface{})
@@ -2307,7 +2305,7 @@ func (command *MCPCommand) handleTransitIssueTool(request MCPRequest, params Cal
 	command.sendResponse(request.ID, response)
 }
 
-func (command *MCPCommand) handleLinkIssuesTool(request MCPRequest, params CallToolParams) {
+func (command *MCPCommand) handleLinkIssuesTool(request MCPRequest, params MCPParams) {
 	command.logf("Handling linkIssues tool call")
 
 	sourceReference, err := command.getNonEmptyStringParam(params, "sourceIssueReference")
@@ -2383,7 +2381,7 @@ func (command *MCPCommand) handleToolsCall(request MCPRequest) {
 	command.logf("Handling tools/call request")
 
 	paramsBytes, _ := json.Marshal(request.Params)
-	var params CallToolParams
+	var params MCPParams
 	if err := json.Unmarshal(paramsBytes, &params); err != nil {
 		command.logf("Failed to parse tool call params: %v", err)
 		command.sendError(request.ID, ErrorCodeInvalidParams, "Invalid params: "+err.Error())
@@ -2466,7 +2464,7 @@ func (command *MCPCommand) handleToolsCall(request MCPRequest) {
 	}
 }
 
-func (command *MCPCommand) handleRunLocalJobTool(request MCPRequest, params CallToolParams) {
+func (command *MCPCommand) handleRunLocalJobTool(request MCPRequest, params MCPParams) {
 	command.logf("Handling runLocalJob tool call")
 
 	jobNameVal, exists := params.Arguments["jobName"]
@@ -2720,4 +2718,186 @@ func (command *MCPCommand) sendError(id interface{}, code int, message string) {
 
 	responseData, _ := json.Marshal(response)
 	fmt.Println(string(responseData))
+}
+
+func (command *MCPCommand) handlePromptsList(request MCPRequest) {
+	command.logf("Handling prompts/list request")
+
+	prompts := []Prompt{
+		{
+			Name:        "edit-build-spec",
+			Description: "Create or edit OneDev build spec (.onedev-buildspec.yml)",
+			Arguments: []PromptArgument{
+				{
+					Name:        "instruction",
+					Description: "Instruction to create or edit OneDev build spec",
+					Required:    true,
+				},
+			},
+		},
+		{
+			Name:        "investigate-build-failure",
+			Description: "Investigate failure of a build",
+			Arguments: []PromptArgument{
+				{
+					Name:        "buildReference",
+					Description: "Reference of the build to investigate, for instance #123, project#123, or projectkey-123",
+					Required:    true,
+				},
+			},
+		},
+		{
+			Name:        "review-pull-request",
+			Description: "Review a pull request",
+			Arguments: []PromptArgument{
+				{
+					Name:        "pullRequestReference",
+					Description: "Reference of the pull request to review, for instance #123, project#123, or projectkey-123",
+					Required:    true,
+				},
+				{
+					Name:        "sinceLastReview",
+					Description: "Either true or false. If true, only changes since last review will be reviewed; otherwise all changes of the pull request will be reviewed",
+					Required:    true,
+				},
+			},
+		},
+	}
+
+	result := map[string]interface{}{
+		"prompts": prompts,
+	}
+
+	command.logf("Sending prompts list with %d prompts", len(prompts))
+	command.sendResponse(request.ID, result)
+}
+
+func (command *MCPCommand) handleGetPrompt(request MCPRequest) {
+	command.logf("Handling prompts/get request")
+
+	var params MCPParams
+	if request.Params != nil {
+		paramsBytes, err := json.Marshal(request.Params)
+		if err != nil {
+			command.sendError(request.ID, ErrorCodeInvalidParams, "Failed to parse parameters")
+			return
+		}
+		if err := json.Unmarshal(paramsBytes, &params); err != nil {
+			command.sendError(request.ID, ErrorCodeInvalidParams, "Invalid parameters format")
+			return
+		}
+	}
+
+	if params.Name == "" {
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Missing required parameter: name")
+		return
+	}
+
+	var messages []PromptMessage
+
+	switch params.Name {
+	case "edit-build-spec":
+		instruction, err := command.getNonEmptyStringParam(params, "instruction")
+		if err != nil {
+			command.sendError(request.ID, ErrorCodeInvalidParams, "failed to extract instruction: "+err.Error())
+			return
+		}
+
+		messages = []PromptMessage{
+			{
+				Role: "user",
+				Content: PromptMessageContent{
+					Type: "text",
+					Text: instruction,
+				},
+			},
+			{
+				Role: "system",
+				Content: PromptMessageContent{
+					Type: "text",
+					Text: `When create or edit OneDev build spec (.onedev-buildspec.yml), you should:
+1. Call the getBuildSpecSchema tool first to know about syntax of OneDev build spec
+2. Remember that different steps run in isolated environments, with shared job workspace. So it will not work installing dependencies in one step, and run commands relying on them in another step. You should put them in a single step unless requested by user explicitly
+3. Remember that if cache step is used, it should be placed before the step building or testing the project
+4. Remember that if cache step is used, and its key property contains checksum of lock files, the generate checksum step should be added before the cache step to generate the checksum
+5. Remember that if build spec already exists, call checkBuildSpec tool to make sure it is valid and up to date before editing
+6. Remember that to pass files between different jobs, one job should publish files via the publish artifact step, and another jobs can then download them into job workspace via job dependency
+7. Inspect project structure and relevant files to figure out what docker image and commands to use to build or test the project if requested by user
+8. After creating or editing the build spec, call the checkBuildSpec tool to make sure the new build spec is valid`,
+				},
+			},
+		}
+
+	case "investigate-build-failure":
+		reference, err := command.getNonEmptyStringParam(params, "buildReference")
+		if err != nil {
+			command.sendError(request.ID, ErrorCodeInvalidParams, "failed to extract buildReference: "+err.Error())
+			return
+		}
+
+		messages = []PromptMessage{
+			{
+				Role: "user",
+				Content: PromptMessageContent{
+					Type: "text",
+					Text: `Please investigate build failure with below information:
+1. Call the getBuild tool with parameter "buildReference" set to ` + reference + ` to get the build detail
+2. Call the getBuildLog tool with parameter "buildReference" set to ` + reference + ` to get the build log
+3. If you need to examine content of files mentioned in build log, call getBuildFileContent tool with parameter "buildReference" set to ` + reference + ` and "filePath" set to desired file path. Specifically specify file path as ".onedev-buildspec.yml" to get the build spec
+4. You may also call getFileChangesSincePreviousSuccessfulSimilarBuild tool with parameter "buildReference" set to ` + reference + ` to get file changes since previous successful build similar to the current build`,
+				},
+			},
+		}
+
+	case "review-pull-request":
+		reference, err := command.getNonEmptyStringParam(params, "pullRequestReference")
+		if err != nil {
+			command.sendError(request.ID, ErrorCodeInvalidParams, "failed to extract pullRequestReference: "+err.Error())
+			return
+		}
+
+		sinceLastReview := false
+		if sinceLastReviewVal, exists := params.Arguments["sinceLastReview"]; exists {
+			if sinceLastReviewBool, ok := sinceLastReviewVal.(bool); ok {
+				sinceLastReview = sinceLastReviewBool
+			}
+		}
+
+		messages = []PromptMessage{
+			{
+				Role: "user",
+				Content: PromptMessageContent{
+					Type: "text",
+					Text: `Please follow below steps to review pull request:
+1. Call the getPullRequest tool with parameter "pullRequestReference" set to ` + reference + ` to get the pull request detail, including title and description
+2. Call the getPullRequestFileChanges tool with below parameters:
+	2.1 "pullRequestReference" set to ` + reference + `
+	2.2 "sinceLastReview" set to ` + fmt.Sprintf("%t", sinceLastReview) + ` to get the file changes for review
+3. If you need to examine full content of files mentioned in file changes, call getPullRequestFileContent tool with below parameters:
+	3.1 "pullRequestReference" set to ` + reference + `
+	3.2 "filePath" set to desired file path
+	3.3 "revision" set to "initial" if sinceLastReview is false and you want to get file content before change, or "lastReviewed" if sinceLastReview is true and you want to get file content before change, or "latest" if you want to get file content after change
+4. After reviewing the pull request, call the getLoginName tool without parameters to get your login name, and then check against reviews information in pull request detail to see if it is pending your review:
+ 	4.1 If the pull request is awaiting your review, request user's consent to call the processPullRequest tool with below parameters: 
+		4.1.1 "pullRequestReference" set to ` + reference + `
+		4.1.2 "operation" set to either "approve" or "requestChanges" based on your review result
+		4.1.3 "comment" set to your review comment
+	4.2 Otherwise request user's consent to leave a comment via addPullRequestComment tool with below parameters:
+		4.2.1 "pullRequestReference" set to ` + reference + `
+		4.2.2 "commentContent" set to your review comment`,
+				},
+			},
+		}
+
+	default:
+		command.sendError(request.ID, ErrorCodeInvalidParams, fmt.Sprintf("Unknown prompt name: %s", params.Name))
+		return
+	}
+
+	result := GetPromptResult{
+		Messages: messages,
+	}
+
+	command.logf("Get prompt successful for: %s", params.Name)
+	command.sendResponse(request.ID, result)
 }
