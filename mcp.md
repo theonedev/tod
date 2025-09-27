@@ -25,6 +25,14 @@ tod mcp
 tod mcp --log-file /tmp/tod-mcp.log
 ```
 
+Before integrating this MCP server with your AI assistant, it is highly recommended to run above command from your terminal first to make sure there isn't any errors.
+
+> [!IMPORTANT] Working directory 
+> This MCP server has a notion of working directory, which is set to project root initially for many 
+> AI assistants. This directory is expected to be inside a git repository, and OneDev project will be 
+> inferred from remote url of `origin`. Tool `getWorkingDir` and `setWorkingDir` is available to get 
+> and set the working directory
+
 ## Available Tools
 
 TOD's MCP server provides **34 tools** organized into the following categories:
@@ -242,11 +250,10 @@ Get file changes since previous successful build similar to specified build.
 - `buildReference` (required) - Build reference
 
 #### `runJob`
-Run specified job against specified branch or tag in specified project.
+Run specified job against specified branch or tag in current project.
 
 **Parameters:**
 - `jobName` (required) - Name of the job to run
-- `project` (optional) - Project to run the job against
 - `branch` (optional) - Branch to run the job against (either branch or tag, not both)
 - `tag` (optional) - Tag to run the job against (either branch or tag, not both)
 - `params` (optional) - Array of parameters in form key=value

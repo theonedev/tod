@@ -91,7 +91,8 @@ tod run-local [OPTIONS] <job-name>
 ```
 
 **Options:**
-- `--working-dir <dir>` - Specify working directory (defaults to current directory)
+- `--working-dir <dir>` - Specify working directory (defaults to current directory). Working directory is expected to be inside
+   a git repository, with remote 'origin' pointing to a OneDev project
 - `--param <key=value>` or `-p <key=value>` - Specify job parameters (can be used multiple times)
 
 **Examples:**
@@ -124,7 +125,8 @@ tod run [OPTIONS] <job-name>
 ```
 
 **Options:**
-- `--project <project>` - Target project (inferred from current directory if not specified)
+- `--working-dir <dir>` - Specify working directory (defaults to current directory). Working directory is expected to be inside
+   a git repository, with remote 'origin' pointing to a OneDev project
 - `--branch <branch>` - Run against specific branch (mutually exclusive with --tag)
 - `--tag <tag>` - Run against specific tag (mutually exclusive with --branch)
 - `--param <key=value>` or `-p <key=value>` - Specify job parameters (can be used multiple times)
@@ -151,7 +153,8 @@ tod checkout [OPTIONS] <pull-request-reference>
 ```
 
 **Options:**
-- `--working-dir <dir>` - Specify working directory (defaults to current directory)
+- `--working-dir <dir>` - Specify working directory (defaults to current directory). Working directory is expected to be inside
+   a git repository, with remote 'origin' pointing to a OneDev project
 
 **Example:**
 ```bash
@@ -172,7 +175,7 @@ tod check-build-spec [OPTIONS]
 ```
 
 **Options:**
-- `--working-dir <dir>` - Directory containing build spec file (defaults to current directory)
+- `--working-dir <dir>` - Directory containing build spec file (defaults to current directory). Working directory is expected to be inside a git repository, with remote 'origin' pointing to a OneDev project
 
 **Example:**
 ```bash
@@ -197,29 +200,29 @@ tod check-build-spec --working-dir /path/to/project
 2. **Test local changes:**
    ```bash
    # Run CI against your uncommitted changes
+   cd /path/to/onedev-git-repository
    tod run-local ci
    ```
 
 3. **Run against specific branch:**
    ```bash
-   # Test the main branch
+   # Run ci job against the main branch
+   cd /path/to/onedev-git-repository
    tod run --branch main ci
    ```
 
 4. **Checkout a pull request:**
    ```bash
-   # Checkout PR #123 for testing
+   # Checkout pull request #123 
+   cd /path/to/onedev-git-repository
    tod checkout #123
    ```
 
-### Advanced Parameter Usage
+### Parameter Usage
 
 ```bash
 # Multiple parameters of the same key
 tod run-local -p env=test -p env=staging -p db=postgres ci
-
-# Complex parameter values
-tod run-local -p "build-args=--target production --optimize" build
 ```
 
 ## Important Notes to Run Local Job

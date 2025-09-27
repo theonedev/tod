@@ -66,12 +66,15 @@ func inferProject(workingDir string) (string, error) {
 		return "", fmt.Errorf("git executable not found in system path")
 	}
 
+	var prefix = "failed to infer OneDev project from working directory '" + workingDir + "': "
+	var suffix = ". Working directory is expected to be inside a git repository, with remote 'origin' pointing to a OneDev project"
+
 	// Check if the working directory is a git repository
 	cmd := exec.Command("git", "rev-parse", "--git-dir")
 	cmd.Dir = workingDir
 	_, err = cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("not a git working directory: %s", workingDir)
+		return "", fmt.Errorf(prefix + "working directory is not inside a git repository" + suffix)
 	}
 
 	cmd = exec.Command("git", "remote", "get-url", "origin")
@@ -91,37 +94,37 @@ func inferProject(workingDir string) (string, error) {
 	if strings.HasPrefix(remoteUrl, "http://") || strings.HasPrefix(remoteUrl, "https://") {
 		protocolIndex := strings.Index(remoteUrl, "://")
 		if protocolIndex == -1 {
-			return "", fmt.Errorf("invalid remote URL format: %s", remoteUrl)
+			return "", fmt.Errorf("remote url of 'origin' is invalid")
 		}
 
 		hostPart := remoteUrl[protocolIndex+3:]
 		pathIndex := strings.Index(hostPart, "/")
 		if pathIndex == -1 {
-			return "", fmt.Errorf("invalid remote URL format: %s", remoteUrl)
+			return "", fmt.Errorf("remote url of 'origin' is invalid")
 		}
 
 		project = hostPart[pathIndex+1:]
 	} else if strings.HasPrefix(remoteUrl, "ssh://") {
 		protocolIndex := strings.Index(remoteUrl, "://")
 		if protocolIndex == -1 {
-			return "", fmt.Errorf("invalid remote URL format: %s", remoteUrl)
+			return "", fmt.Errorf("remote url of 'origin' is invalid")
 		}
 
 		hostPart := remoteUrl[protocolIndex+3:]
 		pathIndex := strings.Index(hostPart, "/")
 		if pathIndex == -1 {
-			return "", fmt.Errorf("invalid remote URL format: %s", remoteUrl)
+			return "", fmt.Errorf("remote url of 'origin' is invalid")
 		}
 
 		project = hostPart[pathIndex+1:]
 	} else {
-		return "", fmt.Errorf("unsupported remote URL format: %s (expected http[s]:// or ssh://)", remoteUrl)
+		return "", fmt.Errorf("only http[s]:// or ssh:// protocol is supported for remote url of 'origin'")
 	}
 
 	project = strings.TrimSuffix(project, ".git")
 
 	if project == "" {
-		return "", fmt.Errorf("invalid remote URL format: %s (empty project path)", remoteUrl)
+		return "", fmt.Errorf("project path is empty in remote url of 'origin'")
 	}
 
 	return project, nil
@@ -141,7 +144,7 @@ func hasUncommittedChanges(workingDir string) (bool, error) {
 func checkoutPullRequest(workingDir string, pullRequestReference string, logger *log.Logger) error {
 	project, err := inferProject(workingDir)
 	if err != nil {
-		return fmt.Errorf("failed to infer project: %v", err)
+		return err
 	}
 
 	urlQuery := url.Values{
@@ -281,19 +284,14 @@ func checkResponse(resp *http.Response) error {
 	}
 }
 
-func runJob(project string, currentProject string, jobMap map[string]interface{}) (map[string]interface{}, error) {
+func runJob(currentProject string, jobMap map[string]interface{}) (map[string]interface{}, error) {
 	jobBytes, err := json.Marshal(jobMap)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal map to JSON: %v", err)
 	}
 	jobData := string(jobBytes)
 
-	var urlQuery = url.Values{
-		"project":        {project},
-		"currentProject": {currentProject},
-	}
-
-	apiURL := config.ServerUrl + "/~api/mcp-helper/run-job?" + urlQuery.Encode()
+	apiURL := config.ServerUrl + "/~api/mcp-helper/run-job?currentProject=" + url.QueryEscape(currentProject)
 
 	req, err := http.NewRequest("POST", apiURL, strings.NewReader(jobData))
 	if err != nil {
@@ -318,13 +316,9 @@ func runJob(project string, currentProject string, jobMap map[string]interface{}
 func runLocalJob(jobName string, workingDir string, params map[string][]string,
 	reason string, logger *log.Logger) (map[string]interface{}, error) {
 
-	if workingDir == "" {
-		workingDir = "."
-	}
-
 	project, err := inferProject(workingDir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get project from working directory: %v", err)
+		return nil, err
 	}
 
 	projectUrl := config.ServerUrl + "/" + project
@@ -373,7 +367,7 @@ func runLocalJob(jobName string, workingDir string, params map[string][]string,
 		"reason":     reason,
 	}
 
-	return runJob(project, project, jobMap)
+	return runJob(project, jobMap)
 }
 
 func findGitRoot(workingDir string) (string, error) {
@@ -394,13 +388,9 @@ func findGitRoot(workingDir string) (string, error) {
 }
 
 func checkBuildSpec(workingDir string, logger *log.Logger) error {
-	if workingDir == "" {
-		workingDir = "."
-	}
-
 	project, err := inferProject(workingDir)
 	if err != nil {
-		return fmt.Errorf("failed to get project from working directory: %v", err)
+		return err
 	}
 
 	gitRoot, err := findGitRoot(workingDir)
@@ -410,8 +400,7 @@ func checkBuildSpec(workingDir string, logger *log.Logger) error {
 
 	buildSpecFile := filepath.Join(gitRoot, ".onedev-buildspec.yml")
 	if _, err := os.Stat(buildSpecFile); os.IsNotExist(err) {
-		logger.Printf("No need to check build spec as it is not created yet")
-		return nil
+		return fmt.Errorf("build spec not found: %v", err)
 	}
 
 	buildSpecContent, err := os.ReadFile(buildSpecFile)

@@ -54,18 +54,18 @@ func (p ParamMap) Set(value string) error {
 
 // Execute executes the run job command
 func (command RunLocalJobCommand) Execute(cobraCmd *cobra.Command, args []string, logger *log.Logger) {
+	// Get working directory from command flag, default to current directory
+	workingDir, _ := cobraCmd.Flags().GetString("working-dir")
+	if workingDir == "" {
+		workingDir = "."
+	}
+
 	// Extract job name from arguments
 	if len(args) != 1 {
 		fmt.Fprintln(os.Stderr, "Exactly one job name is required")
 		os.Exit(1)
 	}
 	jobName := args[0]
-
-	// Get working directory from command flag, default to current directory
-	workingDir, _ := cobraCmd.Flags().GetString("working-dir")
-	if workingDir == "" {
-		workingDir = "."
-	}
 
 	// Get command line parameters
 	paramArray, err := cobraCmd.Flags().GetStringArray("param")

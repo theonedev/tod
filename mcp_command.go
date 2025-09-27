@@ -760,7 +760,7 @@ func (command *MCPCommand) handleToolsList(request MCPRequest) {
 
 	tools = append(tools, Tool{
 		Name:        "getCurrentProject",
-		Description: "Get default OneDev project for tod operations",
+		Description: "Get current OneDev project for various operations",
 		InputSchema: InputSchema{
 			Type:       "object",
 			Properties: map[string]interface{}{},
@@ -769,7 +769,7 @@ func (command *MCPCommand) handleToolsList(request MCPRequest) {
 	})
 	tools = append(tools, Tool{
 		Name:        "getWorkingDir",
-		Description: "Get working directory of tod",
+		Description: "Get working directory of this MCP server",
 		InputSchema: InputSchema{
 			Type:       "object",
 			Properties: map[string]interface{}{},
@@ -778,7 +778,7 @@ func (command *MCPCommand) handleToolsList(request MCPRequest) {
 	})
 	tools = append(tools, Tool{
 		Name:        "setWorkingDir",
-		Description: "Set working directory of tod",
+		Description: "Set working directory of this MCP server",
 		InputSchema: InputSchema{
 			Type: "object",
 			Properties: map[string]interface{}{
@@ -1063,21 +1063,21 @@ func (command *MCPCommand) handleGetPullRequestFileContentTool(request MCPReques
 		return
 	}
 
-	reference, err := command.getNonEmptyStringParam(params, "pullRequestReference")
+	reference, err := command.getRequiredStringParam(params, "pullRequestReference")
 	if err != nil {
 		command.logf("Failed to extract pullRequestReference: %v", err)
 		command.sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract pullRequestReference: "+err.Error())
 		return
 	}
 
-	filePath, err := command.getNonEmptyStringParam(params, "filePath")
+	filePath, err := command.getRequiredStringParam(params, "filePath")
 	if err != nil {
 		command.logf("Failed to extract filePath: %v", err)
 		command.sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract filePath: "+err.Error())
 		return
 	}
 
-	revision, err := command.getNonEmptyStringParam(params, "revision")
+	revision, err := command.getRequiredStringParam(params, "revision")
 	if err != nil {
 		command.logf("Failed to extract revision: %v", err)
 		command.sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract revision: "+err.Error())
@@ -1151,14 +1151,14 @@ func (command *MCPCommand) handleGetBuildFileContentTool(request MCPRequest, par
 		return
 	}
 
-	reference, err := command.getNonEmptyStringParam(params, "buildReference")
+	reference, err := command.getRequiredStringParam(params, "buildReference")
 	if err != nil {
 		command.logf("Failed to extract buildReference: %v", err)
 		command.sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract buildReference: "+err.Error())
 		return
 	}
 
-	filePath, err := command.getNonEmptyStringParam(params, "filePath")
+	filePath, err := command.getRequiredStringParam(params, "filePath")
 	if err != nil {
 		command.logf("Failed to extract filePath: %v", err)
 		command.sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract filePath: "+err.Error())
@@ -1219,7 +1219,7 @@ func (command *MCPCommand) handleGetFileChangesSincePreviousSuccessfulSimilarBui
 		return
 	}
 
-	reference, err := command.getNonEmptyStringParam(params, "buildReference")
+	reference, err := command.getRequiredStringParam(params, "buildReference")
 	if err != nil {
 		command.logf("Failed to extract buildReference: %v", err)
 		command.sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract buildReference: "+err.Error())
@@ -1399,7 +1399,7 @@ func (command *MCPCommand) handleQueryEntitiesTool(request MCPRequest, params MC
 	command.sendResponse(request.ID, result)
 }
 
-func (command *MCPCommand) getNonEmptyStringParam(params MCPParams, paramName string) (string, error) {
+func (command *MCPCommand) getRequiredStringParam(params MCPParams, paramName string) (string, error) {
 	paramVal, exists := params.Arguments[paramName]
 	if !exists {
 		return "", fmt.Errorf("missing required parameter: %s", paramName)
@@ -1417,12 +1417,26 @@ func (command *MCPCommand) getNonEmptyStringParam(params MCPParams, paramName st
 	return param, nil
 }
 
+func (command *MCPCommand) getOptionalStringParam(params MCPParams, paramName string) (string, error) {
+	paramVal, exists := params.Arguments[paramName]
+	if !exists {
+		return "", nil
+	}
+
+	param, ok := paramVal.(string)
+	if !ok {
+		return "", fmt.Errorf("expect string type for parameter: %s", paramName)
+	}
+
+	return param, nil
+}
+
 func (command *MCPCommand) handleGetEntityDataTool(request MCPRequest, params MCPParams, toolName string,
 	endpointSuffix string, referenceParamName string) {
 
 	command.logf("Handling %s tool call", toolName)
 
-	reference, err := command.getNonEmptyStringParam(params, referenceParamName)
+	reference, err := command.getRequiredStringParam(params, referenceParamName)
 	if err != nil {
 		command.logf("Failed to extract %s: %v", referenceParamName, err)
 		command.sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract "+referenceParamName+": "+err.Error())
@@ -1485,7 +1499,7 @@ func (command *MCPCommand) getEntityData(reference string, currentProject string
 func (command *MCPCommand) handleCheckoutPullRequestTool(request MCPRequest, params MCPParams) {
 	command.logf("Handling checkoutPullRequest tool call")
 
-	reference, err := command.getNonEmptyStringParam(params, "pullRequestReference")
+	reference, err := command.getRequiredStringParam(params, "pullRequestReference")
 	if err != nil {
 		command.logf("Failed to extract pullRequestReference: %v", err)
 		command.sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract pullRequestReference: "+err.Error())
@@ -1548,7 +1562,7 @@ func (command *MCPCommand) getPullRequestPatchInfo(currentProject string, refere
 func (command *MCPCommand) handleGetPullRequestFileChangesTool(request MCPRequest, params MCPParams) {
 	command.logf("Handling getPullRequestFileChanges tool call")
 
-	reference, err := command.getNonEmptyStringParam(params, "pullRequestReference")
+	reference, err := command.getRequiredStringParam(params, "pullRequestReference")
 	if err != nil {
 		command.logf("Failed to extract pullRequestReference: %v", err)
 		command.sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract pullRequestReference: "+err.Error())
@@ -1625,7 +1639,7 @@ func (command *MCPCommand) handleGetPullRequestFileChangesTool(request MCPReques
 func (command *MCPCommand) handleGetBuildLogTool(request MCPRequest, params MCPParams) {
 	command.logf("Handling getBuildLog tool call")
 
-	reference, err := command.getNonEmptyStringParam(params, "buildReference")
+	reference, err := command.getRequiredStringParam(params, "buildReference")
 	if err != nil {
 		command.logf("Failed to extract buildReference: %v", err)
 		command.sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract buildReference: "+err.Error())
@@ -1708,7 +1722,7 @@ func (command *MCPCommand) handleAddEntityCommentTool(request MCPRequest, params
 
 	command.logf("Handling %s tool call", toolName)
 
-	reference, err := command.getNonEmptyStringParam(params, referenceParamName)
+	reference, err := command.getRequiredStringParam(params, referenceParamName)
 	if err != nil {
 		command.logf("Failed to extract %s: %v", referenceParamName, err)
 		command.sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract "+referenceParamName+": "+err.Error())
@@ -1784,7 +1798,7 @@ func (command *MCPCommand) handleAddEntityCommentTool(request MCPRequest, params
 func (command *MCPCommand) handleProcessPullRequestTool(request MCPRequest, params MCPParams) {
 	command.logf("Handling processPullRequest tool call")
 
-	reference, err := command.getNonEmptyStringParam(params, "pullRequestReference")
+	reference, err := command.getRequiredStringParam(params, "pullRequestReference")
 	if err != nil {
 		command.logf("Failed to extract pullRequestReference: %v", err)
 		command.sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract pullRequestReference: "+err.Error())
@@ -1867,7 +1881,7 @@ func (command *MCPCommand) handleProcessPullRequestTool(request MCPRequest, para
 func (command *MCPCommand) handleLogWorkTool(request MCPRequest, params MCPParams) {
 	command.logf("Handling logWork tool call")
 
-	issueReference, err := command.getNonEmptyStringParam(params, "issueReference")
+	issueReference, err := command.getRequiredStringParam(params, "issueReference")
 	if err != nil {
 		command.logf("Failed to extract issue reference: %v", err)
 		command.sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract issue reference: "+err.Error())
@@ -2025,17 +2039,6 @@ func (command *MCPCommand) handleCreateIssueTool(request MCPRequest, params MCPP
 func (command *MCPCommand) handleRunJobTool(request MCPRequest, params MCPParams) {
 	command.logf("Handling runJob tool call")
 
-	var project string
-	if projectArg, exists := params.Arguments["project"]; exists {
-		var ok bool
-		project, ok = projectArg.(string)
-		if !ok {
-			command.logf("Invalid type for project parameter: expected string")
-			command.sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for project parameter: expected string")
-			return
-		}
-	}
-
 	currentProject, err := command.getCurrentProject()
 	if err != nil {
 		command.logf("Failed to get current project: %v", err)
@@ -2053,14 +2056,14 @@ func (command *MCPCommand) handleRunJobTool(request MCPRequest, params MCPParams
 
 	jobMap["reason"] = "Submitted via MCP"
 
-	build, err := runJob(project, currentProject, jobMap)
+	build, err := runJob(currentProject, jobMap)
 	if err != nil {
 		command.logf("Failed to run job: %v", err)
 		command.sendError(request.ID, ErrorCodeInternalError, "Failed to run job: "+err.Error())
 		return
 	}
 
-	project = build["project"].(string)
+	project := build["project"].(string)
 	buildNumber := int(build["number"].(float64))
 
 	response := CallToolResult{
@@ -2184,7 +2187,7 @@ func (command *MCPCommand) handleEditEntityTool(request MCPRequest, params MCPPa
 	}
 	entityData := string(entityBytes)
 
-	reference, err := command.getNonEmptyStringParam(params, referenceParamName)
+	reference, err := command.getRequiredStringParam(params, referenceParamName)
 	if err != nil {
 		command.logf("Failed to extract %s: %v", referenceParamName, err)
 		command.sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract "+referenceParamName+": "+err.Error())
@@ -2255,7 +2258,7 @@ func (command *MCPCommand) handleTransitIssueTool(request MCPRequest, params MCP
 	}
 	issueData := string(issueBytes)
 
-	issueReference, err := command.getNonEmptyStringParam(params, "issueReference")
+	issueReference, err := command.getRequiredStringParam(params, "issueReference")
 	if err != nil {
 		command.logf("Failed to extract issue reference: %v", err)
 		command.sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract issue reference: "+err.Error())
@@ -2308,13 +2311,13 @@ func (command *MCPCommand) handleTransitIssueTool(request MCPRequest, params MCP
 func (command *MCPCommand) handleLinkIssuesTool(request MCPRequest, params MCPParams) {
 	command.logf("Handling linkIssues tool call")
 
-	sourceReference, err := command.getNonEmptyStringParam(params, "sourceIssueReference")
+	sourceReference, err := command.getRequiredStringParam(params, "sourceIssueReference")
 	if err != nil {
 		command.logf("Failed to extract source issue reference: %v", err)
 		command.sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract source issuereference: "+err.Error())
 		return
 	}
-	targetReference, err := command.getNonEmptyStringParam(params, "targetIssueReference")
+	targetReference, err := command.getRequiredStringParam(params, "targetIssueReference")
 	if err != nil {
 		command.logf("Failed to extract target issue reference: %v", err)
 		command.sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract target issue reference: "+err.Error())
@@ -2736,13 +2739,18 @@ func (command *MCPCommand) handlePromptsList(request MCPRequest) {
 			},
 		},
 		{
-			Name:        "investigate-build-failure",
-			Description: "Investigate failure of a build",
+			Name:        "investigate-build",
+			Description: "Investigate build",
 			Arguments: []PromptArgument{
 				{
 					Name:        "buildReference",
 					Description: "Reference of the build to investigate, for instance #123, project#123, or projectkey-123",
 					Required:    true,
+				},
+				{
+					Name:        "instruction",
+					Description: "Instruction to investigate build",
+					Required:    false,
 				},
 			},
 		},
@@ -2757,8 +2765,13 @@ func (command *MCPCommand) handlePromptsList(request MCPRequest) {
 				},
 				{
 					Name:        "sinceLastReview",
-					Description: "Either true or false. If true, only changes since last review will be reviewed; otherwise all changes of the pull request will be reviewed",
+					Description: "Either yes or no. If yes, only changes since last review will be reviewed; otherwise all changes of the pull request will be reviewed",
 					Required:    true,
+				},
+				{
+					Name:        "instruction",
+					Description: "Instruction to review pull request",
+					Required:    false,
 				},
 			},
 		},
@@ -2797,7 +2810,7 @@ func (command *MCPCommand) handleGetPrompt(request MCPRequest) {
 
 	switch params.Name {
 	case "edit-build-spec":
-		instruction, err := command.getNonEmptyStringParam(params, "instruction")
+		instruction, err := command.getRequiredStringParam(params, "instruction")
 		if err != nil {
 			command.sendError(request.ID, ErrorCodeInvalidParams, "failed to extract instruction: "+err.Error())
 			return
@@ -2808,39 +2821,48 @@ func (command *MCPCommand) handleGetPrompt(request MCPRequest) {
 				Role: "user",
 				Content: PromptMessageContent{
 					Type: "text",
-					Text: instruction,
-				},
-			},
-			{
-				Role: "system",
-				Content: PromptMessageContent{
-					Type: "text",
-					Text: `When create or edit OneDev build spec (.onedev-buildspec.yml), you should:
+					Text: instruction + `
+
+When create or edit OneDev build spec (.onedev-buildspec.yml), you should:
 1. Call the getBuildSpecSchema tool first to know about syntax of OneDev build spec
-2. Remember that different steps run in isolated environments, with shared job workspace. So it will not work installing dependencies in one step, and run commands relying on them in another step. You should put them in a single step unless requested by user explicitly
-3. Remember that if cache step is used, it should be placed before the step building or testing the project
-4. Remember that if cache step is used, and its key property contains checksum of lock files, the generate checksum step should be added before the cache step to generate the checksum
-5. Remember that if build spec already exists, call checkBuildSpec tool to make sure it is valid and up to date before editing
+2. Configure command steps to run in container if possible, unless requested by user explicitly
+3. Remember that different steps run in isolated environments, with shared job workspace. So it will not work installing dependencies in one step, and run commands relying on them in another step. You should put them in a single step unless requested by user explicitly
+4. Remember that if cache step is used, it should be placed before the step building or testing the project
+5. Remember that if cache step is used, and its key property contains checksum of lock files, the generate checksum step should be added before the cache step to generate the checksum
 6. Remember that to pass files between different jobs, one job should publish files via the publish artifact step, and another jobs can then download them into job workspace via job dependency
-7. Inspect project structure and relevant files to figure out what docker image and commands to use to build or test the project if requested by user
-8. After creating or editing the build spec, call the checkBuildSpec tool to make sure the new build spec is valid`,
+7. Call the checkBuildSpec tool to make sure the build spec is valid and up to date before editing if build spec already exists
+8. Inspect project structure and relevant files to figure out what docker image and commands to use to build or test the project if requested by user
+9. After creating or editing the build spec, call the checkBuildSpec tool again to make sure the new build spec is valid`,
 				},
 			},
 		}
 
-	case "investigate-build-failure":
-		reference, err := command.getNonEmptyStringParam(params, "buildReference")
+	case "investigate-build":
+		reference, err := command.getRequiredStringParam(params, "buildReference")
 		if err != nil {
 			command.sendError(request.ID, ErrorCodeInvalidParams, "failed to extract buildReference: "+err.Error())
 			return
 		}
 
+		var promptPrefix string
+		instruction, err := command.getOptionalStringParam(params, "instruction")
+		if err != nil {
+			command.sendError(request.ID, ErrorCodeInvalidParams, "failed to extract instruction: "+err.Error())
+			return
+		}
+		if instruction != "" {
+			promptPrefix = "Investigate build " + reference + ", " + instruction
+		} else {
+			promptPrefix = "Investigate build " + reference
+		}
 		messages = []PromptMessage{
 			{
 				Role: "user",
 				Content: PromptMessageContent{
 					Type: "text",
-					Text: `Please investigate build failure with below information:
+					Text: promptPrefix + `
+
+Please follow below steps to investigate the build:
 1. Call the getBuild tool with parameter "buildReference" set to ` + reference + ` to get the build detail
 2. Call the getBuildLog tool with parameter "buildReference" set to ` + reference + ` to get the build log
 3. If you need to examine content of files mentioned in build log, call getBuildFileContent tool with parameter "buildReference" set to ` + reference + ` and "filePath" set to desired file path. Specifically specify file path as ".onedev-buildspec.yml" to get the build spec
@@ -2850,7 +2872,7 @@ func (command *MCPCommand) handleGetPrompt(request MCPRequest) {
 		}
 
 	case "review-pull-request":
-		reference, err := command.getNonEmptyStringParam(params, "pullRequestReference")
+		reference, err := command.getRequiredStringParam(params, "pullRequestReference")
 		if err != nil {
 			command.sendError(request.ID, ErrorCodeInvalidParams, "failed to extract pullRequestReference: "+err.Error())
 			return
@@ -2858,9 +2880,21 @@ func (command *MCPCommand) handleGetPrompt(request MCPRequest) {
 
 		sinceLastReview := false
 		if sinceLastReviewVal, exists := params.Arguments["sinceLastReview"]; exists {
-			if sinceLastReviewBool, ok := sinceLastReviewVal.(bool); ok {
-				sinceLastReview = sinceLastReviewBool
+			if sinceLastReviewBool, ok := sinceLastReviewVal.(string); ok {
+				sinceLastReview = sinceLastReviewBool == "yes"
 			}
+		}
+
+		var promptPrefix string
+		instruction, err := command.getOptionalStringParam(params, "instruction")
+		if err != nil {
+			command.sendError(request.ID, ErrorCodeInvalidParams, "failed to extract instruction: "+err.Error())
+			return
+		}
+		if instruction != "" {
+			promptPrefix = "Review pull request " + reference + ", " + instruction
+		} else {
+			promptPrefix = "Review pull request " + reference
 		}
 
 		messages = []PromptMessage{
@@ -2868,7 +2902,9 @@ func (command *MCPCommand) handleGetPrompt(request MCPRequest) {
 				Role: "user",
 				Content: PromptMessageContent{
 					Type: "text",
-					Text: `Please follow below steps to review pull request:
+					Text: promptPrefix + `
+
+Please follow below steps to review the pull request:
 1. Call the getPullRequest tool with parameter "pullRequestReference" set to ` + reference + ` to get the pull request detail, including title and description
 2. Call the getPullRequestFileChanges tool with below parameters:
 	2.1 "pullRequestReference" set to ` + reference + `

@@ -15,6 +15,18 @@ type RunJobCommand struct {
 
 // Execute executes the run job command
 func (command RunJobCommand) Execute(cobraCmd *cobra.Command, args []string, logger *log.Logger) {
+	// Get working directory from command flag, default to current directory
+	workingDir, _ := cobraCmd.Flags().GetString("working-dir")
+	if workingDir == "" {
+		workingDir = "."
+	}
+
+	currentProject, err := inferProject(workingDir)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
 	// Extract job name from arguments
 	if len(args) != 1 {
 		fmt.Fprintln(os.Stderr, "Exactly one job name is required")
@@ -22,19 +34,10 @@ func (command RunJobCommand) Execute(cobraCmd *cobra.Command, args []string, log
 	}
 	jobName := args[0]
 
-	// Get project, branch and tag flags
-	project, _ := cobraCmd.Flags().GetString("project")
+	// Get branch and tag flags
 	branch, _ := cobraCmd.Flags().GetString("branch")
 	tag, _ := cobraCmd.Flags().GetString("tag")
 
-	if project == "" {
-		var err error
-		project, err = inferProject(".")
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "Unable to infer project from current directory: "+err.Error())
-			os.Exit(1)
-		}
-	}
 	// Validate that either branch or tag is specified, but not both
 	if branch == "" && tag == "" {
 		fmt.Fprintln(os.Stderr, "Either --branch or --tag must be specified")
@@ -94,7 +97,7 @@ func (command RunJobCommand) Execute(cobraCmd *cobra.Command, args []string, log
 	}
 
 	// Run the job
-	build, err := runJob(project, project, jobMap)
+	build, err := runJob(currentProject, jobMap)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
