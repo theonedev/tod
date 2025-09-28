@@ -2,7 +2,7 @@
 
 ## Overview
 
-TOD provides a comprehensive Model Context Protocol (MCP) server that enables AI assistants to interact with OneDev 13+ in an intelligent, natural way. When running in MCP server mode, TOD exposes a rich set of tools that allow AI assistants to automate development workflows, manage issues and pull requests, execute builds, and more.
+TOD offers a comprehensive Model Context Protocol (MCP) server with tools and prompts, enabling you to interact with OneDev 13+ through AI assistants in an intelligent and natural way.
 
 ## Installation
 
@@ -10,7 +10,7 @@ To install tod, just put tod binary into your PATH.
 
 ### Download Pre-built Binaries
 
-https://github.com/theonedev/tod/releases
+https://code.onedev.io/onedev/tod/~builds?query=%22Job%22+is+%22Release%22
 
 ### Build Binary from Source
 
@@ -60,7 +60,7 @@ Before integrating this MCP server with your AI assistant, it is highly recommen
 
 ## Available Tools
 
-TOD's MCP server provides **34 tools** organized into the following categories:
+TOD's MCP server provides tools organized into the following categories:
 
 ### Issue Management Tools
 
@@ -91,12 +91,10 @@ Create a new issue.
 **Parameters:**
 - `title` (required) - Title of the issue
 - `description` (optional) - Description of the issue
-- `Type` (optional) - One of: New Feature, Improvement, Bug, Task, Support Request
-- `Priority` (optional) - One of: Minor, Normal, Major, Critical
-- `Assignees` (optional) - Array of user login names
-- `iterations` (optional) - Array of iteration names
-- `confidential` (optional) - Whether the issue is confidential
 - `project` (optional) - Project to create issue in. Leave empty for current project
+- `iterations` (optional) - Iterations to schedule the issue in
+- `confidential` (optional) - Whether the issue is confidential
+- various custom fields depending on OneDev issue settings
 
 #### `editIssue`
 Edit an existing issue.
@@ -105,22 +103,17 @@ Edit an existing issue.
 - `issueReference` (required) - Reference of the issue to update
 - `title` (optional) - Title of the issue
 - `description` (optional) - Description of the issue
-- `Type` (optional) - One of: New Feature, Improvement, Bug, Task, Support Request
-- `Priority` (optional) - One of: Minor, Normal, Major, Critical
-- `Assignees` (optional) - Array of user login names
 - `iterations` (optional) - Iterations to schedule the issue in
 - `confidential` (optional) - Whether the issue is confidential
+- various custom fields depending on OneDev issue settings
 
-#### `transitIssue`
-Transit specified issue to specified state.
+#### `changeIssueState`
+Change state of specified issue.
 
 **Parameters:**
-- `issueReference` (required) - Reference of the issue to transit state
-- `state` (required) - New state. Must be one of: In Review, Closed, In Progress, Open
-- `comment` (optional) - Comment for the transition
-- `Type` (optional) - One of: New Feature, Improvement, Bug, Task, Support Request
-- `Priority` (optional) - One of: Minor, Normal, Major, Critical
-- `Assignees` (optional) - Array of user login names
+- `issueReference` (required) - Reference of the issue to change state
+- `state` (required) - New state for the issue
+- `comment` (optional) - Comment for the state change
 
 #### `linkIssues`
 Set up links between two issues.
@@ -131,7 +124,7 @@ Set up links between two issues.
 - `linkName` (required) - Name of the link. Must be one of: Sub Issues, Parent Issue, Related
 
 #### `addIssueComment`
-Add a comment to an issue.
+Add a comment to an issue. For issue state change (work on issue, set issue done, submit issue for review, etc.), use the changeIssueState tool instead.
 
 **Parameters:**
 - `issueReference` (required) - Issue reference
@@ -295,28 +288,19 @@ Run specified job against local changes in current working directory.
 #### `getBuildSpecSchema`
 Get build spec schema to understand how to edit build spec (`.onedev-buildspec.yml`).
 
-**Parameters:**
-- `random_string` (required) - Dummy parameter for no-parameter tools
-
 #### `checkBuildSpec`
 Check build spec for validity and update it to latest version if needed.
-
-**Parameters:**
-- `random_string` (required) - Dummy parameter for no-parameter tools
 
 ### Project and System Tools
 
 #### `getCurrentProject`
 Get default OneDev project for operations.
 
-**Parameters:**
-- `random_string` (required) - Dummy parameter for no-parameter tools
+#### `getCurrentRemote`
+Get current OneDev remote for various operations.
 
 #### `getWorkingDir`
 Get working directory.
-
-**Parameters:**
-- `random_string` (required) - Dummy parameter for no-parameter tools
 
 #### `setWorkingDir`
 Set working directory.
@@ -339,7 +323,21 @@ Returns unix timestamp in milliseconds since epoch.
 
 ## Available Prompts
 
-TOD's MCP server provides **3 prompts** that guide AI assistants through complex workflows:
+TOD's MCP server provides prompts that guide AI assistants through complex workflows:
+
+### `change-issue-state`
+Change state of specified issue.
+
+**Parameters:**
+- `issueReference` (required) - Reference of the issue to change state, for instance #123, project#123, or projectkey-123
+- `instruction` (required) - Instruction on what to do with the issue
+
+**Description:**
+This prompt guides the AI assistant through the process of changing an issue's state. The assistant will:
+1. Parse the instruction to determine the desired state change
+2. Call the `changeIssueState` tool with the appropriate parameters
+3. Include any meaningful comment derived from the instruction
+4. Follow any additional instructions returned by the tool call
 
 ### `edit-build-spec`
 Create or edit OneDev build spec (.onedev-buildspec.yml).

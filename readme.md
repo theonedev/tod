@@ -1,6 +1,6 @@
 # TOD - TheOneDev CLI Tool
 
-TOD (**T**he**O**ne**D**ev) is a powerful command-line tool for OneDev 13+ that streamlines your development workflow by enabling you to run CI/CD jobs against local changes, set up local working directory to work on pull requests, etc. It also provides a MCP (Model Context Protocol) server, allowing you to work with OneDev in an intelligent, natural way via AI assistants.
+TOD (**T**he**O**ne**D**ev) is a powerful command-line tool for OneDev 13+ that streamlines your development workflow by enabling you to run CI/CD jobs against local changes, set up local working directory to work on pull requests, etc. It also offers a comprehensive Model Context Protocol (MCP) server with tools and prompts, enabling you to interact with OneDev 13+ through AI assistants in an intelligent and natural way.
 
 ## Features
 
@@ -19,7 +19,7 @@ To install tod, just put tod binary into your PATH.
 
 ### Download Pre-built Binaries
 
-https://github.com/theonedev/tod/releases
+https://code.onedev.io/onedev/tod/~builds?query=%22Job%22+is+%22Release%22
 
 ### Build Binary from Source
 

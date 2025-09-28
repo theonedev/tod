@@ -18,6 +18,7 @@ import (
 type MCPCommand struct {
 	workingDir          string
 	currentProjectCache string
+	currentRemoteCache  string
 	logger              *log.Logger
 }
 
@@ -366,12 +367,12 @@ func (command *MCPCommand) handleToolsList(request MCPRequest) {
 		InputSchema: editIssueSchema,
 	})
 
-	transitIssueSchema := command.getInputSchemaForTool("transitIssue", schemas)
-	if transitIssueSchema.Type != "" {
+	changeIssueStateSchema := command.getInputSchemaForTool("changeIssueState", schemas)
+	if changeIssueStateSchema.Type != "" {
 		tools = append(tools, Tool{
-			Name:        "transitIssue",
-			Description: "Transit specified issue to specified state",
-			InputSchema: transitIssueSchema,
+			Name:        "changeIssueState",
+			Description: "Change state of specified issue",
+			InputSchema: changeIssueStateSchema,
 		})
 	}
 
@@ -386,7 +387,7 @@ func (command *MCPCommand) handleToolsList(request MCPRequest) {
 
 	tools = append(tools, Tool{
 		Name:        "addIssueComment",
-		Description: "Add a comment to an issue. For issue state change (work on issue, mark issue as done etc.), use the transitIssue tool instead.",
+		Description: "Add a comment to an issue. For issue state change (work on issue, set issue done, submit issue for review, etc.), use the changeIssueState tool instead.",
 		InputSchema: InputSchema{
 			Type: "object",
 			Properties: map[string]interface{}{
@@ -768,6 +769,15 @@ func (command *MCPCommand) handleToolsList(request MCPRequest) {
 		},
 	})
 	tools = append(tools, Tool{
+		Name:        "getCurrentRemote",
+		Description: "Get current OneDev remote for various operations",
+		InputSchema: InputSchema{
+			Type:       "object",
+			Properties: map[string]interface{}{},
+			Required:   []string{},
+		},
+	})
+	tools = append(tools, Tool{
 		Name:        "getWorkingDir",
 		Description: "Get working directory of this MCP server",
 		InputSchema: InputSchema{
@@ -854,6 +864,17 @@ func (command *MCPCommand) getCurrentProject() (string, error) {
 	return command.currentProjectCache, nil
 }
 
+func (command *MCPCommand) getCurrentRemote() (string, error) {
+	if command.currentRemoteCache == "" {
+		var err error
+		command.currentRemoteCache, _, err = inferProject(command.workingDir, command.logger)
+		if err != nil {
+			return "", err
+		}
+	}
+	return command.currentRemoteCache, nil
+}
+
 func (command *MCPCommand) handleGetCurrentProjectTool(request MCPRequest) {
 	command.logf("Handling getCurrentProject tool call")
 
@@ -874,6 +895,29 @@ func (command *MCPCommand) handleGetCurrentProjectTool(request MCPRequest) {
 	}
 
 	command.logf("getCurrentProject tool call successful")
+	command.sendResponse(request.ID, result)
+}
+
+func (command *MCPCommand) handleGetCurrentRemoteTool(request MCPRequest) {
+	command.logf("Handling getCurrentRemote tool call")
+
+	currentRemote, err := command.getCurrentRemote()
+	if err != nil {
+		command.logf("Failed to get current remote: %v", err)
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to get current remote: "+err.Error())
+		return
+	}
+
+	result := CallToolResult{
+		Content: []ToolContent{
+			{
+				Type: "text",
+				Text: currentRemote,
+			},
+		},
+	}
+
+	command.logf("getCurrentRemote tool call successful")
 	command.sendResponse(request.ID, result)
 }
 
@@ -908,6 +952,7 @@ func (command *MCPCommand) handleSetWorkingDirTool(request MCPRequest, params MC
 	}
 
 	command.currentProjectCache = ""
+	command.currentRemoteCache = ""
 
 	result := CallToolResult{
 		Content: []ToolContent{
@@ -2238,8 +2283,8 @@ func (command *MCPCommand) handleEditEntityTool(request MCPRequest, params MCPPa
 	command.sendResponse(request.ID, response)
 }
 
-func (command *MCPCommand) handleTransitIssueTool(request MCPRequest, params MCPParams) {
-	command.logf("Handling transitIssue tool call")
+func (command *MCPCommand) handleChangeIssueStateTool(request MCPRequest, params MCPParams) {
+	command.logf("Handling changeIssueState tool call")
 
 	issueMap := make(map[string]interface{})
 
@@ -2277,7 +2322,7 @@ func (command *MCPCommand) handleTransitIssueTool(request MCPRequest, params MCP
 		"reference":      {issueReference},
 	}
 	// Build the API URL
-	apiURL := config.ServerUrl + "/~api/mcp-helper/transit-issue?" + urlQuery.Encode()
+	apiURL := config.ServerUrl + "/~api/mcp-helper/change-issue-state?" + urlQuery.Encode()
 
 	req, err := http.NewRequest("POST", apiURL, strings.NewReader(issueData))
 	if err != nil {
@@ -2304,7 +2349,7 @@ func (command *MCPCommand) handleTransitIssueTool(request MCPRequest, params MCP
 		},
 	}
 
-	command.logf("transitIssue tool call successful")
+	command.logf("changeIssueState tool call successful")
 	command.sendResponse(request.ID, response)
 }
 
@@ -2403,8 +2448,8 @@ func (command *MCPCommand) handleToolsCall(request MCPRequest) {
 		command.handleCreateIssueTool(request, params, "createIssue", "create-issue")
 	case "editIssue":
 		command.handleEditEntityTool(request, params, "editIssue", "edit-issue", "issueReference")
-	case "transitIssue":
-		command.handleTransitIssueTool(request, params)
+	case "changeIssueState":
+		command.handleChangeIssueStateTool(request, params)
 	case "linkIssues":
 		command.handleLinkIssuesTool(request, params)
 	case "addIssueComment":
@@ -2453,6 +2498,8 @@ func (command *MCPCommand) handleToolsCall(request MCPRequest) {
 		command.handleCheckBuildSpecTool(request)
 	case "getCurrentProject":
 		command.handleGetCurrentProjectTool(request)
+	case "getCurrentRemote":
+		command.handleGetCurrentRemoteTool(request)
 	case "getWorkingDir":
 		command.handleGetWorkingDirTool(request)
 	case "setWorkingDir":
@@ -2728,6 +2775,22 @@ func (command *MCPCommand) handlePromptsList(request MCPRequest) {
 
 	prompts := []Prompt{
 		{
+			Name:        "change-issue-state",
+			Description: "Change state of specified issue",
+			Arguments: []PromptArgument{
+				{
+					Name:        "issueReference",
+					Description: "Reference of the issue to change state, for instance #123, project#123, or projectkey-123",
+					Required:    true,
+				},
+				{
+					Name:        "instruction",
+					Description: "Instruction on what to do with the issue",
+					Required:    true,
+				},
+			},
+		},
+		{
 			Name:        "edit-build-spec",
 			Description: "Create or edit OneDev build spec (.onedev-buildspec.yml)",
 			Arguments: []PromptArgument{
@@ -2809,6 +2872,33 @@ func (command *MCPCommand) handleGetPrompt(request MCPRequest) {
 	var messages []PromptMessage
 
 	switch params.Name {
+	case "change-issue-state":
+		reference, err := command.getRequiredStringParam(params, "issueReference")
+		if err != nil {
+			command.sendError(request.ID, ErrorCodeInvalidParams, "failed to extract issueReference: "+err.Error())
+			return
+		}
+		instruction, err := command.getRequiredStringParam(params, "instruction")
+		if err != nil {
+			command.sendError(request.ID, ErrorCodeInvalidParams, "failed to extract instruction: "+err.Error())
+			return
+		}
+
+		messages = []PromptMessage{
+			{
+				Role: "user",
+				Content: PromptMessageContent{
+					Type: "text",
+					Text: "Call changeIssueState tool with below parameters:" + `
+1. "issueReference" set to ` + reference + `
+2. "state" should be derived from user instruction: ` + instruction + `
+3. "comment" should be derived from user instruction if meaningful: ` + instruction + `
+
+The tool call may return additional instructions if successful, and you should follow them to complete the task`,
+				},
+			},
+		}
+
 	case "edit-build-spec":
 		instruction, err := command.getRequiredStringParam(params, "instruction")
 		if err != nil {

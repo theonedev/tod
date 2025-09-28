@@ -427,13 +427,32 @@ func runLocalJob(jobName string, workingDir string, params map[string][]string,
 		return nil, err
 	}
 
+	gitRoot, err := findGitRoot(workingDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find git root directory: %v", err)
+	}
+
+	buildSpecFile := filepath.Join(gitRoot, ".onedev-buildspec.yml")
+	if _, err := os.Stat(buildSpecFile); os.IsNotExist(err) {
+		return nil, fmt.Errorf("build spec not found: %v", err)
+	}
+
+	cmd := exec.Command("git", "add", buildSpecFile)
+	cmd.Dir = workingDir
+	logger.Printf("Running command: git add %s\n", buildSpecFile)
+	out, err := cmd.CombinedOutput()
+	logger.Printf("Command output:\n%s", string(out))
+	if err != nil {
+		return nil, fmt.Errorf("failed to add build spec file to git index: %v", err)
+	}
+
 	projectUrl := config.ServerUrl + "/" + project
 
-	cmd := exec.Command("git", "stash", "create")
+	cmd = exec.Command("git", "stash", "create")
 	cmd.Dir = workingDir
 
 	logger.Printf("Running command: git stash create\n")
-	out, err := cmd.CombinedOutput()
+	out, err = cmd.CombinedOutput()
 	logger.Printf("Command output:\n%s", string(out))
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute git stash create: %v", err)
