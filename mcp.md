@@ -4,6 +4,31 @@
 
 TOD provides a comprehensive Model Context Protocol (MCP) server that enables AI assistants to interact with OneDev 13+ in an intelligent, natural way. When running in MCP server mode, TOD exposes a rich set of tools that allow AI assistants to automate development workflows, manage issues and pull requests, execute builds, and more.
 
+## Installation
+
+To install tod, just put tod binary into your PATH. 
+
+### Download Pre-built Binaries
+
+https://github.com/theonedev/tod/releases
+
+### Build Binary from Source
+
+**Requirements:**
+- Go 1.22.1 or higher
+
+**Steps:**
+1. Clone the repository:
+   ```bash
+   git clone https://code.onedev.io/onedev/tod.git
+   cd tod
+   ```
+
+2. Build the binary:
+   ```bash
+   go build
+   ```
+
 ## Configuration
 
 The MCP server uses the same configuration as other TOD commands. Ensure your `~/.todconfig` file is properly configured:

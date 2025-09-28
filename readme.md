@@ -19,7 +19,7 @@ To install tod, just put tod binary into your PATH.
 
 ### Download Pre-built Binaries
 
-https://code.onedev.io/onedev/tod/~builds?query=%22Job%22+is+%22Release%22+and+successful
+https://github.com/theonedev/tod/releases
 
 ### Build Binary from Source
 
