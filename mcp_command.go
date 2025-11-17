@@ -759,6 +759,18 @@ func (command *MCPCommand) handleToolsList(request MCPRequest) {
 		},
 	})
 
+	queryPacksSchema := command.getInputSchemaForTool("queryPacks", schemas)
+	if queryPacksSchema.Type == "" {
+		command.logf("Failed to get input schema for queryPacks tool")
+		command.sendError(request.ID, ErrorCodeInternalError, "Failed to get input schema for queryPacks tool")
+		return
+	}
+	tools = append(tools, Tool{
+		Name:        "queryPacks",
+		Description: "Query packages in current project",
+		InputSchema: queryPacksSchema,
+	})
+
 	tools = append(tools, Tool{
 		Name:        "getCurrentProject",
 		Description: "Get current OneDev project for various operations",
@@ -2496,6 +2508,8 @@ func (command *MCPCommand) handleToolsCall(request MCPRequest) {
 		command.handleGetBuildSpecSchemaTool(request)
 	case "checkBuildSpec":
 		command.handleCheckBuildSpecTool(request)
+	case "queryPacks":
+		command.handleQueryEntitiesTool(request, params, "queryPacks", "query-packs")
 	case "getCurrentProject":
 		command.handleGetCurrentProjectTool(request)
 	case "getCurrentRemote":
