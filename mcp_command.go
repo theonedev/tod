@@ -2927,16 +2927,22 @@ The tool call may return additional instructions if successful, and you should f
 					Type: "text",
 					Text: instruction + `
 
-When create or edit OneDev build spec (.onedev-buildspec.yml), you should:
+When create or edit OneDev build spec (.onedev-buildspec.yml), remember that:
+
 1. Call the getBuildSpecSchema tool first to know about syntax of OneDev build spec
-2. Configure command steps to run in container if possible, unless requested by user explicitly
-3. Remember that different steps run in isolated environments, with shared job workspace. So it will not work installing dependencies in one step, and run commands relying on them in another step. You should put them in a single step unless requested by user explicitly
-4. Remember that if cache step is used, it should be placed before the step building or testing the project
-5. Remember that if cache step is used, and its key property contains checksum of lock files, the generate checksum step should be added before the cache step to generate the checksum
-6. Remember that to pass files between different jobs, one job should publish files via the publish artifact step, and another jobs can then download them into job workspace via job dependency
-7. Call the checkBuildSpec tool to make sure the build spec is valid and up to date before editing if build spec already exists
-8. Inspect project structure and relevant files to figure out what docker image and commands to use to build or test the project if requested by user
-9. After creating or editing the build spec, call the checkBuildSpec tool again to make sure the new build spec is valid`,
+2. If command step is used, turn on the "run in container" if possible, unless requested by user explicitly
+3. Different steps run in isolated environments, with shared job workspace. So it will not work installing dependencies in one step, and run commands relying on them in another step. You should put them in a single step unless requested by user explicitly
+4. If cache step is used:
+	4.1 It should be placed before the step building or testing the project
+	4.2 If the project has lock files (package.json, pom.xml, etc.):
+		4.2.1 A generate checksum step should be placed before the cache step, to generate checksum of all relevant lock files and store it in a file named checksum.txt						
+		4.2.2 The key property should be configured as <keyname>-@file:checksum.txt@
+		4.2.3 The load keys property should be configured as <keyname>
+		4.2.4 The upload strategy property should be configured as UPLOAD_IF_NOT_HIT
+5. If user wants to pass files between different jobs, one job should publish files via the publish artifact step, and another jobs can then download them into job workspace via job dependency
+6. Call the checkBuildSpec tool to make sure the build spec is valid and up to date before editing if build spec already exists
+7. Inspect relevant files to get project structure and figure out what docker image and commands to use to build or test the project if requested by user
+8. After creating or editing the build spec, call the checkBuildSpec tool again to make sure the new build spec is valid`,
 				},
 			},
 		}
