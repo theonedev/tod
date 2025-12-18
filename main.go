@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const version = "2.0.4"
+const version = "2.0.5"
 
 type CompatibleVersions struct {
 	MinVersion string `json:"minVersion"`
