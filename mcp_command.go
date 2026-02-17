@@ -486,7 +486,7 @@ func (command *MCPCommand) handleToolsList(request MCPRequest) {
 
 	tools = append(tools, Tool{
 		Name:        "getPullRequestFileChanges",
-		Description: "Get pull request file changes in patch format, optionally since last review",
+		Description: "Get pull request file changes in patch format",
 		InputSchema: InputSchema{
 			Type: "object",
 			Properties: map[string]interface{}{
@@ -494,12 +494,12 @@ func (command *MCPCommand) handleToolsList(request MCPRequest) {
 					"type":        "string",
 					"description": PullRequestReferenceDesc,
 				},
-				"sinceLastReview": map[string]interface{}{
+				"forCodeReview": map[string]interface{}{
 					"type":        "boolean",
-					"description": "If true, only changes since last review will be returned",
+					"description": "If true, file changes are retrieved for code review purpose",
 				},
 			},
-			Required: []string{"pullRequestReference", "sinceLastReview"},
+			Required: []string{"pullRequestReference", "forCodeReview"},
 		},
 	})
 
@@ -517,12 +517,12 @@ func (command *MCPCommand) handleToolsList(request MCPRequest) {
 					"type":        "string",
 					"description": "Path of the file relative to repository root",
 				},
-				"revision": map[string]interface{}{
-					"type":        "string",
-					"description": "Must be one of: initial, latest, lastReviewed. Initial revision means the revision before pull request change; latest revision means the revision after pull request change; lastReviewed revision means the revision last reviewed",
+				"oldRevision": map[string]interface{}{
+					"type":        "boolean",
+					"description": "If true, get file content before pull request change; otherwise get file content after pull request change",
 				},
 			},
-			Required: []string{"pullRequestReference", "filePath", "revision"},
+			Required: []string{"pullRequestReference", "filePath", "oldRevision"},
 		},
 	})
 
@@ -669,8 +669,8 @@ func (command *MCPCommand) handleToolsList(request MCPRequest) {
 	})
 
 	tools = append(tools, Tool{
-		Name:        "getFileChangesSincePreviousSuccessfulSimilarBuild",
-		Description: "Get file changes since previous successful build similar to specified build. When investigating build problems, AI assistant may use this tool to check what has been changed recently",
+		Name:        "getFileChangesSincePreviousSuccessfulBuild",
+		Description: "Get file changes since previous successful build of specified build. When investigating build problems, AI assistant may use this tool to check what has been changed recently",
 		InputSchema: InputSchema{
 			Type: "object",
 			Properties: map[string]interface{}{
@@ -1134,26 +1134,34 @@ func (command *MCPCommand) handleGetPullRequestFileContentTool(request MCPReques
 		return
 	}
 
-	revision, err := command.getRequiredStringParam(params, "revision")
-	if err != nil {
-		command.logf("Failed to extract revision: %v", err)
-		command.sendError(request.ID, ErrorCodeInvalidParams, "Failed to extract revision: "+err.Error())
+	oldRevisionVal, exists := params.Arguments["oldRevision"]
+
+	if !exists {
+		command.logf("Missing required parameter: oldRevision")
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Missing required parameter: oldRevision")
+		return
+	}
+
+	oldRevision, ok := oldRevisionVal.(bool)
+	if !ok {
+		command.logf("Invalid type for oldRevision parameter: expected boolean")
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for oldRevision parameter: expected boolean")
 		return
 	}
 
 	pullRequest, err := command.getPullRequest(reference, currentProject)
 
 	var commitHash string
-	if revision == "latest" {
-		commitHash = pullRequest["headCommitHash"].(string)
-	} else {
-		patchInfo, err := command.getPullRequestPatchInfo(currentProject, reference, revision != "initial")
+	if oldRevision {
+		patchInfo, err := command.getPullRequestPatchInfo(currentProject, reference)
 		if err != nil {
 			command.logf("Failed to get pull request patch info: %v", err)
 			command.sendError(request.ID, ErrorCodeInternalError, "Failed to get pull request patch info: "+err.Error())
 			return
 		}
 		commitHash = patchInfo["oldCommitHash"].(string)
+	} else {
+		commitHash = pullRequest["headCommitHash"].(string)
 	}
 
 	if err != nil {
@@ -1266,8 +1274,8 @@ func (command *MCPCommand) handleGetBuildFileContentTool(request MCPRequest, par
 	command.sendResponse(request.ID, result)
 }
 
-func (command *MCPCommand) handleGetFileChangesSincePreviousSuccessfulSimilarBuildTool(request MCPRequest, params MCPParams) {
-	command.logf("Handling getFileChangesSincePreviousSuccessfulSimilarBuild tool call")
+func (command *MCPCommand) handleGetFileChangesSincePreviousSuccessfulBuildTool(request MCPRequest, params MCPParams) {
+	command.logf("Handling getFileChangesSincePreviousSuccessfulBuild tool call")
 
 	currentProject, err := command.getCurrentProject()
 	if err != nil {
@@ -1352,7 +1360,7 @@ func (command *MCPCommand) handleGetFileChangesSincePreviousSuccessfulSimilarBui
 		},
 	}
 
-	command.logf("getFileChangesSincePreviousSuccessfulSimilarBuild tool call successful")
+	command.logf("getFileChangesSincePreviousSuccessfulBuild tool call successful")
 	command.sendResponse(request.ID, result)
 }
 
@@ -1583,12 +1591,11 @@ func (command *MCPCommand) handleCheckoutPullRequestTool(request MCPRequest, par
 	command.sendResponse(request.ID, result)
 }
 
-func (command *MCPCommand) getPullRequestPatchInfo(currentProject string, reference string, sinceLastReview bool) (map[string]interface{}, error) {
+func (command *MCPCommand) getPullRequestPatchInfo(currentProject string, reference string) (map[string]interface{}, error) {
 	// Build the API URL
 	urlQuery := url.Values{
-		"currentProject":  {currentProject},
-		"reference":       {reference},
-		"sinceLastReview": {fmt.Sprintf("%t", sinceLastReview)},
+		"currentProject": {currentProject},
+		"reference":      {reference},
 	}
 
 	apiURL := config.ServerUrl + "/~api/mcp-helper/get-pull-request-patch-info?" + urlQuery.Encode()
@@ -1626,18 +1633,18 @@ func (command *MCPCommand) handleGetPullRequestFileChangesTool(request MCPReques
 		return
 	}
 
-	sinceLastReviewVal, exists := params.Arguments["sinceLastReview"]
+	forCodeReviewVal, exists := params.Arguments["forCodeReview"]
 
 	if !exists {
-		command.logf("Missing required parameter: sinceLastReview")
-		command.sendError(request.ID, ErrorCodeInvalidParams, "Missing required parameter: sinceLastReview")
+		command.logf("Missing required parameter: forCodeReview")
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Missing required parameter: forCodeReview")
 		return
 	}
 
-	sinceLastReview, ok := sinceLastReviewVal.(bool)
+	forCodeReview, ok := forCodeReviewVal.(bool)
 	if !ok {
-		command.logf("Invalid type for sinceLastReview parameter: expected boolean")
-		command.sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for sinceLastReview parameter: expected boolean")
+		command.logf("Invalid type for forCodeReview parameter: expected boolean")
+		command.sendError(request.ID, ErrorCodeInvalidParams, "Invalid type for forCodeReview parameter: expected boolean")
 		return
 	}
 
@@ -1648,7 +1655,7 @@ func (command *MCPCommand) handleGetPullRequestFileChangesTool(request MCPReques
 		return
 	}
 
-	patchInfo, err := command.getPullRequestPatchInfo(currentProject, reference, sinceLastReview)
+	patchInfo, err := command.getPullRequestPatchInfo(currentProject, reference)
 	if err != nil {
 		command.logf("Failed to get pull request patch info: %v", err)
 		command.sendError(request.ID, ErrorCodeInternalError, "Failed to get pull request patch info: "+err.Error())
@@ -1660,8 +1667,9 @@ func (command *MCPCommand) handleGetPullRequestFileChangesTool(request MCPReques
 	newCommitHash, _ := patchInfo["newCommitHash"].(string)
 
 	urlQuery := url.Values{
-		"old-commit": {oldCommitHash},
-		"new-commit": {newCommitHash},
+		"old-commit":      {oldCommitHash},
+		"new-commit":      {newCommitHash},
+		"for-code-review": {fmt.Sprintf("%t", forCodeReview)},
 	}
 
 	apiURL := config.ServerUrl + "/~downloads/projects/" + projectId + "/patch?" + urlQuery.Encode()
@@ -2498,8 +2506,8 @@ func (command *MCPCommand) handleToolsCall(request MCPRequest) {
 		command.handleGetBuildLogTool(request, params)
 	case "getBuildFileContent":
 		command.handleGetBuildFileContentTool(request, params)
-	case "getFileChangesSincePreviousSuccessfulSimilarBuild":
-		command.handleGetFileChangesSincePreviousSuccessfulSimilarBuildTool(request, params)
+	case "getFileChangesSincePreviousSuccessfulBuild":
+		command.handleGetFileChangesSincePreviousSuccessfulBuildTool(request, params)
 	case "runJob":
 		command.handleRunJobTool(request, params)
 	case "runLocalJob":
@@ -2841,11 +2849,6 @@ func (command *MCPCommand) handlePromptsList(request MCPRequest) {
 					Required:    true,
 				},
 				{
-					Name:        "sinceLastReview",
-					Description: "Either yes or no. If yes, only changes since last review will be reviewed; otherwise all changes of the pull request will be reviewed",
-					Required:    true,
-				},
-				{
 					Name:        "instruction",
 					Description: "Instruction to review pull request",
 					Required:    false,
@@ -2976,7 +2979,7 @@ Please follow below steps to investigate problems of the build:
 1. Call the getBuild tool with parameter "buildReference" set to ` + reference + ` to get the build detail
 2. Call the getBuildLog tool with parameter "buildReference" set to ` + reference + ` to get the build log
 3. If you need to examine content of files mentioned in build log, call getBuildFileContent tool with parameter "buildReference" set to ` + reference + ` and "filePath" set to desired file path. Specifically specify file path as ".onedev-buildspec.yml" to get the build spec
-4. You may also call getFileChangesSincePreviousSuccessfulSimilarBuild tool with parameter "buildReference" set to ` + reference + ` to get file changes since previous successful build similar to the current build`,
+4. You may also call getFileChangesSincePreviousSuccessfulBuild tool with parameter "buildReference" set to ` + reference + ` to get file changes since previous successful build similar to the current build`,
 				},
 			},
 		}
@@ -2986,13 +2989,6 @@ Please follow below steps to investigate problems of the build:
 		if err != nil {
 			command.sendError(request.ID, ErrorCodeInvalidParams, "failed to extract pullRequestReference: "+err.Error())
 			return
-		}
-
-		sinceLastReview := false
-		if sinceLastReviewVal, exists := params.Arguments["sinceLastReview"]; exists {
-			if sinceLastReviewBool, ok := sinceLastReviewVal.(string); ok {
-				sinceLastReview = sinceLastReviewBool == "yes"
-			}
 		}
 
 		var promptPrefix string
@@ -3018,11 +3014,11 @@ Please follow below steps to review the pull request:
 1. Call the getPullRequest tool with parameter "pullRequestReference" set to ` + reference + ` to get the pull request detail, including title and description
 2. Call the getPullRequestFileChanges tool with below parameters:
 	2.1 "pullRequestReference" set to ` + reference + `
-	2.2 "sinceLastReview" set to ` + fmt.Sprintf("%t", sinceLastReview) + ` to get the file changes for review
+	2.2 "forCodeReview" set to true to get the file changes for code review
 3. If you need to examine full content of files mentioned in file changes, call getPullRequestFileContent tool with below parameters:
 	3.1 "pullRequestReference" set to ` + reference + `
 	3.2 "filePath" set to desired file path
-	3.3 "revision" set to "initial" if sinceLastReview is false and you want to get file content before change, or "lastReviewed" if sinceLastReview is true and you want to get file content before change, or "latest" if you want to get file content after change
+	3.3 "oldRevision" set to "true" if you want to get file content before change, or "false" if you want to get file content after change
 4. After reviewing the pull request, call the getLoginName tool without parameters to get your login name, and then check against reviews information in pull request detail to see if it is pending your review:
  	4.1 If the pull request is awaiting your review, request user's consent to call the processPullRequest tool with below parameters: 
 		4.1.1 "pullRequestReference" set to ` + reference + `

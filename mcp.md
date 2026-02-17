@@ -172,7 +172,7 @@ Get pull request file changes in patch format.
 
 **Parameters:**
 - `pullRequestReference` (required) - Pull request reference
-- `sinceLastReview` (required) - If true, only changes since last review will be returned
+- `forCodeReview` (required) - If true, filter off files as configured in project AI  settings to save tokens for LLM review
 
 #### `getPullRequestFileContent`
 Get content of specified file in pull request.
@@ -180,7 +180,7 @@ Get content of specified file in pull request.
 **Parameters:**
 - `pullRequestReference` (required) - Pull request reference
 - `filePath` (required) - Path of the file relative to repository root
-- `revision` (required) - Must be one of: initial, latest, lastReviewed
+- `oldRevision` (required) - If true, get file content before pull request change; otherwise, get file content after pull request change
 
 #### `createPullRequest`
 Create a new pull request.
@@ -261,8 +261,8 @@ Get content of specified file in a build.
 - `buildReference` (required) - Build reference
 - `filePath` (required) - Path of the file relative to repository root
 
-#### `getFileChangesSincePreviousSuccessfulSimilarBuild`
-Get file changes since previous successful build similar to specified build.
+#### `getFileChangesSincePreviousSuccessfulBuild`
+Get file changes since previous successful build of specified build.
 
 **Parameters:**
 - `buildReference` (required) - Build reference
@@ -373,7 +373,6 @@ Review a pull request.
 
 **Parameters:**
 - `pullRequestReference` (required) - Reference of the pull request to review, for instance #123, project#123, or projectkey-123
-- `sinceLastReview` (required) - Either true or false. If true, only changes since last review will be reviewed; otherwise all changes of the pull request will be reviewed
 - `instruction` (optional) - Instruction to review the pull request
 
 **Description:**
