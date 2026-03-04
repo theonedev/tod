@@ -62,6 +62,53 @@ and streams the job execution logs back to your terminal.`,
 	},
 }
 
+var configCmd = &cobra.Command{
+	Use:   "config",
+	Short: "Manage configuration",
+	Long:  `Show, get, or set configuration values.`,
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		// Skip global config validation for config command
+		// config set needs to work without a valid config
+		return nil
+	},
+}
+
+var configShowCmd = &cobra.Command{
+	Use:   "show",
+	Short: "Show all config values",
+	Args:  cobra.NoArgs,
+	Run: func(cmd *cobra.Command, args []string) {
+		ConfigShowCommand(cmd, args)
+	},
+}
+
+var configGetCmd = &cobra.Command{
+	Use:   "get [key]",
+	Short: "Get a config value",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		ConfigGetCommand(cmd, args)
+	},
+}
+
+var configSetCmd = &cobra.Command{
+	Use:   "set [key=value]",
+	Short: "Set a config value",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		ConfigSetCommand(cmd, args)
+	},
+}
+
+var configPathCmd = &cobra.Command{
+	Use:   "path",
+	Short: "Show config file path",
+	Args:  cobra.NoArgs,
+	Run: func(cmd *cobra.Command, args []string) {
+		ConfigPathCommand(cmd, args)
+	},
+}
+
 var mcpCmd = &cobra.Command{
 	Use:   "mcp",
 	Short: "Start MCP server",
@@ -144,12 +191,19 @@ func init() {
 	// MCP command specific flags
 	mcpCmd.Flags().String("log-file", "", "Specify log file path for debug logging")
 
+	// Config subcommands
+	configCmd.AddCommand(configShowCmd)
+	configCmd.AddCommand(configGetCmd)
+	configCmd.AddCommand(configSetCmd)
+	configCmd.AddCommand(configPathCmd)
+
 	// Add commands to root
 	rootCmd.AddCommand(runLocalJobCmd)
 	rootCmd.AddCommand(runJobCmd)
 	rootCmd.AddCommand(mcpCmd)
 	rootCmd.AddCommand(checkoutPullRequestCmd)
 	rootCmd.AddCommand(checkBuildSpecCmd)
+	rootCmd.AddCommand(configCmd)
 }
 
 func main() {
