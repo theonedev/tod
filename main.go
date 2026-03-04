@@ -62,6 +62,19 @@ and streams the job execution logs back to your terminal.`,
 	},
 }
 
+var secretsCmd = &cobra.Command{
+	Use:   "secrets",
+	Short: "List job secrets for a project",
+	Long:  `List job secrets configured in a project's build settings.`,
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		secretsCommand := SecretsCommand{}
+		logger := log.New(os.Stdout, "[SECRETS] ", log.LstdFlags)
+		secretsCommand.Execute(cmd, args, logger)
+		return nil
+	},
+}
+
 var mcpCmd = &cobra.Command{
 	Use:   "mcp",
 	Short: "Start MCP server",
@@ -144,12 +157,16 @@ func init() {
 	// MCP command specific flags
 	mcpCmd.Flags().String("log-file", "", "Specify log file path for debug logging")
 
+	// Secrets command flags
+	secretsCmd.Flags().StringP("project", "p", "", "Project path (inferred from git remote if not specified)")
+
 	// Add commands to root
 	rootCmd.AddCommand(runLocalJobCmd)
 	rootCmd.AddCommand(runJobCmd)
 	rootCmd.AddCommand(mcpCmd)
 	rootCmd.AddCommand(checkoutPullRequestCmd)
 	rootCmd.AddCommand(checkBuildSpecCmd)
+	rootCmd.AddCommand(secretsCmd)
 }
 
 func main() {
