@@ -62,6 +62,19 @@ and streams the job execution logs back to your terminal.`,
 	},
 }
 
+var buildsCmd = &cobra.Command{
+	Use:   "builds",
+	Short: "List recent builds",
+	Long:  `List recent builds with their status, job name, and commit hash.`,
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		buildsCommand := BuildsCommand{}
+		logger := log.New(os.Stdout, "[BUILDS] ", log.LstdFlags)
+		buildsCommand.Execute(cmd, args, logger)
+		return nil
+	},
+}
+
 var mcpCmd = &cobra.Command{
 	Use:   "mcp",
 	Short: "Start MCP server",
@@ -144,12 +157,17 @@ func init() {
 	// MCP command specific flags
 	mcpCmd.Flags().String("log-file", "", "Specify log file path for debug logging")
 
+	// Builds command flags
+	buildsCmd.Flags().IntP("count", "n", 10, "Number of builds to show")
+	buildsCmd.Flags().StringP("query", "q", "", "OneDev build query (e.g. '\"Job\" is \"Release\"')")
+
 	// Add commands to root
 	rootCmd.AddCommand(runLocalJobCmd)
 	rootCmd.AddCommand(runJobCmd)
 	rootCmd.AddCommand(mcpCmd)
 	rootCmd.AddCommand(checkoutPullRequestCmd)
 	rootCmd.AddCommand(checkBuildSpecCmd)
+	rootCmd.AddCommand(buildsCmd)
 }
 
 func main() {
