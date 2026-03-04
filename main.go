@@ -62,6 +62,19 @@ and streams the job execution logs back to your terminal.`,
 	},
 }
 
+var settingsCmd = &cobra.Command{
+	Use:   "settings",
+	Short: "Show project settings",
+	Long:  `Show project settings sections or a specific section in detail.`,
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		settingsCommand := SettingsCommand{}
+		logger := log.New(os.Stdout, "[SETTINGS] ", log.LstdFlags)
+		settingsCommand.Execute(cmd, args, logger)
+		return nil
+	},
+}
+
 var mcpCmd = &cobra.Command{
 	Use:   "mcp",
 	Short: "Start MCP server",
@@ -144,12 +157,17 @@ func init() {
 	// MCP command specific flags
 	mcpCmd.Flags().String("log-file", "", "Specify log file path for debug logging")
 
+	// Settings command flags
+	settingsCmd.Flags().StringP("project", "p", "", "Project path (inferred from git remote if not specified)")
+	settingsCmd.Flags().StringP("section", "s", "", "Show specific settings section (e.g. buildSetting, issueSetting)")
+
 	// Add commands to root
 	rootCmd.AddCommand(runLocalJobCmd)
 	rootCmd.AddCommand(runJobCmd)
 	rootCmd.AddCommand(mcpCmd)
 	rootCmd.AddCommand(checkoutPullRequestCmd)
 	rootCmd.AddCommand(checkBuildSpecCmd)
+	rootCmd.AddCommand(settingsCmd)
 }
 
 func main() {
