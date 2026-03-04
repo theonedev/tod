@@ -62,6 +62,19 @@ and streams the job execution logs back to your terminal.`,
 	},
 }
 
+var usersCmd = &cobra.Command{
+	Use:   "users",
+	Short: "List users",
+	Long:  `List users on the OneDev server.`,
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		usersCommand := UsersCommand{}
+		logger := log.New(os.Stdout, "[USERS] ", log.LstdFlags)
+		usersCommand.Execute(cmd, args, logger)
+		return nil
+	},
+}
+
 var mcpCmd = &cobra.Command{
 	Use:   "mcp",
 	Short: "Start MCP server",
@@ -144,12 +157,16 @@ func init() {
 	// MCP command specific flags
 	mcpCmd.Flags().String("log-file", "", "Specify log file path for debug logging")
 
+	// Users command flags
+	usersCmd.Flags().IntP("count", "n", 50, "Number of users to show")
+
 	// Add commands to root
 	rootCmd.AddCommand(runLocalJobCmd)
 	rootCmd.AddCommand(runJobCmd)
 	rootCmd.AddCommand(mcpCmd)
 	rootCmd.AddCommand(checkoutPullRequestCmd)
 	rootCmd.AddCommand(checkBuildSpecCmd)
+	rootCmd.AddCommand(usersCmd)
 }
 
 func main() {
