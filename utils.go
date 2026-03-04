@@ -776,3 +776,37 @@ func wrapWithColor(message, color string) string {
 func wrapWithBold(message string) string {
 	return fmt.Sprintf("\033[1m%s\033[0m", message)
 }
+
+// makeAPICallSimple is a convenience wrapper around makeAPICall for simple requests.
+func makeAPICallSimple(method, apiURL, body string) ([]byte, error) {
+	var bodyReader io.Reader
+	if body != "" {
+		bodyReader = strings.NewReader(body)
+	}
+	req, err := http.NewRequest(method, apiURL, bodyReader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %v", err)
+	}
+	if body != "" {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	return makeAPICall(req)
+}
+
+// getProjectId resolves a project path/name to its numeric ID.
+func getProjectId(projectPath string) (int, error) {
+	// Use the direct path→ID resolution endpoint
+	apiURL := config.ServerUrl + "/~api/projects/ids/" + url.PathEscape(projectPath)
+
+	body, err := makeAPICallSimple("GET", apiURL, "")
+	if err != nil {
+		return 0, fmt.Errorf("project '%s' not found: %v", projectPath, err)
+	}
+
+	var id int
+	if err := json.Unmarshal(body, &id); err != nil {
+		return 0, fmt.Errorf("failed to parse project ID: %v", err)
+	}
+
+	return id, nil
+}
