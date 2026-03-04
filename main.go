@@ -62,6 +62,19 @@ and streams the job execution logs back to your terminal.`,
 	},
 }
 
+var webhooksCmd = &cobra.Command{
+	Use:   "webhooks",
+	Short: "List webhooks for a project",
+	Long:  `List webhooks configured in a project's settings.`,
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		webhooksCommand := WebhooksCommand{}
+		logger := log.New(os.Stdout, "[WEBHOOKS] ", log.LstdFlags)
+		webhooksCommand.Execute(cmd, args, logger)
+		return nil
+	},
+}
+
 var mcpCmd = &cobra.Command{
 	Use:   "mcp",
 	Short: "Start MCP server",
@@ -144,12 +157,16 @@ func init() {
 	// MCP command specific flags
 	mcpCmd.Flags().String("log-file", "", "Specify log file path for debug logging")
 
+	// Webhooks command flags
+	webhooksCmd.Flags().StringP("project", "p", "", "Project path (inferred from git remote if not specified)")
+
 	// Add commands to root
 	rootCmd.AddCommand(runLocalJobCmd)
 	rootCmd.AddCommand(runJobCmd)
 	rootCmd.AddCommand(mcpCmd)
 	rootCmd.AddCommand(checkoutPullRequestCmd)
 	rootCmd.AddCommand(checkBuildSpecCmd)
+	rootCmd.AddCommand(webhooksCmd)
 }
 
 func main() {
