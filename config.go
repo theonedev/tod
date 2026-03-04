@@ -20,14 +20,41 @@ type Config struct {
 	AccessToken string
 }
 
-// LoadConfig loads common configuration from the config file
-func LoadConfig() (*Config, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get user home directory: %w", err)
+// findConfigFile returns the path to the config file, searching in order:
+//  1. $XDG_CONFIG_HOME/tod/config (if XDG_CONFIG_HOME is set)
+//  2. ~/.config/tod/config
+//  3. ~/.todconfig (legacy)
+func findConfigFile() (string, error) {
+	// Try $XDG_CONFIG_HOME/tod/config if explicitly set
+	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
+		candidate := filepath.Join(xdg, "tod", "config")
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate, nil
+		}
 	}
 
-	configFilePath := filepath.Join(homeDir, ".todconfig")
+	// Try ~/.config/tod/config (XDG default)
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get user home directory: %w", err)
+	}
+
+	candidate := filepath.Join(homeDir, ".config", "tod", "config")
+	if _, err := os.Stat(candidate); err == nil {
+		return candidate, nil
+	}
+
+	// Fall back to legacy ~/.todconfig
+	return filepath.Join(homeDir, ".todconfig"), nil
+}
+
+// LoadConfig loads common configuration from the config file
+func LoadConfig() (*Config, error) {
+	configFilePath, err := findConfigFile()
+	if err != nil {
+		return nil, err
+	}
+
 	config := &Config{}
 
 	if _, err := os.Stat(configFilePath); !os.IsNotExist(err) {
@@ -47,8 +74,7 @@ func LoadConfig() (*Config, error) {
 
 // Validate validates the common configuration
 func (config *Config) Validate() error {
-	homeDir, _ := os.UserHomeDir()
-	configFilePath := filepath.Join(homeDir, ".todconfig")
+	configFilePath, _ := findConfigFile()
 
 	if config.ServerUrl == "" {
 		return fmt.Errorf("missing setting 'server-url' in %s", configFilePath)
