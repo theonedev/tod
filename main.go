@@ -62,6 +62,19 @@ and streams the job execution logs back to your terminal.`,
 	},
 }
 
+var logsCmd = &cobra.Command{
+	Use:   "logs [build-number]",
+	Short: "Stream build logs",
+	Long:  `Stream build logs in real-time for a given build number.`,
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		logsCommand := LogsCommand{}
+		logger := log.New(os.Stdout, "[LOGS] ", log.LstdFlags)
+		logsCommand.Execute(cmd, args, logger)
+		return nil
+	},
+}
+
 var mcpCmd = &cobra.Command{
 	Use:   "mcp",
 	Short: "Start MCP server",
@@ -150,6 +163,7 @@ func init() {
 	rootCmd.AddCommand(mcpCmd)
 	rootCmd.AddCommand(checkoutPullRequestCmd)
 	rootCmd.AddCommand(checkBuildSpecCmd)
+	rootCmd.AddCommand(logsCmd)
 }
 
 func main() {
