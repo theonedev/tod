@@ -13,6 +13,10 @@ TOD (**T**he**O**ne**D**ev) is a powerful command-line tool for OneDev 13+ that 
 - **Configuration management** via config files
 - **Cross-platform support** (Windows, macOS, Linux)
 
+## Hosted deployment
+
+A hosted deployment is available on [Fronteir AI](https://fronteir.ai/mcp/theonedev-tod).
+
 ## Installation
 
 To install tod, just put tod binary into your PATH. 
