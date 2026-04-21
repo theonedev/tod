@@ -20,32 +20,34 @@ type Config struct {
 	AccessToken string
 }
 
-// findConfigFile returns the path to the config file, searching in order:
+// configSearchPaths returns all candidate config file paths, in priority order:
 //  1. $XDG_CONFIG_HOME/tod/config (if XDG_CONFIG_HOME is set)
 //  2. ~/.config/tod/config
 //  3. ~/.todconfig (legacy)
-func findConfigFile() (string, error) {
-	// Try $XDG_CONFIG_HOME/tod/config if explicitly set
+func configSearchPaths() []string {
+	var paths []string
 	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
-		candidate := filepath.Join(xdg, "tod", "config")
-		if _, err := os.Stat(candidate); err == nil {
-			return candidate, nil
+		paths = append(paths, filepath.Join(xdg, "tod", "config"))
+	}
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		paths = append(paths, filepath.Join(homeDir, ".config", "tod", "config"))
+		paths = append(paths, filepath.Join(homeDir, ".todconfig"))
+	}
+	return paths
+}
+
+// findConfigFile returns the first existing config file, or the legacy path as fallback
+func findConfigFile() (string, error) {
+	paths := configSearchPaths()
+	if len(paths) == 0 {
+		return "", fmt.Errorf("failed to determine config file location (is $HOME set?)")
+	}
+	for _, p := range paths {
+		if _, err := os.Stat(p); err == nil {
+			return p, nil
 		}
 	}
-
-	// Try ~/.config/tod/config (XDG default)
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("failed to get user home directory: %w", err)
-	}
-
-	candidate := filepath.Join(homeDir, ".config", "tod", "config")
-	if _, err := os.Stat(candidate); err == nil {
-		return candidate, nil
-	}
-
-	// Fall back to legacy ~/.todconfig
-	return filepath.Join(homeDir, ".todconfig"), nil
+	return paths[len(paths)-1], nil
 }
 
 // LoadConfig loads common configuration from the config file
@@ -76,11 +78,25 @@ func LoadConfig() (*Config, error) {
 func (config *Config) Validate() error {
 	configFilePath, _ := findConfigFile()
 
-	if config.ServerUrl == "" {
-		return fmt.Errorf("missing setting 'server-url' in %s", configFilePath)
-	}
-	if config.AccessToken == "" {
-		return fmt.Errorf("missing setting 'access-token' in %s", configFilePath)
+	if config.ServerUrl == "" || config.AccessToken == "" {
+		if _, err := os.Stat(configFilePath); err != nil {
+			return fmt.Errorf("no config file found (searched: %s)", strings.Join(configSearchPaths(), ", "))
+		}
+		missing := serverUrlKey
+		if config.ServerUrl != "" {
+			missing = accessTokenKey
+		}
+		var altPaths []string
+		for _, p := range configSearchPaths() {
+			if p != configFilePath {
+				altPaths = append(altPaths, p)
+			}
+		}
+		hint := ""
+		if len(altPaths) > 0 {
+			hint = " (also searched: " + strings.Join(altPaths, ", ") + ")"
+		}
+		return fmt.Errorf("missing setting '%s' in %s%s", missing, configFilePath, hint)
 	}
 
 	// Validate server URL format: must start with http:// or https://, and trim trailing slash
