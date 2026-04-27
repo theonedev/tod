@@ -62,8 +62,6 @@ jobs:
         git push -f origin v$buildVersion:v$buildVersion
         git config --global --unset http.extraHeader
 
-        @pause@
-
         git push -f https://robinshine:@secrets:github-token@@@github.com/theonedev/tod v$buildVersion:v$buildVersion
 
         echo "Creating release in GitHub..."
