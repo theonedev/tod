@@ -1,41 +1,49 @@
-version: 30
+version: 47
 jobs:
 - name: Release
-  jobExecutor: internal
   steps:
-  - !CheckoutStep
+  - type: CheckoutStep
     name: checkout code
-    cloneCredential: !HttpCredential
+    cloneCredential:
+      type: HttpCredential
       accessTokenSecret: onedev-token
     withLfs: false
     withSubmodules: false
-    condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
-  - !CommandStep
+    condition: SUCCESSFUL
+    optional: false
+  - type: CommandStep
     name: detect version
     runInContainer: true
     image: ubuntu
-    interpreter: !DefaultInterpreter
+    interpreter:
+      type: DefaultInterpreter
       commands: |
         cat main.go|grep 'const version' | cut -d'"' -f 2 > buildVersion
+    runAs: 0:0
     useTTY: false
-    condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
-  - !SetBuildVersionStep
+    condition: SUCCESSFUL
+    optional: false
+  - type: SetBuildVersionStep
     name: set version
     buildVersion: '@file:buildVersion@'
-    condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
-  - !UseTemplateStep
+    condition: SUCCESSFUL
+    optional: false
+  - type: UseTemplateStep
     name: build binaries
     templateName: build binaries
-    condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
-  - !PublishArtifactStep
+    condition: SUCCESSFUL
+    optional: false
+  - type: PublishArtifactStep
     name: publish artifacts
     artifacts: '**/tod* -tod.gif'
-    condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
-  - !CommandStep
+    condition: SUCCESSFUL
+    optional: false
+  - type: CommandStep
     name: publish GH release
     runInContainer: true
     image: '@property:buildEnvironment@'
-    interpreter: !DefaultInterpreter
+    interpreter:
+      type: DefaultInterpreter
       commands: |
         set -e
         set -o pipefail
@@ -48,12 +56,14 @@ jobs:
 
         git config --global user.name "Robin Shen"
         git config --global user.email "robin@@onedev.io"
-        git config --global --add safe.directory /onedev-build/workspace
+        git config --global --add safe.directory /onedev-build/work
 
         git tag v$buildVersion -m "Release tag"
         git push -f origin v$buildVersion:v$buildVersion
         git config --global --unset http.extraHeader
-        git push -f https://robin:@secrets:github-token@@@github.com/theonedev/tod v$buildVersion:v$buildVersion
+        git push -f https://robinshine:@secrets:github-token@@@github.com/theonedev/tod v$buildVersion:v$buildVersion
+
+        @pause@
 
         echo "Creating release in GitHub..."
 
@@ -67,33 +77,42 @@ jobs:
         else
           curl -u robinshine:@secrets:github-token@ -X PATCH -H "$acceptHeader" -d "$releaseJson" https://api.github.com/repos/theonedev/tod/releases/$releaseId
         fi
+    runAs: 0:0
     useTTY: false
-    condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
+    condition: SUCCESSFUL
+    optional: false
+  jobExecutor: internal
   retryCondition: never
   maxRetries: 3
   retryDelay: 30
   timeout: 3600
 - name: Sync with GitHub
   steps:
-  - !CheckoutStep
+  - type: CheckoutStep
     name: checkout
-    cloneCredential: !DefaultCredential {}
+    cloneCredential:
+      type: DefaultCredential
     withLfs: false
     withSubmodules: true
-    condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
-  - !CommandStep
+    condition: SUCCESSFUL
+    optional: false
+  - type: CommandStep
     name: sync
     runInContainer: true
     image: alpine/git:1.0.7
-    interpreter: !DefaultInterpreter
+    interpreter:
+      type: DefaultInterpreter
       commands: |
         git config --global --unset http.extraHeader
         git push -f https://robinshine:@secrets:github-token@@@github.com/theonedev/tod HEAD:main
+    runAs: 0:0
     useTTY: false
-    condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
+    condition: SUCCESSFUL
+    optional: false
   triggers:
-  - !BranchUpdateTrigger
+  - type: BranchUpdateTrigger
     branches: main
+    userMatch: anyone
     projects: onedev/tod
   retryCondition: never
   maxRetries: 3
@@ -102,11 +121,12 @@ jobs:
 stepTemplates:
 - name: build binaries
   steps:
-  - !CommandStep
+  - type: CommandStep
     name: build binaries
     runInContainer: true
     image: golang:1.22.1
-    interpreter: !DefaultInterpreter
+    interpreter:
+      type: DefaultInterpreter
       commands: |
         GOOS=windows GOARCH=amd64 go build -o windows-amd64/tod.exe
         sha256sum windows-amd64/tod.exe | awk '{ print $1 }' > windows-amd64/tod.exe.sha256
@@ -131,5 +151,7 @@ stepTemplates:
 
         GOOS=freebsd GOARCH=arm64 go build -o freebsd-arm64/tod
         sha256sum freebsd-arm64/tod | awk '{ print $1 }' > freebsd-arm64/tod.sha256
+    runAs: 0:0
     useTTY: false
-    condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
+    condition: SUCCESSFUL
+    optional: false
