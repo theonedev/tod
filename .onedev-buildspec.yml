@@ -60,6 +60,9 @@ jobs:
 
         git tag v$buildVersion -m "Release tag"
         git push -f origin v$buildVersion:v$buildVersion
+
+        @pause@
+
         git config --global --unset http.extraHeader
 
         git push -f https://robinshine:@secrets:github-token@@@github.com/theonedev/tod v$buildVersion:v$buildVersion
