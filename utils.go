@@ -1,19 +1,14 @@
 package main
 
 import (
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
-	"os"
 	"os/exec"
-	"path/filepath"
-	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/Masterminds/semver"
 )
@@ -41,26 +36,7 @@ func makeAPICall(req *http.Request) ([]byte, error) {
 	return body, nil
 }
 
-func getJSONMapFromAPI(apiURL string) (map[string]interface{}, error) {
-	req, err := http.NewRequest("GET", apiURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %v", err)
-	}
-
-	body, err := makeAPICall(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to make API call: %v", err)
-	}
-
-	var jsonData map[string]interface{}
-	if err := json.Unmarshal(body, &jsonData); err != nil {
-		return nil, fmt.Errorf("failed to parse JSON response: %v", err)
-	}
-
-	return jsonData, nil
-}
-
-func inferProject(workingDir string, logger *log.Logger) (string, string, error) {
+func inferProject(workingDir string) (string, string, error) {
 	_, err := exec.LookPath("git")
 	if err != nil {
 		return "", "", fmt.Errorf("git executable not found in system path")
@@ -76,7 +52,7 @@ func inferProject(workingDir string, logger *log.Logger) (string, string, error)
 		return "", "", fmt.Errorf(prefix + "working directory is not inside a git repository" + suffix)
 	}
 
-	apiURL := config.ServerUrl + "/~api/mcp-helper/get-clone-roots"
+	apiURL := config.ServerUrl + "/~api/tod/get-clone-roots"
 
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
@@ -110,7 +86,6 @@ func inferProject(workingDir string, logger *log.Logger) (string, string, error)
 
 	if len(remotes) == 1 {
 		remote := remotes[0]
-		logger.Printf("Using remote '%s' to infer project", remote)
 
 		cmd = exec.Command("git", "remote", "get-url", remote)
 		cmd.Dir = workingDir
@@ -146,8 +121,6 @@ func inferProject(workingDir string, logger *log.Logger) (string, string, error)
 		}
 
 		if matchesCloneRoot(remoteUrl, httpCloneRoot, sshCloneRoot) {
-			logger.Printf("Using remote '%s' to infer project", remote)
-
 			project, err := extractProjectFromUrl(remoteUrl)
 			if err != nil {
 				return "", "", fmt.Errorf(prefix+"failed to extract project from remote '%s': %v"+suffix, remote, err)
@@ -230,6 +203,19 @@ func extractProjectFromUrl(remoteUrl string) (string, error) {
 	return project, nil
 }
 
+// currentBranch returns the name of the currently checked-out branch in
+// workingDir, or an empty string if the repo is in detached HEAD state.
+func currentBranch(workingDir string) (string, error) {
+	cmd := exec.Command("git", "symbolic-ref", "--short", "HEAD")
+	cmd.Dir = workingDir
+	out, err := cmd.Output()
+	if err != nil {
+		// detached HEAD – not an error in the OS sense, just no branch
+		return "", nil
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
 func hasUncommittedChanges(workingDir string) (bool, error) {
 	cmd := exec.Command("git", "status", "--porcelain")
 	cmd.Dir = workingDir
@@ -242,7 +228,7 @@ func hasUncommittedChanges(workingDir string) (bool, error) {
 }
 
 func checkoutPullRequest(workingDir string, pullRequestReference string, logger *log.Logger) error {
-	remote, project, err := inferProject(workingDir, logger)
+	remote, project, err := inferProject(workingDir)
 	if err != nil {
 		return err
 	}
@@ -252,7 +238,7 @@ func checkoutPullRequest(workingDir string, pullRequestReference string, logger 
 		"reference":      {pullRequestReference},
 	}
 
-	apiURL := config.ServerUrl + "/~api/mcp-helper/get-pull-request?" + urlQuery.Encode()
+	apiURL := config.ServerUrl + "/~api/tod/get-pull-request?" + urlQuery.Encode()
 
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
@@ -390,389 +376,68 @@ func checkResponse(resp *http.Response) error {
 	}
 }
 
-func runJob(currentProject string, jobMap map[string]interface{}) (map[string]interface{}, error) {
-	jobBytes, err := json.Marshal(jobMap)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal map to JSON: %v", err)
-	}
-	jobData := string(jobBytes)
-
-	apiURL := config.ServerUrl + "/~api/mcp-helper/run-job?currentProject=" + url.QueryEscape(currentProject)
-
-	req, err := http.NewRequest("POST", apiURL, strings.NewReader(jobData))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %v", err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-
-	body, err := makeAPICall(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to make API call: %v", err)
-	}
-
-	var build map[string]interface{}
-	if err := json.Unmarshal(body, &build); err != nil {
-		return nil, fmt.Errorf("failed to parse JSON response: %v", err)
-	}
-
-	return build, nil
-}
-
-func runLocalJob(jobName string, workingDir string, params map[string][]string,
-	reason string, logger *log.Logger) (map[string]interface{}, error) {
-
-	_, project, err := inferProject(workingDir, logger)
-	if err != nil {
-		return nil, err
-	}
-
-	gitRoot, err := findGitRoot(workingDir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find git root directory: %v", err)
-	}
-
-	buildSpecFile := filepath.Join(gitRoot, ".onedev-buildspec.yml")
-	if _, err := os.Stat(buildSpecFile); os.IsNotExist(err) {
-		return nil, fmt.Errorf("build spec not found: %v", err)
-	}
-
-	cmd := exec.Command("git", "add", buildSpecFile)
-	cmd.Dir = workingDir
-	logger.Printf("Running command: git add %s\n", buildSpecFile)
-	out, err := cmd.CombinedOutput()
-	logger.Printf("Command output:\n%s", string(out))
-	if err != nil {
-		return nil, fmt.Errorf("failed to add build spec file to git index: %v", err)
-	}
-
-	projectUrl := config.ServerUrl + "/" + project
-
-	cmd = exec.Command("git", "stash", "create")
-	cmd.Dir = workingDir
-
-	logger.Printf("Running command: git stash create\n")
-	out, err = cmd.CombinedOutput()
-	logger.Printf("Command output:\n%s", string(out))
-	if err != nil {
-		return nil, fmt.Errorf("failed to execute git stash create: %v", err)
-	}
-
-	runCommit := strings.TrimSpace(string(out))
-
-	if runCommit == "" {
-		cmd := exec.Command("git", "rev-parse", "HEAD")
-		cmd.Dir = workingDir
-
-		logger.Printf("Running command: git rev-parse HEAD\n")
-		out, err := cmd.CombinedOutput()
-		logger.Printf("Command output:\n%s", string(out))
-		if err != nil {
-			return nil, fmt.Errorf("failed to execute git rev-parse HEAD: %v", err)
-		}
-
-		runCommit = strings.TrimSpace(string(out))
-	}
-
-	cmd = exec.Command("git", "-c", "http.extraHeader=Authorization: Bearer "+config.AccessToken, "push", "-f", projectUrl, runCommit+":refs/onedev/tod")
-	cmd.Dir = workingDir
-
-	logger.Printf("Running command: git push -f %s %s:refs/onedev/tod\n", projectUrl, runCommit)
-	stdoutStderr, err := cmd.CombinedOutput()
-	logger.Printf("Command output:\n%s", string(stdoutStderr))
-	if err != nil {
-		return nil, fmt.Errorf("failed to push local changes: %v", err)
-	}
-
-	jobMap := map[string]interface{}{
-		"commitHash": runCommit,
-		"refName":    "refs/onedev/tod",
-		"jobName":    jobName,
-		"params":     params,
-		"reason":     reason,
-	}
-
-	return runJob(project, jobMap)
-}
-
-func findGitRoot(workingDir string) (string, error) {
-	_, err := exec.LookPath("git")
-	if err != nil {
-		return "", fmt.Errorf("git executable not found in system path")
-	}
-
-	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
-	cmd.Dir = workingDir
-	output, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("not a git working directory: %s", workingDir)
-	}
-
-	gitRoot := strings.TrimSpace(string(output))
-	return gitRoot, nil
-}
-
-func checkBuildSpec(workingDir string, logger *log.Logger) error {
-	_, project, err := inferProject(workingDir, logger)
-	if err != nil {
-		return err
-	}
-
-	gitRoot, err := findGitRoot(workingDir)
-	if err != nil {
-		return fmt.Errorf("failed to find git root directory: %v", err)
-	}
-
-	buildSpecFile := filepath.Join(gitRoot, ".onedev-buildspec.yml")
-	if _, err := os.Stat(buildSpecFile); os.IsNotExist(err) {
-		return fmt.Errorf("build spec not found: %v", err)
-	}
-
-	buildSpecContent, err := os.ReadFile(buildSpecFile)
-	if err != nil {
-		return fmt.Errorf("failed to read build spec: %v", err)
-	}
-
-	apiURL := config.ServerUrl + "/~api/mcp-helper/check-build-spec?project=" + url.QueryEscape(project)
-
-	req, err := http.NewRequest("POST", apiURL, strings.NewReader(string(buildSpecContent)))
-	if err != nil {
-		return fmt.Errorf("failed to create request: %v", err)
-	}
-
-	req.Header.Set("Content-Type", "text/plain")
-
-	body, err := makeAPICall(req)
-	if err != nil {
-		return fmt.Errorf("failed to make API call: %v", err)
-	}
-
-	// Only write the file if the content has changed
-	if string(body) != string(buildSpecContent) {
-		logger.Printf("Writing updated build spec to file: %s", buildSpecFile)
-		err = os.WriteFile(buildSpecFile, body, 0644)
-		if err != nil {
-			return fmt.Errorf("failed to write updated build spec: %v", err)
-		}
-	}
-
-	return nil
+type VersionInfo struct {
+	ServerVersion         string `json:"serverVersion"`
+	MinRequiredTodVersion string `json:"minRequiredTodVersion"`
 }
 
 func checkVersion(serverUrl string, accessToken string) error {
 	client := &http.Client{}
 
-	req, err := http.NewRequest("GET", serverUrl+"/~api/version/compatible-tod-versions", nil)
+	req, err := http.NewRequest("GET", serverUrl+"/~api/tod/check-version", nil)
 	if err != nil {
-		return fmt.Errorf("failed to request compatible versions: %v", err)
+		return fmt.Errorf("failed to check version: %v", err)
 	}
 
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("failed to request compatible versions: %v", err)
+		return fmt.Errorf("failed to check version: %v", err)
 	}
 
 	defer resp.Body.Close()
 
 	err = checkResponse(resp)
 	if err != nil {
-		return fmt.Errorf("failed to request compatible versions: %v", err)
+		return fmt.Errorf("failed to check version: %v", err)
 	}
 
-	var compatibleVersions CompatibleVersions
+	var versionInfo VersionInfo
 
-	err = json.NewDecoder(resp.Body).Decode(&compatibleVersions)
+	err = json.NewDecoder(resp.Body).Decode(&versionInfo)
 	if err != nil {
-		return fmt.Errorf("failed to decode compatible versions response: %v", err)
+		return fmt.Errorf("failed to decode version info response: %v", err)
 	}
 
-	semVer, err := semver.NewVersion(version)
+	todSemVer, err := semver.NewVersion(version)
 	if err != nil {
-		return fmt.Errorf("failed to parse semver: %v", err)
+		return fmt.Errorf("failed to parse tod version %q: %v", version, err)
 	}
 
-	var minVersionSatisfied = true
-
-	if compatibleVersions.MinVersion != "" {
-		minSemVer, err := semver.NewVersion(compatibleVersions.MinVersion)
+	if versionInfo.MinRequiredTodVersion != "" {
+		minTodSemVer, err := semver.NewVersion(versionInfo.MinRequiredTodVersion)
 		if err != nil {
-			return fmt.Errorf("failed to parse semver: %v", err)
+			return fmt.Errorf("failed to parse minimum required tod version %q: %v", versionInfo.MinRequiredTodVersion, err)
 		}
-		if semVer.LessThan(minSemVer) {
-			minVersionSatisfied = false
+		if todSemVer.LessThan(minTodSemVer) {
+			return fmt.Errorf("this server requires tod version >= %s (current: %s), please download a newer tod from https://code.onedev.io/onedev/tod/~builds?query=%%22Job%%22+is+%%22Release%%22+and+successful", versionInfo.MinRequiredTodVersion, version)
 		}
 	}
 
-	var maxVersionSatisfied = true
-
-	if compatibleVersions.MaxVersion != "" {
-		maxSemVer, err := semver.NewVersion(compatibleVersions.MaxVersion)
+	if versionInfo.ServerVersion != "" {
+		serverSemVer, err := semver.NewVersion(versionInfo.ServerVersion)
 		if err != nil {
-			return fmt.Errorf("failed to parse semver: %v", err)
+			return fmt.Errorf("failed to parse server version %q: %v", versionInfo.ServerVersion, err)
 		}
-		if semVer.GreaterThan(maxSemVer) {
-			maxVersionSatisfied = false
-		}
-	}
-
-	if minVersionSatisfied && maxVersionSatisfied {
-		return nil
-	} else if compatibleVersions.MinVersion != "" && compatibleVersions.MaxVersion != "" {
-		return fmt.Errorf("this server requires version >= %s and version <= %s, please download from https://code.onedev.io/onedev/tod/~builds?query=%%22Job%%22+is+%%22Release%%22+and+successful", compatibleVersions.MinVersion, compatibleVersions.MaxVersion)
-	} else if compatibleVersions.MinVersion != "" {
-		return fmt.Errorf("this server requires version >= %s, please download from https://code.onedev.io/onedev/tod/~builds?query=%%22Job%%22+is+%%22Release%%22+and+successful", compatibleVersions.MinVersion)
-	} else {
-		return fmt.Errorf("this server requires version <= %s, please download from https://code.onedev.io/onedev/tod/~builds?query=%%22Job%%22+is+%%22Release%%22+and+successful", compatibleVersions.MaxVersion)
-	}
-}
-
-func streamBuildLog(buildId int, buildNumber int, signalChannel <-chan os.Signal) error {
-	buildFinished := false
-	var mutex sync.Mutex
-	targetUrl, err := url.Parse(config.ServerUrl)
-	if err != nil {
-		return fmt.Errorf("failed to parse server url: %v", err)
-	}
-	targetUrl.Path = fmt.Sprintf("~api/streaming/build-logs/%d", buildId)
-
-	req, err := http.NewRequest("GET", targetUrl.String(), nil)
-	if err != nil {
-		return fmt.Errorf("failed to stream build log: %v", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+config.AccessToken)
-
-	client := http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to stream build log: %v", err)
-	}
-	defer resp.Body.Close()
-
-	err = checkResponse(resp)
-	if err != nil {
-		return fmt.Errorf("failed to stream build log: %v", err)
-	}
-
-	go func() {
-		<-signalChannel
-		mutex.Lock()
-		defer mutex.Unlock()
-		if !buildFinished {
-			fmt.Println("Cancelling build...")
-			client := &http.Client{}
-
-			targetUrl := fmt.Sprintf("%s/~api/job-runs/%d", config.ServerUrl, buildId)
-
-			req, err := http.NewRequest("DELETE", targetUrl, nil)
-			if err != nil {
-				fmt.Fprintln(os.Stderr, "Failed to cancel build:", err)
-				return
-			}
-			req.Header.Set("Authorization", "Bearer "+config.AccessToken)
-
-			resp, err := client.Do(req)
-			if err != nil {
-				fmt.Fprintln(os.Stderr, "Failed to cancel build:", err)
-				return
-			}
-			defer resp.Body.Close()
-
-			err = checkResponse(resp)
-			if err != nil {
-				fmt.Fprintln(os.Stderr, "Failed to cancel build:", err)
-				os.Exit(1)
-			}
-		}
-	}()
-
-	for {
-		var len int32
-		err := binary.Read(resp.Body, binary.BigEndian, &len)
+		minServerSemVer, err := semver.NewVersion(minRequiredServerVersion)
 		if err != nil {
-			return fmt.Errorf("failed to stream build log: %v", err)
+			return fmt.Errorf("failed to parse minimum required server version %q: %v", minRequiredServerVersion, err)
 		}
-
-		if len > 0 {
-			logEntryBytes := make([]byte, len)
-			_, err := io.ReadFull(resp.Body, logEntryBytes)
-			if err != nil {
-				return fmt.Errorf("failed to stream build log: %v", err)
-			}
-
-			var logEntry map[string]interface{}
-			err = json.Unmarshal(logEntryBytes, &logEntry)
-			if err != nil {
-				return fmt.Errorf("failed to decode log entry json: %v", err)
-			}
-
-			line := ""
-			messages := logEntry["messages"].([]interface{})
-			for _, messageNode := range messages {
-				message := messageNode.(map[string]interface{})["text"].(string)
-				styleNode := messageNode.(map[string]interface{})["style"].(map[string]interface{})
-
-				fgColor := styleNode["color"].(string)
-				if fgColor != "fg-default" {
-					message = wrapWithColor(message, fgColor)
-				}
-
-				bgColor := styleNode["backgroundColor"].(string)
-				if bgColor != "bg-default" {
-					message = wrapWithColor(message, bgColor)
-				}
-
-				bold := styleNode["bold"].(bool)
-				if bold {
-					message = wrapWithBold(message)
-				}
-
-				line += message
-			}
-			fmt.Println(line)
-		} else if len < 0 {
-			buildStatusBytes := make([]byte, -len)
-			_, err := io.ReadFull(resp.Body, buildStatusBytes)
-			if err != nil {
-				return fmt.Errorf("failed to read build status: %v", err)
-			}
-
-			buildStatus := string(buildStatusBytes)
-
-			var message = "Build #" + strconv.Itoa(buildNumber) + " is " + strings.ToLower(buildStatus)
-			if buildStatus == "SUCCESSFUL" {
-				mutex.Lock()
-				buildFinished = true
-				mutex.Unlock()
-				fmt.Println(wrapWithBold(wrapWithGreen(message)))
-				break
-			} else if buildStatus == "FAILED" || buildStatus == "CANCELLED" || buildStatus == "TIMED_OUT" {
-				mutex.Lock()
-				buildFinished = true
-				mutex.Unlock()
-				fmt.Println(wrapWithBold(wrapWithRed(message)))
-				break
-			} else {
-				fmt.Println(wrapWithBold(message))
-			}
+		if serverSemVer.LessThan(minServerSemVer) {
+			return fmt.Errorf("this tod requires OneDev server version >= %s (current: %s), please upgrade your OneDev server", minRequiredServerVersion, versionInfo.ServerVersion)
 		}
 	}
+
 	return nil
-}
-
-func wrapWithRed(message string) string {
-	return fmt.Sprintf("\033[31m%s\033[0m", message)
-}
-
-func wrapWithGreen(message string) string {
-	return fmt.Sprintf("\033[32m%s\033[0m", message)
-}
-
-func wrapWithColor(message, color string) string {
-	return fmt.Sprintf("\033[%sm%s\033[0m", color, message)
-}
-
-func wrapWithBold(message string) string {
-	return fmt.Sprintf("\033[1m%s\033[0m", message)
 }
