@@ -20,32 +20,44 @@ type Config struct {
 	AccessToken string
 }
 
-// findConfigFile returns the path to the config file, searching in order:
+// findConfigFile returns the path of the config file. It first searches for
+// an existing file, in order:
 //  1. $XDG_CONFIG_HOME/tod/config (if XDG_CONFIG_HOME is set)
 //  2. ~/.config/tod/config
 //  3. ~/.todconfig (legacy)
+//
+// If none exists, it falls back to the preferred XDG location:
+// $XDG_CONFIG_HOME/tod/config when set, otherwise ~/.config/tod/config. This
+// is also the path `tod config init` writes to by default.
 func findConfigFile() (string, error) {
-	// Try $XDG_CONFIG_HOME/tod/config if explicitly set
-	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get user home directory: %w", err)
+	}
+
+	xdg := os.Getenv("XDG_CONFIG_HOME")
+
+	if xdg != "" {
 		candidate := filepath.Join(xdg, "tod", "config")
 		if _, err := os.Stat(candidate); err == nil {
 			return candidate, nil
 		}
 	}
 
-	// Try ~/.config/tod/config (XDG default)
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("failed to get user home directory: %w", err)
+	xdgDefault := filepath.Join(homeDir, ".config", "tod", "config")
+	if _, err := os.Stat(xdgDefault); err == nil {
+		return xdgDefault, nil
 	}
 
-	candidate := filepath.Join(homeDir, ".config", "tod", "config")
-	if _, err := os.Stat(candidate); err == nil {
-		return candidate, nil
+	legacy := filepath.Join(homeDir, ".todconfig")
+	if _, err := os.Stat(legacy); err == nil {
+		return legacy, nil
 	}
 
-	// Fall back to legacy ~/.todconfig
-	return filepath.Join(homeDir, ".todconfig"), nil
+	if xdg != "" {
+		return filepath.Join(xdg, "tod", "config"), nil
+	}
+	return xdgDefault, nil
 }
 
 // LoadConfig loads common configuration from the config file

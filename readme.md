@@ -1,235 +1,121 @@
 # TOD - TheOneDev CLI Tool
 
-TOD (**T**he**O**ne**D**ev) is a powerful command-line tool for OneDev 13+ that streamlines your development workflow by enabling you to run CI/CD jobs against local changes, set up local working directory to work on pull requests, etc. It also offers a comprehensive Model Context Protocol (MCP) server with tools and prompts, enabling you to interact with OneDev 13+ through AI assistants in an intelligent and natural way.
+TOD (**T**he**O**ne**D**ev) is a powerful command-line tool for OneDev 13+
+that streamlines your development workflow by letting you run CI/CD jobs
+against local changes, check out pull requests into a local working
+directory, query and edit issues/PRs/builds, and drive all of the above from
+AI agents via shipped skill files.
 
 ## Features
 
-- **MCP (Model Context Protocol) server** for AI tool integration
-- **Run CI/CD jobs against local changes** without committing/pushing
-- **Run jobs against specific branches or tags**
-- **Checkout pull requests** locally
-- **Check and migrate build specifications** to the latest version
-- **Real-time log streaming** to console from job execution
-- **Configuration management** via config files
-- **Cross-platform support** (Windows, macOS, Linux)
+- **Query and edit OneDev entities** — issues, pull requests, builds, and
+  packages — directly from the shell.
+- **Run CI/CD jobs against local changes** without committing or pushing
+  (`tod build run-local`).
+- **Run jobs against specific branches or tags** with real-time log streaming
+  (`tod build run`).
+- **Check out pull requests** locally (`tod pr checkout`).
+- **Check and migrate `.onedev-buildspec.yml`** to the latest version
+  (`tod build check-spec`).
+- **Agent skills** under [`skills/`](skills/) that teach Claude Code, Cursor,
+  and other SKILL.md-aware agents to drive OneDev workflows via `tod`.
+- **Cross-platform support** (Windows, macOS, Linux).
 
 ## Installation
 
-To install tod, just put tod binary into your PATH. 
+To install `tod`, put the binary on your `PATH`.
 
-### Download Pre-built Binaries
+### Download pre-built binaries
 
 https://code.onedev.io/onedev/tod/~builds?query=%22Job%22+is+%22Release%22
 
-### Build Binary from Source
+### Build from source
 
-**Requirements:**
-- Go 1.22.1 or higher
+**Requirements:** Go 1.22.1 or higher.
 
-**Steps:**
-1. Clone the repository:
-   ```bash
-   git clone https://code.onedev.io/onedev/tod.git
-   cd tod
-   ```
-
-2. Build the binary:
-   ```bash
-   go build
-   ```
+```bash
+git clone https://code.onedev.io/onedev/tod.git
+cd tod
+go build
+```
 
 ## Configuration
 
-TOD uses a configuration file to store commonly used settings, eliminating the need to specify them repeatedly.
+Run `tod config init` to create or update the config file interactively:
 
-### Config File Location
+```bash
+tod config init
+# OneDev server URL (e.g. https://onedev.example.com): ...
+# OneDev personal access token (input is visible): ...
+```
 
-Create a config file at: `$HOME/.todconfig`
+Or pass everything as flags for non-interactive setups:
 
-### Config File Format
+```bash
+tod config init \
+  --server-url https://onedev.example.com \
+  --access-token your-personal-access-token \
+  --non-interactive
+```
 
-The configuration uses INI format:
+`tod config show` prints the active configuration (with the token redacted),
+and `tod config path` prints the path being used.
+
+The config file is searched at the following locations (first match wins):
+
+1. `$XDG_CONFIG_HOME/tod/config`
+2. `~/.config/tod/config`
+3. `~/.todconfig` (legacy fallback)
+
+It uses INI format and is written with mode `0600`:
 
 ```ini
 server-url=https://onedev.example.com
 access-token=your-personal-access-token
 ```
 
-## Commands
-
-### `mcp` - Start MCP Server
-
-Start the Model Context Protocol server for AI tool integration.
-
-**Syntax:**
-```bash
-tod mcp [OPTIONS]
-```
-
-**Options:**
-- `--log-file <file>` - Specify log file path for debug logging
-
-**Example:**
-```bash
-# Start MCP server
-tod mcp
-
-# Start with debug logging
-tod mcp --log-file /tmp/tod-mcp.log
-```
-
-**For detailed information about available MCP tools and their parameters, see [MCP Documentation](mcp.md).**
-
-
-### `run-local` - Run Jobs Against Local Changes
-
-Run CI/CD jobs against your uncommitted local changes without the commit/push/run/check loop.
-
-**Syntax:**
-```bash
-tod run-local [OPTIONS] <job-name>
-```
-
-**Options:**
-- `--working-dir <dir>` - Specify working directory (defaults to current directory). Working directory is expected to be inside
-   a git repository, with one of the remote pointing to a OneDev project
-- `--param <key=value>` or `-p <key=value>` - Specify job parameters (can be used multiple times)
-
-**Examples:**
-```bash
-# Basic usage
-tod run-local ci
-
-# With parameters
-tod run-local -p database=postgres -p environment=test ci
-
-# Specify working directory
-tod run-local --working-dir /path/to/project ci
-```
-
-**How it works:**
-1. Stashes your local changes
-2. Creates a temporary commit
-3. Pushes to a temporal ref on the server
-4. Runs the specified job
-5. Streams logs back to your terminal
-6. Cancels the job if you press Ctrl+C
-
-### `run` - Run Jobs Against Branches or Tags
-
-Run CI/CD jobs against specific branches or tags in the repository.
-
-**Syntax:**
-```bash
-tod run [OPTIONS] <job-name>
-```
-
-**Options:**
-- `--working-dir <dir>` - Specify working directory (defaults to current directory). Working directory is expected to be inside
-   a git repository, with one of the remote pointing to a OneDev project
-- `--branch <branch>` - Run against specific branch (mutually exclusive with --tag)
-- `--tag <tag>` - Run against specific tag (mutually exclusive with --branch)
-- `--param <key=value>` or `-p <key=value>` - Specify job parameters (can be used multiple times)
-
-**Examples:**
-```bash
-# Run against main branch
-tod run --branch main ci
-
-# Run against a tag
-tod run --tag v1.2.3 release
-
-# Run with parameters
-tod run --branch develop -p environment=staging ci
-```
-
-### `checkout` - Checkout Pull Requests
-
-Checkout pull requests locally for testing and review.
-
-**Syntax:**
-```bash
-tod checkout [OPTIONS] <pull-request-reference>
-```
-
-**Options:**
-- `--working-dir <dir>` - Specify working directory (defaults to current directory). Working directory is expected to be inside
-   a git repository, with one of the remote pointing to a OneDev project
-
-**Example:**
-```bash
-# Checkout pull request #123
-tod checkout 123
-
-# Checkout in specific directory
-tod checkout --working-dir /path/to/project 456
-```
-
-### `check-build-spec` - Check and Migrate Build Specifications
-
-Check your `.onedev-buildspec.yml` file for validity and migrate it to the latest version if needed.
-
-**Syntax:**
-```bash
-tod check-build-spec [OPTIONS]
-```
-
-**Options:**
-- `--working-dir <dir>` - Directory containing build spec file (defaults to current directory). Working directory is expected to be inside a git repository, with one of the remote pointing to a OneDev project
-
-**Example:**
-```bash
-# Check build spec in current directory
-tod check-build-spec
-
-# Check build spec in specific directory
-tod check-build-spec --working-dir /path/to/project
-```
-
-## Usage Examples
-
-### Complete Workflow Example
-
-1. **Set up configuration:**
-   ```bash
-   # Create ~/.todconfig
-   echo "server-url=https://onedev.example.com" > ~/.todconfig
-   echo "access-token=your-token-here" >> ~/.todconfig
-   ```
-
-2. **Test local changes:**
-   ```bash
-   # Run CI against your uncommitted changes
-   cd /path/to/onedev-git-repository
-   tod run-local ci
-   ```
-
-3. **Run against specific branch:**
-   ```bash
-   # Run ci job against the main branch
-   cd /path/to/onedev-git-repository
-   tod run --branch main ci
-   ```
-
-4. **Checkout a pull request:**
-   ```bash
-   # Checkout pull request #123 
-   cd /path/to/onedev-git-repository
-   tod checkout #123
-   ```
-
-### Parameter Usage
+## Quick start
 
 ```bash
-# Multiple parameters of the same key
-tod run-local -p env=test -p env=staging -p db=postgres ci
+# Run CI against your uncommitted changes
+cd /path/to/onedev-git-repository
+tod build run-local ci
+
+# Run ci job against the main branch
+tod build run --branch main ci
+
+# Check out pull request PROJ-123 into the current working directory
+tod pr checkout PROJ-123
+
+# Query open issues assigned to you
+tod issue list --query 'assignee is me and state is "Open"'
+
+# Inspect the most recent failing build for a project
+tod build list --query 'successful is false' --count 1
+tod build show <ref>
+tod build log <ref>
 ```
 
-## Important Notes to Run Local Job
+See [cli.md](cli.md) for the full command reference.
 
-### Nginx Configuration
+## Agent skills
 
-If OneDev is running behind Nginx, configure it to disable HTTP buffering for real-time log streaming:
+TOD ships four tool-agnostic `SKILL.md` files under [`skills/`](skills/) that
+teach AI agents how to drive common OneDev workflows through the CLI:
+
+- `using-tod` — umbrella guide for any OneDev interaction via `tod`
+- `edit-build-spec` — create or edit `.onedev-buildspec.yml`
+- `investigate-build-problems` — debug a failing build
+- `review-pull-request` — perform a structured pull request review
+
+See [skills.md](skills.md) for how to install these into Claude Code, Cursor,
+or any other agent that reads `SKILL.md` files.
+
+## Notes for local CI runs
+
+### Nginx configuration
+
+If OneDev is running behind Nginx, disable HTTP buffering for log streaming:
 
 ```nginx
 location /~api/streaming {
@@ -238,22 +124,30 @@ location /~api/streaming {
 }
 ```
 
-See [OneDev Nginx setup documentation](https://docs.onedev.io/administration-guide/reverse-proxy-setup#nginx) for details.
+See the [OneDev Nginx setup documentation](https://docs.onedev.io/administration-guide/reverse-proxy-setup#nginx)
+for details.
 
-### Security Considerations 
+### Security considerations
 
-If the job accesses job secrets. Make sure the authorization field is cleared to allow all jobs. Set authorization to allow all branches is not sufficient as local change will be pushed to a temporal ref not belonging to any branch
+If the job accesses job secrets, make sure the authorization field is cleared
+to allow all jobs. Setting authorization to allow all branches is not
+sufficient — local changes are pushed to a temporal ref that does not belong
+to any branch.
 
-### Performance Tips
+### Performance tips
 
-1. **Large repositories**: Use appropriate clone depth in checkout steps instead of full history
-2. **External dependencies**: Implement [caching](https://docs.onedev.io/tutorials/cicd/job-cache) for downloads and intermediate files
-3. **Build optimization**: Cache slow-to-generate intermediate files
+1. **Large repositories** — use an appropriate clone depth in checkout steps
+   instead of full history.
+2. **External dependencies** — use
+   [caching](https://docs.onedev.io/tutorials/cicd/job-cache) for downloads
+   and intermediate files.
+3. **Build optimization** — cache slow-to-generate intermediate files.
 
 ## Contributing
 
-TOD is part of the OneDev ecosystem. For contributions, issues, and feature requests, visit the [OneDev project](https://code.onedev.io/onedev/tod).
+TOD is part of the OneDev ecosystem. For contributions, issues, and feature
+requests, visit the [OneDev project](https://code.onedev.io/onedev/tod).
 
 ## License
 
-See [license.txt](license.txt) for license information.
+See [license.txt](license.txt).
