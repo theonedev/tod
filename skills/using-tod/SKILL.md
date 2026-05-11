@@ -17,8 +17,8 @@ their description matches the user's intent.
 ## Prerequisites
 
 - `tod` is installed and on `PATH`.
-- A tod config file (`$XDG_CONFIG_HOME/tod/config`, `~/.config/tod/config`,
-  or the legacy `~/.todconfig`) has `server-url` and `access-token` set. Run
+- A tod config file (`$XDG_CONFIG_HOME/tod/config` or
+  `~/.config/tod/config`) has `server-url` and `access-token` set. Run
   `tod config set` to create one.
 - For commands that operate on the current project, the working directory is
   inside a git repository whose remote points at that OneDev project.

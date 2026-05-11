@@ -1,6 +1,6 @@
 # TOD - TheOneDev CLI Tool
 
-TOD (**T**he**O**ne**D**ev) is a powerful command-line tool for OneDev 13+
+TOD (**T**he**O**ne**D**ev) is a powerful command-line tool for OneDev 15+
 that streamlines your development workflow by letting you run CI/CD jobs
 against local changes, check out pull requests into a local working
 directory, query and edit issues/PRs/builds, and drive all of the above from
@@ -42,8 +42,8 @@ go build
 Run `tod config set` to create or update the config file interactively. Each
 property is prompted for in turn — the current server URL is shown in
 `[brackets]` as a default (press Enter to keep it, or type a new value to
-replace it), and the access-token prompt is always blank (press Enter to keep
-the existing token, or type a new one to replace it):
+replace it), and the access-token prompt is always blank (press Enter to
+keep the existing token, or type a new one to replace it):
 
 ```bash
 tod config set
@@ -51,26 +51,23 @@ tod config set
 # OneDev personal access token (press Enter to keep existing): ...
 ```
 
-Or pass everything as flags for non-interactive setups:
+For scripts and other non-interactive setups, pass the property name and
+value positionally to update one property at a time without prompts:
 
 ```bash
-tod config set \
-  --server-url https://onedev.example.com \
-  --access-token your-personal-access-token \
-  --non-interactive
+tod config set server-url https://onedev.example.com
+tod config set access-token your-personal-access-token
 ```
 
-`tod config get` prints the active configuration (with the token redacted),
-`tod config get <property name>` prints a single property, and
-`tod config set <property name> <property value>` updates one property.
-Property names are `server-url` and `access-token`. `tod config path` prints
-the path being used.
+`tod config get` prints the active configuration (with the token redacted)
+and `tod config get <property name>` prints a single property. Property
+names are `server-url` and `access-token`. `tod config path` prints the
+path being used.
 
 The config file is searched at the following locations (first match wins):
 
 1. `$XDG_CONFIG_HOME/tod/config`
 2. `~/.config/tod/config`
-3. `~/.todconfig` (legacy fallback)
 
 It uses INI format and is written with mode `0600`:
 
@@ -82,7 +79,7 @@ access-token=your-personal-access-token
 ## Quick start
 
 ```bash
-# Run CI against your uncommitted changes
+# Run CI job against your uncommitted changes
 cd /path/to/onedev-git-repository
 tod build run --local ci
 
@@ -105,16 +102,22 @@ See [cli.md](cli.md) for the full command reference.
 
 ## Agent skills
 
-TOD ships four tool-agnostic `SKILL.md` files under [`skills/`](skills/) that
+TOD ships seven tool-agnostic `SKILL.md` files under [`skills/`](skills/) that
 teach AI agents how to drive common OneDev workflows through the CLI:
 
 - `using-tod` — umbrella guide for any OneDev interaction via `tod`
 - `edit-build-spec` — create or edit `.onedev-buildspec.yml`
-- `investigate-build-problems` — debug a failing build
+- `investigate-build-failure` — debug a failing build
 - `review-pull-request` — perform a structured pull request review
+- `generate-commit-message` — compose a commit message that respects the
+  project's commit-message requirement and the active issue
+- `work-on-issue` — create the issue branch on the server, switch the local
+  checkout to it, and read the issue to understand what to do
+- `submit-work` — commit pending changes, push the issue branch, and open a
+  pull request summarizing the work
 
-See [skills.md](skills.md) for how to install these into Claude Code, Cursor,
-or any other agent that reads `SKILL.md` files.
+See [skills/README.md](skills/README.md) for how to install these into Claude
+Code, Codex, Cursor, or any other agent that reads `SKILL.md` files.
 
 ## Notes for local CI runs
 

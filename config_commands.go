@@ -31,18 +31,16 @@ press Enter to keep it, or type a new value to replace it. The access token
 prompt is always blank for security; press Enter on an empty line to keep
 the existing token, or type a new one to replace it.
 
-If --server-url or --access-token is passed, the value from the flag is used
-without prompting. With --non-interactive, no prompts are shown and any
-missing value causes an error.
-
-To update a single property, pass the property name and value:
+To update a single property without prompts (for scripts), pass the
+property name and value positionally:
 
   tod config set server-url https://onedev.example.com
   tod config set access-token your-personal-access-token
 
-The default destination is the first existing file in the standard search
-order ($XDG_CONFIG_HOME/tod/config, ~/.config/tod/config, ~/.todconfig). If
-none exists, ~/.config/tod/config is created. Override with --path.`,
+The config file is written to the first existing file in the standard
+search order ($XDG_CONFIG_HOME/tod/config, ~/.config/tod/config). If
+neither exists, ~/.config/tod/config (or $XDG_CONFIG_HOME/tod/config when
+set) is created.`,
 	Args: func(cmd *cobra.Command, args []string) error {
 		if len(args) == 0 {
 			return nil
@@ -54,15 +52,15 @@ none exists, ~/.config/tod/config is created. Override with --path.`,
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if len(args) == 2 {
-			return setConfigProperty(cmd, args[0], args[1])
+			return setConfigProperty(args[0], args[1])
 		}
-		return setFullConfig(cmd)
+		return setFullConfig()
 	},
 }
 
 var configGetCmd = &cobra.Command{
 	Use:   "get [server-url|access-token]",
-	Short: "Print the active configuration (access token redacted by default)",
+	Short: "Print the active configuration (access token is always redacted)",
 	Args: func(cmd *cobra.Command, args []string) error {
 		if len(args) > 1 {
 			return fmt.Errorf("accepts at most 1 argument: property name")
@@ -73,22 +71,20 @@ var configGetCmd = &cobra.Command{
 		return nil
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		showToken, _ := cmd.Flags().GetBool("show-token")
-
 		c, err := LoadConfig()
 		if err != nil {
 			return err
 		}
 
 		if len(args) == 1 {
-			fmt.Println(configPropertyValue(c, args[0], showToken))
+			fmt.Println(configPropertyValue(c, args[0]))
 			return nil
 		}
 
 		path, _ := findConfigFile()
 		fmt.Fprintf(os.Stderr, "# config file: %s\n", path)
 		fmt.Printf("%s=%s\n", serverUrlKey, c.ServerUrl)
-		fmt.Printf("%s=%s\n", accessTokenKey, configPropertyValue(c, accessTokenKey, showToken))
+		fmt.Printf("%s=%s\n", accessTokenKey, configPropertyValue(c, accessTokenKey))
 		return nil
 	},
 }
@@ -116,18 +112,10 @@ func promptValue(reader *bufio.Reader, prompt string) (string, error) {
 	return strings.TrimSpace(line), nil
 }
 
-func setFullConfig(cmd *cobra.Command) error {
-	serverUrlFlag, _ := cmd.Flags().GetString("server-url")
-	accessTokenFlag, _ := cmd.Flags().GetString("access-token")
-	targetPath, _ := cmd.Flags().GetString("path")
-	nonInteractive, _ := cmd.Flags().GetBool("non-interactive")
-
-	if targetPath == "" {
-		path, err := findConfigFile()
-		if err != nil {
-			return err
-		}
-		targetPath = path
+func setFullConfig() error {
+	targetPath, err := findConfigFile()
+	if err != nil {
+		return err
 	}
 
 	existing, err := loadConfigFile(targetPath)
@@ -135,69 +123,40 @@ func setFullConfig(cmd *cobra.Command) error {
 		return err
 	}
 
-	serverUrl := serverUrlFlag
-	if serverUrl == "" {
-		serverUrl = existing.ServerUrl
-	}
-	accessToken := accessTokenFlag
-	if accessToken == "" {
-		accessToken = existing.AccessToken
-	}
+	serverUrl := existing.ServerUrl
+	accessToken := existing.AccessToken
 
 	reader := bufio.NewReader(os.Stdin)
 
-	// Prompt for server URL unless --server-url was passed explicitly. In
-	// interactive mode, always prompt — pre-filling the existing value as a
-	// default in square brackets so the user can keep it by pressing Enter.
-	if serverUrlFlag == "" {
-		if nonInteractive {
-			if serverUrl == "" {
-				return fmt.Errorf("--server-url is required in non-interactive mode")
-			}
-		} else {
-			var prompt string
-			if serverUrl != "" {
-				prompt = fmt.Sprintf("OneDev server URL [%s]: ", serverUrl)
-			} else {
-				prompt = "OneDev server URL (e.g. https://onedev.example.com): "
-			}
-			value, err := promptValue(reader, prompt)
-			if err != nil {
-				return err
-			}
-			if value != "" {
-				serverUrl = value
-			}
-		}
+	var prompt string
+	if serverUrl != "" {
+		prompt = fmt.Sprintf("OneDev server URL [%s]: ", serverUrl)
+	} else {
+		prompt = "OneDev server URL (e.g. https://onedev.example.com): "
+	}
+	value, err := promptValue(reader, prompt)
+	if err != nil {
+		return err
+	}
+	if value != "" {
+		serverUrl = value
 	}
 	serverUrl, err = normalizeConfigProperty(serverUrlKey, serverUrl)
 	if err != nil {
 		return err
 	}
 
-	// Prompt for access token unless --access-token was passed explicitly. The
-	// prompt is always blank — never echo the existing token. Pressing Enter
-	// on an empty line keeps the existing value when one is present.
-	if accessTokenFlag == "" {
-		if nonInteractive {
-			if accessToken == "" {
-				return fmt.Errorf("--access-token is required in non-interactive mode")
-			}
-		} else {
-			var prompt string
-			if accessToken != "" {
-				prompt = "OneDev personal access token (press Enter to keep existing): "
-			} else {
-				prompt = "OneDev personal access token (input is visible): "
-			}
-			value, err := promptValue(reader, prompt)
-			if err != nil {
-				return err
-			}
-			if value != "" {
-				accessToken = value
-			}
-		}
+	if accessToken != "" {
+		prompt = "OneDev personal access token (press Enter to keep existing): "
+	} else {
+		prompt = "OneDev personal access token (input is visible): "
+	}
+	value, err = promptValue(reader, prompt)
+	if err != nil {
+		return err
+	}
+	if value != "" {
+		accessToken = value
 	}
 	accessToken, err = normalizeConfigProperty(accessTokenKey, accessToken)
 	if err != nil {
@@ -224,14 +183,10 @@ func setFullConfig(cmd *cobra.Command) error {
 	return nil
 }
 
-func setConfigProperty(cmd *cobra.Command, propertyName, propertyValue string) error {
-	targetPath, _ := cmd.Flags().GetString("path")
-	if targetPath == "" {
-		path, err := findConfigFile()
-		if err != nil {
-			return err
-		}
-		targetPath = path
+func setConfigProperty(propertyName, propertyValue string) error {
+	targetPath, err := findConfigFile()
+	if err != nil {
+		return err
 	}
 
 	config, err := loadConfigFile(targetPath)
@@ -301,14 +256,11 @@ func normalizeConfigProperty(propertyName, propertyValue string) (string, error)
 	return value, nil
 }
 
-func configPropertyValue(config *Config, propertyName string, showToken bool) string {
+func configPropertyValue(config *Config, propertyName string) string {
 	switch propertyName {
 	case serverUrlKey:
 		return config.ServerUrl
 	case accessTokenKey:
-		if showToken {
-			return config.AccessToken
-		}
 		return redactToken(config.AccessToken)
 	default:
 		return ""
@@ -326,12 +278,5 @@ func redactToken(token string) string {
 }
 
 func initConfigCommands() {
-	configSetCmd.Flags().String("server-url", "", "OneDev server URL (e.g. https://onedev.example.com)")
-	configSetCmd.Flags().String("access-token", "", "OneDev personal access token")
-	configSetCmd.Flags().String("path", "", "Path of config file to write (defaults to existing file or ~/.config/tod/config)")
-	configSetCmd.Flags().Bool("non-interactive", false, "Fail instead of prompting when a value is missing")
-
-	configGetCmd.Flags().Bool("show-token", false, "Print the access token in plain text instead of redacting it")
-
 	configCmd.AddCommand(configSetCmd, configGetCmd, configPathCmd)
 }

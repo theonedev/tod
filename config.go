@@ -34,10 +34,7 @@ func allConfigFilePaths() []string {
 	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
 		paths = append(paths, filepath.Join(xdg, "tod", "config"))
 	}
-	paths = append(paths,
-		filepath.Join(homeDir, ".config", "tod", "config"),
-		filepath.Join(homeDir, ".todconfig"),
-	)
+	paths = append(paths, filepath.Join(homeDir, ".config", "tod", "config"))
 	return paths
 }
 
@@ -45,7 +42,6 @@ func allConfigFilePaths() []string {
 // an existing file, in order:
 //  1. $XDG_CONFIG_HOME/tod/config (if XDG_CONFIG_HOME is set)
 //  2. ~/.config/tod/config
-//  3. ~/.todconfig (legacy)
 //
 // If none exists, it falls back to the preferred XDG location:
 // $XDG_CONFIG_HOME/tod/config when set, otherwise ~/.config/tod/config. This
@@ -68,11 +64,6 @@ func findConfigFile() (string, error) {
 	xdgDefault := filepath.Join(homeDir, ".config", "tod", "config")
 	if _, err := os.Stat(xdgDefault); err == nil {
 		return xdgDefault, nil
-	}
-
-	legacy := filepath.Join(homeDir, ".todconfig")
-	if _, err := os.Stat(legacy); err == nil {
-		return legacy, nil
 	}
 
 	if xdg != "" {

@@ -3,11 +3,11 @@
 Every `tod` subcommand writes the raw OneDev server response to stdout (same
 payload the old MCP server returned in `ToolContent.Text`) and logs progress
 to stderr. Commands that need to talk to OneDev require a config file with
-`server-url` and `access-token` set — `$XDG_CONFIG_HOME/tod/config`,
-`~/.config/tod/config`, or the legacy `~/.todconfig` (run `tod config set` to
-create one). Commands that interact with the current project also expect the
-working directory to be inside a git repository whose remote points at that
-project (override with `--working-dir`).
+`server-url` and `access-token` set — `$XDG_CONFIG_HOME/tod/config` or
+`~/.config/tod/config` (run `tod config set` to create one). Commands that
+interact with the current project also expect the working directory to be
+inside a git repository whose remote points at that project (override with
+`--working-dir`).
 
 Top-level groups:
 
@@ -104,10 +104,10 @@ These commands run even when the config file is missing or invalid.
 
 | Command | Description |
 |---------|-------------|
-| `tod config set` | Create or update the config file. Flags: `--server-url`, `--access-token`, `--path`, `--non-interactive`. Each property is prompted for in turn: the current server URL is shown in `[brackets]` as a default (press Enter to keep, or type to replace), and the access-token prompt is always blank (press Enter to keep the existing token, or type a new one). Flags bypass the prompt for that property. With `--non-interactive`, no prompts are shown and any missing value errors out. The file is written with mode `0600` to `$XDG_CONFIG_HOME/tod/config`, `~/.config/tod/config`, `~/.todconfig` (whichever already exists), or `~/.config/tod/config` if none. |
+| `tod config set` | Create or update the config file interactively. You are prompted for each property in turn: the current server URL is shown in `[brackets]` as a default (press Enter to keep, or type to replace), and the access-token prompt is always blank (press Enter to keep the existing token, or type a new one). For non-interactive single-property updates, use `tod config set <property name> <property value>`. The file is written with mode `0600` to whichever of `$XDG_CONFIG_HOME/tod/config` or `~/.config/tod/config` already exists, otherwise to `~/.config/tod/config` (or `$XDG_CONFIG_HOME/tod/config` when set). |
 | `tod config set <property name> <property value>` | Set one config property. Property name must be `server-url` or `access-token`. |
-| `tod config get [property name]` | Print the active configuration or one config property. The access token is redacted unless `--show-token` is given. |
-| `tod config path` | Print the path of the config file (the first match in the search order, or the legacy `~/.todconfig` fallback if no file exists yet). |
+| `tod config get [property name]` | Print the active configuration or one config property. The access token is always redacted. |
+| `tod config path` | Print the path of the config file (the first match in the search order, or the default destination if no file exists yet). |
 
 ## Miscellaneous
 
