@@ -38,6 +38,11 @@ jobs:
     artifacts: '**/tod* -tod.gif'
     condition: SUCCESSFUL
     optional: false
+  - type: PublishSiteStep
+    name: publish site
+    artifacts: '**/tod* -tod.gif'
+    condition: SUCCESSFUL
+    optional: false
   - type: CommandStep
     name: publish GH release
     runInContainer: true
