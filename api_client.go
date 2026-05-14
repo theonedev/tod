@@ -16,7 +16,7 @@ const (
 )
 
 // getEntityData fetches a single entity (issue, PR, build, etc.) from an
-// `/~api/tod/<endpointSuffix>` endpoint, passing the reference and
+// `/~api/mcp-helper/<endpointSuffix>` endpoint, passing the reference and
 // current project as query parameters.
 func getEntityData(endpointSuffix, reference, currentProject string) ([]byte, error) {
 	query := url.Values{
@@ -27,7 +27,7 @@ func getEntityData(endpointSuffix, reference, currentProject string) ([]byte, er
 }
 
 // queryEntities runs a paginated query against an
-// `/~api/tod/<endpointSuffix>` endpoint (query-issues, query-pull-requests, etc.).
+// `/~api/mcp-helper/<endpointSuffix>` endpoint (query-issues, query-pull-requests, etc.).
 func queryEntities(endpointSuffix, project, currentProject, query string, offset, count int) ([]byte, error) {
 	q := url.Values{
 		"project":        {project},
@@ -40,13 +40,13 @@ func queryEntities(endpointSuffix, project, currentProject, query string, offset
 }
 
 // postJSON sends a POST request with a JSON body to an
-// `/~api/tod/<endpointSuffix>` endpoint and returns the raw response.
+// `/~api/mcp-helper/<endpointSuffix>` endpoint and returns the raw response.
 func postJSON(endpointSuffix string, query url.Values, payload interface{}) ([]byte, error) {
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal payload: %v", err)
 	}
-	apiURL := config.ServerUrl + "/~api/tod/" + endpointSuffix
+	apiURL := config.ServerUrl + "/~api/mcp-helper/" + endpointSuffix
 	if len(query) > 0 {
 		apiURL += "?" + query.Encode()
 	}
@@ -59,9 +59,9 @@ func postJSON(endpointSuffix string, query url.Values, payload interface{}) ([]b
 }
 
 // postText sends a POST request with a text/plain body to an
-// `/~api/tod/<endpointSuffix>` endpoint and returns the raw response.
+// `/~api/mcp-helper/<endpointSuffix>` endpoint and returns the raw response.
 func postText(endpointSuffix string, query url.Values, body string) ([]byte, error) {
-	apiURL := config.ServerUrl + "/~api/tod/" + endpointSuffix
+	apiURL := config.ServerUrl + "/~api/mcp-helper/" + endpointSuffix
 	if len(query) > 0 {
 		apiURL += "?" + query.Encode()
 	}
@@ -75,7 +75,7 @@ func postText(endpointSuffix string, query url.Values, body string) ([]byte, err
 
 // apiGetBytes performs an authenticated GET against a tod endpoint.
 func apiGetBytes(endpointSuffix string, query url.Values) ([]byte, error) {
-	apiURL := config.ServerUrl + "/~api/tod/" + endpointSuffix
+	apiURL := config.ServerUrl + "/~api/mcp-helper/" + endpointSuffix
 	if len(query) > 0 {
 		apiURL += "?" + query.Encode()
 	}
@@ -90,7 +90,7 @@ func apiGetBytes(endpointSuffix string, query url.Values) ([]byte, error) {
 // request body. Use this for state-changing endpoints whose inputs all fit in
 // query parameters.
 func apiPostBytes(endpointSuffix string, query url.Values) ([]byte, error) {
-	apiURL := config.ServerUrl + "/~api/tod/" + endpointSuffix
+	apiURL := config.ServerUrl + "/~api/mcp-helper/" + endpointSuffix
 	if len(query) > 0 {
 		apiURL += "?" + query.Encode()
 	}

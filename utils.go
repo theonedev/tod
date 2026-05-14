@@ -52,7 +52,7 @@ func inferProject(workingDir string) (string, string, error) {
 		return "", "", fmt.Errorf(prefix + "working directory is not inside a git repository" + suffix)
 	}
 
-	apiURL := config.ServerUrl + "/~api/tod/get-clone-roots"
+	apiURL := config.ServerUrl + "/~api/mcp-helper/get-clone-roots"
 
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
@@ -238,7 +238,7 @@ func checkoutPullRequest(workingDir string, pullRequestReference string, logger 
 		"reference":      {pullRequestReference},
 	}
 
-	apiURL := config.ServerUrl + "/~api/tod/get-pull-request?" + urlQuery.Encode()
+	apiURL := config.ServerUrl + "/~api/mcp-helper/get-pull-request?" + urlQuery.Encode()
 
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
@@ -376,38 +376,38 @@ func checkResponse(resp *http.Response) error {
 	}
 }
 
-type VersionInfo struct {
-	ServerVersion         string `json:"serverVersion"`
-	MinRequiredTodVersion string `json:"minRequiredTodVersion"`
+type CompatibleVersions struct {
+	MinVersion string `json:"minVersion"`
+	MaxVersion string `json:"maxVersion"`
 }
 
 func checkVersion(serverUrl string, accessToken string) error {
 	client := &http.Client{}
 
-	req, err := http.NewRequest("GET", serverUrl+"/~api/tod/check-version", nil)
+	req, err := http.NewRequest("GET", serverUrl+"/~api/version/compatible-tod-versions", nil)
 	if err != nil {
-		return fmt.Errorf("failed to check version: %v", err)
+		return fmt.Errorf("failed to request compatible versions: %v", err)
 	}
 
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("failed to check version: %v", err)
+		return fmt.Errorf("failed to request compatible versions: %v", err)
 	}
 
 	defer resp.Body.Close()
 
 	err = checkResponse(resp)
 	if err != nil {
-		return fmt.Errorf("failed to check version: %v", err)
+		return fmt.Errorf("failed to request compatible versions: %v", err)
 	}
 
-	var versionInfo VersionInfo
+	var compatibleVersions CompatibleVersions
 
-	err = json.NewDecoder(resp.Body).Decode(&versionInfo)
+	err = json.NewDecoder(resp.Body).Decode(&compatibleVersions)
 	if err != nil {
-		return fmt.Errorf("failed to decode version info response: %v", err)
+		return fmt.Errorf("failed to decode compatible versions response: %v", err)
 	}
 
 	todSemVer, err := semver.NewVersion(version)
@@ -415,27 +415,23 @@ func checkVersion(serverUrl string, accessToken string) error {
 		return fmt.Errorf("failed to parse tod version %q: %v", version, err)
 	}
 
-	if versionInfo.MinRequiredTodVersion != "" {
-		minTodSemVer, err := semver.NewVersion(versionInfo.MinRequiredTodVersion)
+	if compatibleVersions.MinVersion != "" {
+		minSemVer, err := semver.NewVersion(compatibleVersions.MinVersion)
 		if err != nil {
-			return fmt.Errorf("failed to parse minimum required tod version %q: %v", versionInfo.MinRequiredTodVersion, err)
+			return fmt.Errorf("failed to parse compatible min version %q: %v", compatibleVersions.MinVersion, err)
 		}
-		if todSemVer.LessThan(minTodSemVer) {
-			return fmt.Errorf("this server requires tod version >= %s (current: %s), please download a newer tod from https://code.onedev.io/onedev/tod/~builds?query=%%22Job%%22+is+%%22Release%%22+and+successful", versionInfo.MinRequiredTodVersion, version)
+		if todSemVer.LessThan(minSemVer) {
+			return fmt.Errorf("this server requires tod version >= %s (current: %s), please download a newer tod from https://code.onedev.io/onedev/tod/~builds?query=%%22Job%%22+is+%%22Release%%22+and+successful", compatibleVersions.MinVersion, version)
 		}
 	}
 
-	if versionInfo.ServerVersion != "" {
-		serverSemVer, err := semver.NewVersion(versionInfo.ServerVersion)
+	if compatibleVersions.MaxVersion != "" {
+		maxSemVer, err := semver.NewVersion(compatibleVersions.MaxVersion)
 		if err != nil {
-			return fmt.Errorf("failed to parse server version %q: %v", versionInfo.ServerVersion, err)
+			return fmt.Errorf("failed to parse compatible max version %q: %v", compatibleVersions.MaxVersion, err)
 		}
-		minServerSemVer, err := semver.NewVersion(minRequiredServerVersion)
-		if err != nil {
-			return fmt.Errorf("failed to parse minimum required server version %q: %v", minRequiredServerVersion, err)
-		}
-		if serverSemVer.LessThan(minServerSemVer) {
-			return fmt.Errorf("this tod requires OneDev server version >= %s (current: %s), please upgrade your OneDev server", minRequiredServerVersion, versionInfo.ServerVersion)
+		if todSemVer.GreaterThan(maxSemVer) {
+			return fmt.Errorf("this server requires tod version <= %s (current: %s), please download an older tod from https://code.onedev.io/onedev/tod/~builds?query=%%22Job%%22+is+%%22Release%%22+and+successful", compatibleVersions.MaxVersion, version)
 		}
 	}
 

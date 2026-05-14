@@ -9,8 +9,6 @@ import (
 
 const version = "3.0.0"
 
-const minRequiredServerVersion = "15.1.0"
-
 var config *Config
 
 var rootCmd = &cobra.Command{
