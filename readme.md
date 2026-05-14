@@ -93,7 +93,7 @@ tod pr checkout PROJ-123
 tod issue list --query 'assignee is me and state is "Open"'
 
 # Inspect the most recent failing build for a project
-tod build list --query 'successful is false' --count 1
+tod build list --query 'not(successful)' --count 1
 tod build get <ref>
 tod build get-log <ref>
 ```
