@@ -72,9 +72,10 @@ var prGetCommentsCmd = &cobra.Command{
 }
 
 var prGetCodeCommentsCmd = &cobra.Command{
-	Use:   "get-code-comments <pr-reference>",
-	Short: "Get code comments of a pull request",
-	Args:  cobra.ExactArgs(1),
+	Use: "get-code-comments <pr-reference>",
+	Short: "Get line-anchored code comments on the pull request in json format. " +
+		"Each item includes id, filePath, startLine, endLine (1-based on the PR head), user, date, content, resolved, and replies.",
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		currentProject, err := currentProjectFor(cmd)
 		if err != nil {
