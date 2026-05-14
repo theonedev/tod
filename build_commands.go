@@ -196,7 +196,7 @@ var buildGetQueryDescriptionCmd = &cobra.Command{
 set of supported field/criteria keys, etc.).
 
 The description is fetched from the OneDev server endpoint
-get-build-query-description, which returns the canonical build
+/~api/tod/get-build-query-description, which returns the canonical build
 query syntax reference for this server.`,
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {

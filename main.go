@@ -13,7 +13,7 @@ var config *Config
 
 var rootCmd = &cobra.Command{
 	Use:   "tod",
-	Short: "TOD (TheOneDev) is a command line tool for OneDev 13+",
+	Short: "TOD (TheOneDev) is a command line tool for OneDev 15+",
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		var err error
 		config, err = LoadConfig()

@@ -8,11 +8,6 @@ import (
 	"strings"
 )
 
-// apiPrefix is the URL path prefix for OneDev API endpoints used by tod.
-// Defaults to /~api/tod/ (OneDev 15.1.0+) and falls back to /~api/mcp-helper/
-// if the server doesn't support the new prefix. The trailing slash is included.
-var apiPrefix = "/~api/tod/"
-
 const (
 	// DefaultQueryCount is the default page size for list endpoints.
 	DefaultQueryCount = 25
@@ -20,8 +15,14 @@ const (
 	MaxQueryCount = 100
 )
 
-// getEntityData fetches a single entity (issue, PR, build, etc.) from an API
-// endpoint, passing the reference and current project as query parameters.
+// apiPrefix is the URL path prefix for OneDev API endpoints used by tod.
+// Defaults to /~api/tod/ (OneDev 15.1.0+) and falls back to /~api/mcp-helper/
+// if the server doesn't support the new prefix. The trailing slash is included.
+var apiPrefix = "/~api/tod/"
+
+// getEntityData fetches a single entity (issue, PR, build, etc.) from an
+// `/~api/tod/<endpointSuffix>` endpoint, passing the reference and
+// current project as query parameters.
 func getEntityData(endpointSuffix, reference, currentProject string) ([]byte, error) {
 	query := url.Values{
 		"currentProject": {currentProject},
@@ -30,8 +31,8 @@ func getEntityData(endpointSuffix, reference, currentProject string) ([]byte, er
 	return apiGetBytes(endpointSuffix, query)
 }
 
-// queryEntities runs a paginated query against an API endpoint
-// (query-issues, query-pull-requests, etc.).
+// queryEntities runs a paginated query against an
+// `/~api/tod/<endpointSuffix>` endpoint (query-issues, query-pull-requests, etc.).
 func queryEntities(endpointSuffix, project, currentProject, query string, offset, count int) ([]byte, error) {
 	q := url.Values{
 		"project":        {project},
@@ -43,8 +44,8 @@ func queryEntities(endpointSuffix, project, currentProject, query string, offset
 	return apiGetBytes(endpointSuffix, q)
 }
 
-// postJSON sends a POST request with a JSON body to an API endpoint
-// and returns the raw response.
+// postJSON sends a POST request with a JSON body to an
+// `/~api/tod/<endpointSuffix>` endpoint and returns the raw response.
 func postJSON(endpointSuffix string, query url.Values, payload interface{}) ([]byte, error) {
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -62,8 +63,8 @@ func postJSON(endpointSuffix string, query url.Values, payload interface{}) ([]b
 	return makeAPICall(req)
 }
 
-// postText sends a POST request with a text/plain body to an API endpoint
-// and returns the raw response.
+// postText sends a POST request with a text/plain body to an
+// `/~api/tod/<endpointSuffix>` endpoint and returns the raw response.
 func postText(endpointSuffix string, query url.Values, body string) ([]byte, error) {
 	apiURL := config.ServerUrl + apiPrefix + endpointSuffix
 	if len(query) > 0 {

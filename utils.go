@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -12,6 +13,18 @@ import (
 
 	"github.com/Masterminds/semver"
 )
+
+var errEndpointNotFound = errors.New("endpoint not found")
+
+type VersionInfo struct {
+	ServerVersion         string `json:"serverVersion"`
+	MinRequiredTodVersion string `json:"minRequiredTodVersion"`
+}
+
+type CompatibleVersions struct {
+	MinVersion string `json:"minVersion"`
+	MaxVersion string `json:"maxVersion"`
+}
 
 func makeAPICall(req *http.Request) ([]byte, error) {
 	req.Header.Set("Authorization", "Bearer "+config.AccessToken)
@@ -382,7 +395,7 @@ func checkVersion(serverUrl string, accessToken string) error {
 	// Try /~api/tod/check-version (OneDev 15.1.0+)
 	if err := checkVersionNew(client, serverUrl, accessToken); err == nil {
 		return nil
-	} else if !strings.Contains(err.Error(), "404") {
+	} else if !errors.Is(err, errEndpointNotFound) {
 		return err
 	}
 
@@ -392,22 +405,25 @@ func checkVersion(serverUrl string, accessToken string) error {
 }
 
 func checkVersionNew(client *http.Client, serverUrl, accessToken string) error {
-	req, _ := http.NewRequest("GET", serverUrl+"/~api/tod/check-version", nil)
+	req, err := http.NewRequest("GET", serverUrl+"/~api/tod/check-version", nil)
+	if err != nil {
+		return fmt.Errorf("failed to check version: %v", err)
+	}
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to check version: %v", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("failed to check version: HTTP %d %s", resp.StatusCode, string(body))
+
+	if resp.StatusCode == http.StatusNotFound {
+		return errEndpointNotFound
+	}
+	if err := checkResponse(resp); err != nil {
+		return fmt.Errorf("failed to check version: %v", err)
 	}
 
-	var info struct {
-		ServerVersion         string `json:"serverVersion"`
-		MinRequiredTodVersion string `json:"minRequiredTodVersion"`
-	}
+	var info VersionInfo
 	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
 		return fmt.Errorf("failed to decode version info: %v", err)
 	}
@@ -430,22 +446,22 @@ func checkVersionNew(client *http.Client, serverUrl, accessToken string) error {
 }
 
 func checkVersionOld(client *http.Client, serverUrl, accessToken string) error {
-	req, _ := http.NewRequest("GET", serverUrl+"/~api/version/compatible-tod-versions", nil)
+	req, err := http.NewRequest("GET", serverUrl+"/~api/version/compatible-tod-versions", nil)
+	if err != nil {
+		return fmt.Errorf("failed to request compatible versions: %v", err)
+	}
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to request compatible versions: %v", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("failed to request compatible versions: HTTP %d %s", resp.StatusCode, string(body))
+
+	if err := checkResponse(resp); err != nil {
+		return fmt.Errorf("failed to request compatible versions: %v", err)
 	}
 
-	var compat struct {
-		MinVersion string `json:"minVersion"`
-		MaxVersion string `json:"maxVersion"`
-	}
+	var compat CompatibleVersions
 	if err := json.NewDecoder(resp.Body).Decode(&compat); err != nil {
 		return fmt.Errorf("failed to decode compatible versions: %v", err)
 	}
