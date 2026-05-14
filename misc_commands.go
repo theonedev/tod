@@ -58,7 +58,7 @@ discover which label names are accepted by --label when running
 'tod pr create'.
 
 The list is fetched from the OneDev server endpoint
-/~api/mcp-helper/get-valid-labels.`,
+get-valid-labels.`,
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		body, err := apiGetBytes("get-valid-labels", nil)

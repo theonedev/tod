@@ -267,7 +267,7 @@ var issueGetQueryDescriptionCmd = &cobra.Command{
 set of supported field/criteria keys, etc.).
 
 The description is fetched from the OneDev server endpoint
-/~api/mcp-helper/get-issue-query-description, which returns the canonical issue
+get-issue-query-description, which returns the canonical issue
 query syntax reference for this server.`,
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -289,7 +289,7 @@ accepted by --field when running 'tod issue create', 'tod issue edit', or
 'tod issue change-state'.
 
 The description is fetched from the OneDev server endpoint
-/~api/mcp-helper/get-valid-issue-fields.`,
+get-valid-issue-fields.`,
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		body, err := apiGetBytes("get-valid-issue-fields", nil)
@@ -309,7 +309,7 @@ discover which link names are accepted by --link-name when running
 'tod issue link'.
 
 The description is fetched from the OneDev server endpoint
-/~api/mcp-helper/get-valid-issue-links.`,
+get-valid-issue-links.`,
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		body, err := apiGetBytes("get-valid-issue-links", nil)

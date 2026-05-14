@@ -196,7 +196,7 @@ var buildGetQueryDescriptionCmd = &cobra.Command{
 set of supported field/criteria keys, etc.).
 
 The description is fetched from the OneDev server endpoint
-/~api/mcp-helper/get-build-query-description, which returns the canonical build
+get-build-query-description, which returns the canonical build
 query syntax reference for this server.`,
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -376,7 +376,7 @@ func runJob(currentProject string, jobMap map[string]interface{}) (map[string]in
 	}
 	jobData := string(jobBytes)
 
-	apiURL := config.ServerUrl + "/~api/mcp-helper/run-job?currentProject=" + url.QueryEscape(currentProject)
+	apiURL := config.ServerUrl + apiPrefix + "run-job?currentProject=" + url.QueryEscape(currentProject)
 
 	req, err := http.NewRequest("POST", apiURL, strings.NewReader(jobData))
 	if err != nil {
@@ -512,7 +512,7 @@ func checkBuildSpec(workingDir string, logger *log.Logger) error {
 		return fmt.Errorf("failed to read build spec: %v", err)
 	}
 
-	apiURL := config.ServerUrl + "/~api/mcp-helper/check-build-spec?project=" + url.QueryEscape(project)
+	apiURL := config.ServerUrl + apiPrefix + "check-build-spec?project=" + url.QueryEscape(project)
 
 	req, err := http.NewRequest("POST", apiURL, strings.NewReader(string(buildSpecContent)))
 	if err != nil {

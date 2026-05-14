@@ -52,7 +52,7 @@ func inferProject(workingDir string) (string, string, error) {
 		return "", "", fmt.Errorf(prefix + "working directory is not inside a git repository" + suffix)
 	}
 
-	apiURL := config.ServerUrl + "/~api/mcp-helper/get-clone-roots"
+	apiURL := config.ServerUrl + apiPrefix + "get-clone-roots"
 
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
@@ -238,7 +238,7 @@ func checkoutPullRequest(workingDir string, pullRequestReference string, logger 
 		"reference":      {pullRequestReference},
 	}
 
-	apiURL := config.ServerUrl + "/~api/mcp-helper/get-pull-request?" + urlQuery.Encode()
+	apiURL := config.ServerUrl + apiPrefix + "get-pull-request?" + urlQuery.Encode()
 
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
@@ -376,64 +376,102 @@ func checkResponse(resp *http.Response) error {
 	}
 }
 
-type CompatibleVersions struct {
-	MinVersion string `json:"minVersion"`
-	MaxVersion string `json:"maxVersion"`
-}
-
 func checkVersion(serverUrl string, accessToken string) error {
 	client := &http.Client{}
 
-	req, err := http.NewRequest("GET", serverUrl+"/~api/version/compatible-tod-versions", nil)
-	if err != nil {
-		return fmt.Errorf("failed to request compatible versions: %v", err)
+	// Try /~api/tod/check-version (OneDev 15.1.0+)
+	if err := checkVersionNew(client, serverUrl, accessToken); err == nil {
+		return nil
+	} else if !strings.Contains(err.Error(), "404") {
+		return err
 	}
 
-	req.Header.Set("Authorization", "Bearer "+accessToken)
+	// 404 — pre-15.1.0 server, use old prefix and version endpoint
+	apiPrefix = "/~api/mcp-helper/"
+	return checkVersionOld(client, serverUrl, accessToken)
+}
 
+func checkVersionNew(client *http.Client, serverUrl, accessToken string) error {
+	req, _ := http.NewRequest("GET", serverUrl+"/~api/tod/check-version", nil)
+	req.Header.Set("Authorization", "Bearer "+accessToken)
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("failed to request compatible versions: %v", err)
+		return fmt.Errorf("failed to check version: %v", err)
 	}
-
 	defer resp.Body.Close()
-
-	err = checkResponse(resp)
-	if err != nil {
-		return fmt.Errorf("failed to request compatible versions: %v", err)
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to check version: HTTP %d %s", resp.StatusCode, string(body))
 	}
 
-	var compatibleVersions CompatibleVersions
-
-	err = json.NewDecoder(resp.Body).Decode(&compatibleVersions)
-	if err != nil {
-		return fmt.Errorf("failed to decode compatible versions response: %v", err)
+	var info struct {
+		ServerVersion         string `json:"serverVersion"`
+		MinRequiredTodVersion string `json:"minRequiredTodVersion"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
+		return fmt.Errorf("failed to decode version info: %v", err)
 	}
 
-	todSemVer, err := semver.NewVersion(version)
+	semVer, err := semver.NewVersion(version)
 	if err != nil {
 		return fmt.Errorf("failed to parse tod version %q: %v", version, err)
 	}
 
-	if compatibleVersions.MinVersion != "" {
-		minSemVer, err := semver.NewVersion(compatibleVersions.MinVersion)
+	if info.MinRequiredTodVersion != "" {
+		minSemVer, err := semver.NewVersion(info.MinRequiredTodVersion)
 		if err != nil {
-			return fmt.Errorf("failed to parse compatible min version %q: %v", compatibleVersions.MinVersion, err)
+			return fmt.Errorf("failed to parse min required tod version %q: %v", info.MinRequiredTodVersion, err)
 		}
-		if todSemVer.LessThan(minSemVer) {
-			return fmt.Errorf("this server requires tod version >= %s (current: %s), please download a newer tod from https://code.onedev.io/onedev/tod/~builds?query=%%22Job%%22+is+%%22Release%%22+and+successful", compatibleVersions.MinVersion, version)
+		if semVer.LessThan(minSemVer) {
+			return fmt.Errorf("this server requires tod version >= %s (current: %s)", info.MinRequiredTodVersion, version)
 		}
 	}
+	return nil
+}
 
-	if compatibleVersions.MaxVersion != "" {
-		maxSemVer, err := semver.NewVersion(compatibleVersions.MaxVersion)
-		if err != nil {
-			return fmt.Errorf("failed to parse compatible max version %q: %v", compatibleVersions.MaxVersion, err)
-		}
-		if todSemVer.GreaterThan(maxSemVer) {
-			return fmt.Errorf("this server requires tod version <= %s (current: %s), please download an older tod from https://code.onedev.io/onedev/tod/~builds?query=%%22Job%%22+is+%%22Release%%22+and+successful", compatibleVersions.MaxVersion, version)
-		}
+func checkVersionOld(client *http.Client, serverUrl, accessToken string) error {
+	req, _ := http.NewRequest("GET", serverUrl+"/~api/version/compatible-tod-versions", nil)
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to request compatible versions: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to request compatible versions: HTTP %d %s", resp.StatusCode, string(body))
 	}
 
+	var compat struct {
+		MinVersion string `json:"minVersion"`
+		MaxVersion string `json:"maxVersion"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&compat); err != nil {
+		return fmt.Errorf("failed to decode compatible versions: %v", err)
+	}
+
+	semVer, err := semver.NewVersion(version)
+	if err != nil {
+		return fmt.Errorf("failed to parse tod version %q: %v", version, err)
+	}
+
+	if compat.MinVersion != "" {
+		minSemVer, err := semver.NewVersion(compat.MinVersion)
+		if err != nil {
+			return fmt.Errorf("failed to parse min version %q: %v", compat.MinVersion, err)
+		}
+		if semVer.LessThan(minSemVer) {
+			return fmt.Errorf("this server requires tod version >= %s (current: %s)", compat.MinVersion, version)
+		}
+	}
+	if compat.MaxVersion != "" {
+		maxSemVer, err := semver.NewVersion(compat.MaxVersion)
+		if err != nil {
+			return fmt.Errorf("failed to parse max version %q: %v", compat.MaxVersion, err)
+		}
+		if semVer.GreaterThan(maxSemVer) {
+			return fmt.Errorf("this server requires tod version <= %s (current: %s)", compat.MaxVersion, version)
+		}
+	}
 	return nil
 }

@@ -424,7 +424,7 @@ var prGetQueryDescriptionCmd = &cobra.Command{
 set of supported field/criteria keys, etc.).
 
 The description is fetched from the OneDev server endpoint
-/~api/mcp-helper/get-pull-request-query-description, which returns the canonical
+get-pull-request-query-description, which returns the canonical
 pull request query syntax reference for this server.`,
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
