@@ -1,6 +1,6 @@
 # TOD - TheOneDev CLI Tool
 
-TOD (**T**he**O**ne**D**ev) is a powerful command-line tool for OneDev 15+
+TOD (**T**he**O**ne**D**ev) is a powerful command-line tool for OneDev 15.1+
 that streamlines your development workflow by letting you run CI/CD jobs
 against local changes, check out pull requests into a local working
 directory, query and edit issues/PRs/builds, and drive all of the above from

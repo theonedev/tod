@@ -17,7 +17,7 @@ Top-level groups:
 - [`tod build`](#tod-build)
 - [`tod project`](#tod-project)
 - [`tod config`](#tod-config)
-- [misc: `get-login-name`, `get-unix-timestamp`, `remote`, `get-valid-labels`, `get-commit-message-requirement`](#miscellaneous)
+- [misc: `get-login-name`, `get-unix-timestamp`, `remote`, `get-valid-labels`, `get-commit-message-requirement`, `download`](#miscellaneous)
 
 Reference formats accepted by `<ref>`/`<target ref>`/`<source ref>` arguments:
 
@@ -118,3 +118,4 @@ These commands run even when the config file is missing or invalid.
 | `tod remote` | Print the git remote that points at the inferred OneDev project. |
 | `tod get-valid-labels` | Print valid label names for this OneDev server (use with `--label` in `tod pr create`). |
 | `tod get-commit-message-requirement` | Print the commit message requirement for non-merge commits in the current project (inferred from the working directory). Prints nothing when the project has no requirement configured. |
+| `tod download <resource-url> <output-file>` | Download a resource (image, file, etc.) referenced in markdown. The resource URL is the original URL from the markdown without modification. Relative URLs are resolved against `server-url`; authentication uses `access-token`. |

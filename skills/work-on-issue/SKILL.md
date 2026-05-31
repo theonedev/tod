@@ -112,6 +112,23 @@ Given an `<issue-reference>` (e.g. `#123`, `myproject#123`, or
    work, and the comments as supplementary context (clarifications,
    constraints, hints from collaborators, etc.).
 
+   **Download and inspect embedded resources.** Descriptions and comments
+   are often markdown with screenshots, mockups, logs, or other files.
+   Text from `tod issue get` / `get-comments` alone is not enough when
+   links are present — you must download and check each attachment:
+
+   - Find image and file links in the description and every comment
+     (`![alt](url)` and `[label](url)`).
+   - For each URL, save it locally using the URL **exactly** as it
+     appears in the markdown (do not rewrite or normalize it):
+     ```bash
+     tod download <resource-url> <output-file>
+     ```
+   - Open images with the Read tool; read other downloaded files as
+     needed. Do not skip this step when attachments are linked — they
+     often carry requirements or repro steps that are not spelled out in
+     plain text.
+
 4. **Summarize and plan.** Briefly summarize back to the user what the
    issue asks for and outline how you intend to address it before making
    any code changes.

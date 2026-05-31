@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"net/url"
+	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -89,6 +91,60 @@ The project is inferred from the current git repository's OneDev project.`,
 		emit(body)
 		return nil
 	},
+}
+
+var downloadCmd = &cobra.Command{
+	Use:   "download <resource-url> <output-file>",
+	Short: "Download a resource (image, file, etc.) referenced in markdown",
+	Long: `Download a resource referenced in markdown and save it to a local file.
+
+The resource URL must be the original URL from the markdown without modification.
+Relative URLs are resolved against the configured server-url. Authentication uses
+the configured access-token.`,
+	Args: cobra.ExactArgs(2),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		resourceURL := args[0]
+		outputFile := args[1]
+
+		downloadURL, err := resolveMarkdownResourceURL(config.ServerUrl, resourceURL)
+		if err != nil {
+			return err
+		}
+
+		body, err := apiGetAbsolute(downloadURL)
+		if err != nil {
+			return err
+		}
+
+		if err := os.WriteFile(outputFile, body, 0644); err != nil {
+			return fmt.Errorf("failed to write %s: %v", outputFile, err)
+		}
+		return nil
+	},
+}
+
+// resolveMarkdownResourceURL returns an absolute URL for downloading a markdown
+// resource. Absolute http(s) URLs are returned unchanged; relative URLs are
+// resolved against serverURL.
+func resolveMarkdownResourceURL(serverURL, resourceURL string) (string, error) {
+	parsed, err := url.Parse(resourceURL)
+	if err != nil {
+		return "", fmt.Errorf("invalid resource URL %q: %v", resourceURL, err)
+	}
+	if parsed.IsAbs() && (parsed.Scheme == "http" || parsed.Scheme == "https") {
+		return resourceURL, nil
+	}
+
+	base, err := url.Parse(strings.TrimRight(serverURL, "/"))
+	if err != nil {
+		return "", fmt.Errorf("invalid server URL %q: %v", serverURL, err)
+	}
+	if base.Scheme != "http" && base.Scheme != "https" {
+		return "", fmt.Errorf("invalid server URL %q: expected http or https scheme", serverURL)
+	}
+
+	resolved := base.ResolveReference(parsed)
+	return resolved.String(), nil
 }
 
 func initMiscCommands() {

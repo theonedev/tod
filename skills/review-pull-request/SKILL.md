@@ -44,6 +44,25 @@ Given a `<pr-reference>` (e.g. `#42`, `myproject#42`, or `PROJ-42`):
    Match the login name against the `user` field on each code comment to
    find your own prior comments — those are the ones you may later reply
    to, resolve, or unresolve.
+
+   **Download and inspect embedded resources.** The PR description (step 1),
+   general comments, line-anchored code comments, and replies on those code
+   comments (all from steps 1 and 3) are often markdown with screenshots,
+   diagrams, or other files. Text alone is not enough when links are
+   present — you must download and check each attachment:
+
+   - Find image and file links in the description, every general comment,
+     every code comment body, and every reply (`![alt](url)` and
+     `[label](url)`). Scan the JSON from `tod pr get-code-comments` for
+     comment content and nested replies.
+   - For each URL, save it locally using the URL **exactly** as it
+     appears in the markdown (do not rewrite or normalize it):
+     ```bash
+     tod download <resource-url> <output-file>
+     ```
+   - Open images with the Read tool; read other downloaded files as
+     needed. Do not skip this when attachments are linked — they often
+     document expected behavior, UI, or failures relevant to the review.
 4. **Read full file contents as needed.** For files whose context matters
    beyond the hunk shown in the diff, fetch the full content at either side
    of the PR:

@@ -95,6 +95,7 @@ func init() {
 		remoteCmd,
 		getValidLabelsCmd,
 		getCommitMessageRequirementCmd,
+		downloadCmd,
 	)
 
 	rootCmd.AddCommand(

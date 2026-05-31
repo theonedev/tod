@@ -41,7 +41,7 @@ Commands are grouped by resource:
 - `tod config` — `init`, `show`, `path`
 - `tod get-login-name`, `tod get-unix-timestamp`, `tod project`,
   `tod remote`, `tod get-valid-labels`,
-  `tod get-commit-message-requirement`
+  `tod get-commit-message-requirement`, `tod download`
 
 Every command writes the raw OneDev server response to stdout. Run
 `tod <command> --help` at any time to see exact flag names.
@@ -58,6 +58,22 @@ reference, run `tod issue current-reference` first. It prints `#<n>`
 when the current branch matches `[<prefix>/]issue-<n>[-<suffix>]` and the
 current project can be inferred, otherwise it prints nothing. Treat empty
 output as "no current issue" and ask the user for an explicit reference.
+
+## Markdown attachments in issues and PRs
+
+Issue and pull request text often links to images or files in
+descriptions and comments. When using `work-on-issue` or
+`review-pull-request`, **always** download and inspect those links — do
+not rely on link or alt text alone.
+
+For each `![...](url)` or `[...](url)`, save with the URL exactly as
+written in the markdown:
+
+```bash
+tod download <resource-url> <output-file>
+```
+
+Then open images with the Read tool and read other files as needed.
 
 ## Requesting user consent for state-changing calls
 
