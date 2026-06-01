@@ -21,11 +21,34 @@ AI agents via shipped skill files.
 
 ## Installation
 
-To install `tod`, put the binary on your `PATH`.
+### macOS, Linux, and FreeBSD
 
-### Download pre-built binaries
+```bash
+curl -fsSL https://code.onedev.io/onedev/tod/~raw/main/tod-install.sh | bash
+```
 
-https://code.onedev.io/onedev/tod/~builds?query=%22Job%22+is+%22Release%22
+The script detects your platform and architecture, downloads the matching
+binary, and installs it to a directory on your `PATH` (overwriting an existing
+`tod` if one is already installed). To choose a different location, set
+`INSTALL_DIR`:
+
+```bash
+INSTALL_DIR=~/bin curl -fsSL https://code.onedev.io/onedev/tod/~raw/main/tod-install.sh | bash
+```
+
+### Windows
+
+```powershell
+irm https://code.onedev.io/onedev/tod/~raw/main/tod-install.ps1 | iex
+```
+
+The script downloads `tod.exe` for your architecture and installs it to a
+directory on your `PATH` (overwriting an existing install if found). To choose
+a different location:
+
+```powershell
+$env:INSTALL_DIR = "$HOME\bin"; irm https://code.onedev.io/onedev/tod/~raw/main/tod-install.ps1 | iex
+```
 
 ### Build from source
 
