@@ -14,11 +14,11 @@ OneDev build using the `tod build` subcommands.
   `tod config set` if needed).
 - The current working directory is inside a git repository pointing at the
   OneDev project that owns the build (or the build uses a reference that
-  includes the project, e.g. `myproject#42`)
+  includes the project, e.g. `42`, `myproject#42`)
 
 ## Workflow
 
-Given a `<build-reference>` (e.g. `#789`, `myproject#789`, or `PROJ-789`):
+Given a `<build-reference>` (e.g. `789`, `#789`, `myproject#789`, or `PROJ-789`):
 
 1. **Get build metadata** — overall status, job name, commit, trigger:
    ```bash

@@ -1,12 +1,12 @@
 ---
-name: submit-work
+name: submit-issue-work
 description: Submit completed work on a OneDev issue via the `tod` CLI — confirm
   the issue branch exists on the server, verify the local checkout is on it,
   commit any pending changes (using the `generate-commit-message` skill), push
   to the matching remote branch, and open a pull request whose title and
   description summarize the commits added on the issue branch. Use when the
   user asks to submit, complete, or finish work on a OneDev issue (e.g.
-  "submit work #123", "complete work on PROJ-7", "finish issue myproject#42").
+  "submit work 123", "complete work on PROJ-7", "finish issue myproject#42").
 ---
 
 # Submit work on a OneDev issue
@@ -47,7 +47,7 @@ ones that do not spell it out explicitly.
 
 ## Workflow
 
-Given an `<issue-reference>` (e.g. `#123`, `myproject#123`, or
+Given an `<issue-reference>` (e.g. `123`, `#123`, `myproject#123`, or
 `PROJ-123`):
 
 1. **Confirm the issue branch on the server and capture its name.** This
@@ -74,8 +74,11 @@ Given an `<issue-reference>` (e.g. `#123`, `myproject#123`, or
    - **Empty output** → working copy is clean, skip to step 4.
    - **Non-empty output** → there are uncommitted changes. Apply the
      [`generate-commit-message`](../generate-commit-message/SKILL.md)
-     skill to compose a commit message, show it to the user, and only
-     after explicit confirmation run:
+     skill **with pull request context** — use the same
+     `--source-branch`, `--target-branch`, `--source-project`, and
+     `--target-project` values (or omissions) planned for `tod pr create`
+     in step 5. Show the proposed message to the user and only after
+     explicit confirmation run:
      ```bash
      git add -A
      git commit -m "<subject>" -m "<body>"
@@ -115,34 +118,40 @@ Given an `<issue-reference>` (e.g. `#123`, `myproject#123`, or
       git push <remote> <issue-branch>
       ```
 
-5. **Create the pull request.** Build the PR from the commits captured
-   in step 4c:
+5. **Create the pull request.** Decide the `tod pr create` flags first —
+   by default omit them all (`--source-branch` defaults to the current
+   git branch, which is `<issue-branch>`; `--target-branch` defaults to
+   the target project's default branch; `--source-project` and
+   `--target-project` default to the current project). Only pass
+   `--target-branch`, `--source-project`, `--target-project`, or
+   `--merge-strategy` when the user asked for a non-default value.
 
-   - **Title**: a concise imperative phrase that summarizes the dominant
-     change across those commits. If there is exactly one commit, reuse
-     its subject. Otherwise synthesize a single subject that captures
-     the overall intent (the issue title from `tod issue get
-     <issue-reference>` is a useful sanity-check reference). **Do not
-     include the issue reference in the title** — the source branch
-     already links the PR to the issue, so repeating it adds noise.
-     **If the user indicated that the work is still in progress** (e.g.
-     they said "submit WIP", "work in progress", "draft", or otherwise
-     made clear the change is not ready for merge), prefix the title
-     with `[WIP] ` (for example: `[WIP] Refactor build cache eviction`).
-     Otherwise, do not add the prefix.
-   - **Description**: a short paragraph explaining what the PR does and
-     why, followed by a bulleted list of the commits (one bullet per
-     commit, using each commit's subject; expand with body context when
-     it adds non-obvious information).
+   a. **Read the title and description requirement** using the same
+      flag values (or omissions) planned for `tod pr create`:
+      ```bash
+      tod pr get-title-and-description-requirement
+      ```
+      Add any non-default flags from above, for example:
+      `--target-branch=<target-branch>`
+      `--merge-strategy=<merge-strategy>`. Empty output means no
+      requirement.
+
+   b. **Build the PR** from the commits captured in step 4c:
+
+      - **Title**: a concise imperative phrase that summarizes the
+        dominant change across those commits.
+      - **Description**: a short paragraph explaining what the PR does
+        and why.
+
+   c. **Validate** the title and description against any non-empty
+      requirement from step 5a.
 
    Show the proposed title and description to the user and ask for
    confirmation. Only after confirmation, run:
    ```bash
    tod pr create "<title>" --description "<description>"
    ```
-   (`--source-branch` defaults to the current git branch, which is
-   `<issue-branch>`; `--target-branch` defaults to the project's default
-   branch, which is normally what you want.)
+   Pass the same non-default flags decided above.
 
    Surface the server response (which contains the new PR's reference
    and URL) to the user.

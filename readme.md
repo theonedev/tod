@@ -102,7 +102,7 @@ See [cli.md](cli.md) for the full command reference.
 
 ## Agent skills
 
-TOD ships seven tool-agnostic `SKILL.md` files under [`skills/`](skills/) that
+TOD ships nine tool-agnostic `SKILL.md` files under [`skills/`](skills/) that
 teach AI agents how to drive common OneDev workflows through the CLI:
 
 - `using-tod` — umbrella guide for any OneDev interaction via `tod`
@@ -112,9 +112,14 @@ teach AI agents how to drive common OneDev workflows through the CLI:
 - `generate-commit-message` — compose a commit message that respects the
   project's commit-message requirement and the active issue
 - `work-on-issue` — create the issue branch on the server, switch the local
-  checkout to it, and read the issue to understand what to do
-- `submit-work` — commit pending changes, push the issue branch, and open a
-  pull request summarizing the work
+  checkout to it, read the issue, and implement the work
+- `submit-issue-work` — commit pending changes, push the issue branch, and
+  open a pull request
+- `work-on-pull-request` — check out a PR on its source project, address
+  review or CI feedback locally, and draft push-dependent replies
+- `submit-pull-request-work` — commit pending changes, push to update an
+  existing pull request, then post deferred replies so notifications match
+  visible commits
 
 See [skills/README.md](skills/README.md) for how to install these into Claude
 Code, Codex, Cursor, or any other agent that reads `SKILL.md` files.

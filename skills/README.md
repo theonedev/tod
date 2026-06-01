@@ -1,6 +1,6 @@
 # TOD Agent Skills
 
-This directory ships seven agent-agnostic skills that teach an AI assistant how
+This directory ships nine agent-agnostic skills that teach an AI assistant how
 to drive common OneDev workflows through the `tod` CLI. Each skill is a
 self-contained folder with a `SKILL.md` file using the standard
 frontmatter-plus-markdown layout supported by Claude Code, Cursor, and any
@@ -14,9 +14,11 @@ other agent that consumes `SKILL.md` files.
 | [edit-build-spec](edit-build-spec/SKILL.md) | Create or update `.onedev-buildspec.yml` using `tod build get-spec-schema` and `tod build check-spec`. |
 | [investigate-build-failure](investigate-build-failure/SKILL.md) | Debug a failing build via `tod build get`, `tod build get-log`, and related commands. |
 | [review-pull-request](review-pull-request/SKILL.md) | Review a pull request via `tod pr get`, `tod pr get-patch`, and friends. |
-| [generate-commit-message](generate-commit-message/SKILL.md) | Compose a commit message that respects `tod get-commit-message-requirement`, derives the subject from the active issue when set, and adds a meaningful body or footer. |
-| [work-on-issue](work-on-issue/SKILL.md) | Start work on a OneDev issue: create the issue branch on the server with `tod issue create-branch`, switch the local checkout onto it with the right remote tracking, then read the issue's title, description, and comments via `tod issue get` / `tod issue get-comments`. |
-| [submit-work](submit-work/SKILL.md) | Submit completed work on a OneDev issue: confirm the issue branch on the server, verify the local checkout is on it, commit any pending changes (via `generate-commit-message`), push to the matching remote branch, and open a pull request via `tod pr create` with a title and description summarizing the issue branch's commits. |
+| [generate-commit-message](generate-commit-message/SKILL.md) | Compose a commit message that respects `tod get-commit-message-requirement` (and `tod pr get-commit-message-requirement` when submitting PR work), and adds a meaningful body or footer. |
+| [work-on-issue](work-on-issue/SKILL.md) | Work on a OneDev issue: hand off to `work-on-pull-request` when exactly one open PR includes the issue; otherwise `tod issue create-branch`, check out the issue branch, read context, and implement. |
+| [submit-issue-work](submit-issue-work/SKILL.md) | Submit completed issue work: commit pending changes (via `generate-commit-message` with branch and PR requirements), push the issue branch, and open a pull request via `tod pr create`. |
+| [work-on-pull-request](work-on-pull-request/SKILL.md) | Address follow-up on a pull request: verify the source project, check out with `tod pr checkout`, fix code locally, post comment-only replies immediately, and draft push-dependent replies for submit. |
+| [submit-pull-request-work](submit-pull-request-work/SKILL.md) | Submit completed pull request work: commit pending changes (via `generate-commit-message` with branch and PR requirements), push the PR source branch, then post deferred replies/resolves so notifications match visible commits. |
 
 ## Installing the skills
 

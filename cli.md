@@ -21,7 +21,7 @@ Top-level groups:
 
 Reference formats accepted by `<ref>`/`<target ref>`/`<source ref>` arguments:
 
-- Issues: `#<n>`, `<project>#<n>`, or `<project-key>-<n>`
+- Issues: `<n>`, `#<n>`, `<project>#<n>`, or `<project-key>-<n>`
 - Pull requests: same syntax as issues
 - Builds: same syntax as issues
 
@@ -52,9 +52,12 @@ Reference formats accepted by `<ref>`/`<target ref>`/`<source ref>` arguments:
 | `tod pr get <ref>` | Detail information of a pull request except comments and code comments. |
 | `tod pr get-comments <ref>` | List general comments on a pull request. |
 | `tod pr get-code-comments <ref>` | List code comments on a pull request. |
+| `tod pr get-builds <ref>` | List builds of a pull request. |
 | `tod pr get-patch <ref>` | Patch. Flag: `--for-code-review`. |
 | `tod pr get-file-content <ref> <path>` | File content at a specific revision. Flag: `--old-revision`. |
 | `tod pr create <title>` | Create a pull request. Flags: `--source-branch` (defaults to current git branch), `--target-branch`, `--description`, `--source-project`, `--target-project`, `--assignee`, `--reviewer`, `--label`, `--merge-strategy`. |
+| `tod pr get-title-and-description-requirement` | Get pull request title and description requirement. Flags: `--source-branch` (defaults to current git branch), `--target-branch`, `--source-project`, `--target-project`, `--merge-strategy`. |
+| `tod pr get-commit-message-requirement` | Get pull request commit message requirement. Flags: `--source-branch` (defaults to current git branch), `--target-branch`, `--source-project`, `--target-project`. |
 | `tod pr edit <ref>` | Edit a pull request. Flags: `--title`, `--description`, `--assignee`, `--add-reviewer`, `--remove-reviewer`, `--label`, `--merge-strategy`, `--auto-merge`, `--auto-merge-commit-message`. |
 | `tod pr approve <ref>` | Approve a pull request as a pending reviewer. Flag: `--comment`. |
 | `tod pr request-changes <ref>` | Request changes on a pull request as a pending reviewer. Flag: `--comment`. |
@@ -117,5 +120,5 @@ These commands run even when the config file is missing or invalid.
 | `tod get-unix-timestamp <description>` | Convert a natural-language description (e.g. `today`, `next month`, `2025-01-01 12:00:00`) to a Unix timestamp in milliseconds. |
 | `tod remote` | Print the git remote that points at the inferred OneDev project. |
 | `tod get-valid-labels` | Print valid label names for this OneDev server (use with `--label` in `tod pr create`). |
-| `tod get-commit-message-requirement` | Print the commit message requirement for non-merge commits in the current project (inferred from the working directory). Prints nothing when the project has no requirement configured. |
+| `tod get-commit-message-requirement [branch]` | Print the commit message requirement for a branch in current project (inferred from the working directory). Branch defaults to the current git branch. Prints nothing when the branch has no commit message requirement configured. |
 | `tod download <resource-url> <output-file>` | Download a resource (image, file, etc.) referenced in markdown. The resource URL is the original URL from the markdown without modification. Relative URLs are resolved against `server-url`; authentication uses `access-token`. |

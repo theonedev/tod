@@ -90,6 +90,24 @@ var prGetCodeCommentsCmd = &cobra.Command{
 	},
 }
 
+var prGetBuildsCmd = &cobra.Command{
+	Use:   "get-builds <pr-reference>",
+	Short: "Get builds of a pull request",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		currentProject, err := currentProjectFor(cmd)
+		if err != nil {
+			return err
+		}
+		body, err := getEntityData("get-pull-request-builds", args[0], currentProject)
+		if err != nil {
+			return err
+		}
+		emit(body)
+		return nil
+	},
+}
+
 var prGetPatchCmd = &cobra.Command{
 	Use:   "get-patch <pr-reference>",
 	Short: "Get pull request patch",
@@ -417,6 +435,94 @@ The line range must be visible in right side (added lines or equal lines inside 
 	},
 }
 
+var prGetTitleAndDescriptionRequirementCmd = &cobra.Command{
+	Use:   "get-title-and-description-requirement",
+	Short: "Get pull request title and description requirement",
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		sourceBranch, _ := cmd.Flags().GetString("source-branch")
+		targetBranch, _ := cmd.Flags().GetString("target-branch")
+		sourceProject, _ := cmd.Flags().GetString("source-project")
+		targetProject, _ := cmd.Flags().GetString("target-project")
+		mergeStrategy, _ := cmd.Flags().GetString("merge-strategy")
+
+		if sourceBranch == "" {
+			branch, err := currentBranch(workingDirOf(cmd))
+			if err != nil {
+				return err
+			}
+			if branch == "" {
+				return fmt.Errorf("--source-branch is required: could not detect current branch (detached HEAD)")
+			}
+			sourceBranch = branch
+		}
+
+		currentProject, err := currentProjectFor(cmd)
+		if err != nil {
+			return err
+		}
+
+		query := url.Values{
+			"sourceProject":  {sourceProject},
+			"targetProject":  {targetProject},
+			"currentProject": {currentProject},
+			"sourceBranch":   {sourceBranch},
+			"targetBranch":   {targetBranch},
+			"mergeStrategy":  {mergeStrategy},
+		}
+
+		body, err := apiGetBytes("get-pull-request-title-and-description-requirement", query)
+		if err != nil {
+			return err
+		}
+		emit(body)
+		return nil
+	},
+}
+
+var prGetCommitMessageRequirementCmd = &cobra.Command{
+	Use:   "get-commit-message-requirement",
+	Short: "Get pull request commit message requirement",
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		sourceBranch, _ := cmd.Flags().GetString("source-branch")
+		targetBranch, _ := cmd.Flags().GetString("target-branch")
+		sourceProject, _ := cmd.Flags().GetString("source-project")
+		targetProject, _ := cmd.Flags().GetString("target-project")
+
+		if sourceBranch == "" {
+			branch, err := currentBranch(workingDirOf(cmd))
+			if err != nil {
+				return err
+			}
+			if branch == "" {
+				return fmt.Errorf("--source-branch is required: could not detect current branch (detached HEAD)")
+			}
+			sourceBranch = branch
+		}
+
+		currentProject, err := currentProjectFor(cmd)
+		if err != nil {
+			return err
+		}
+
+		query := url.Values{
+			"sourceProject":  {sourceProject},
+			"targetProject":  {targetProject},
+			"currentProject": {currentProject},
+			"sourceBranch":   {sourceBranch},
+			"targetBranch":   {targetBranch},
+		}
+
+		body, err := apiGetBytes("get-pull-request-commit-message-requirement", query)
+		if err != nil {
+			return err
+		}
+		emit(body)
+		return nil
+	},
+}
+
 var prGetQueryDescriptionCmd = &cobra.Command{
 	Use:   "get-query-description",
 	Short: "Get the OneDev pull request query DSL description (DSL for `--query` of `pr list`)",
@@ -466,14 +572,25 @@ func initPullRequestCommands() {
 	prGetFileContentCmd.Flags().Bool("old-revision", false, "If set, return the file content before pull request change")
 
 	prCreateCmd.Flags().String("source-branch", "", "Source branch (defaults to the current git branch)")
-	prCreateCmd.Flags().String("target-branch", "", "Target branch (defaults to the project's default branch)")
+	prCreateCmd.Flags().String("target-branch", "", "Target branch (defaults to the target project's default branch)")
 	prCreateCmd.Flags().String("description", "", "Pull request description")
 	prCreateCmd.Flags().String("source-project", "", "Source project (defaults to current project)")
-	prCreateCmd.Flags().String("target-project", "", "Target project (defaults to original project for forks)")
+	prCreateCmd.Flags().String("target-project", "", "Target project (defaults to current project, or forked from project for forks)")
 	prCreateCmd.Flags().StringArray("assignee", nil, "Assignee login name (repeatable)")
 	prCreateCmd.Flags().StringArray("reviewer", nil, "Reviewer login name (repeatable)")
 	prCreateCmd.Flags().StringArray("label", nil, "Label name (repeatable; run 'tod get-valid-labels' for accepted values)")
-	prCreateCmd.Flags().String("merge-strategy", "", "CREATE_MERGE_COMMIT | CREATE_MERGE_COMMIT_IF_NECESSARY | SQUASH_SOURCE_BRANCH_COMMITS | REBASE_SOURCE_BRANCH_COMMITS")
+	prCreateCmd.Flags().String("merge-strategy", "", "CREATE_MERGE_COMMIT | CREATE_MERGE_COMMIT_IF_NECESSARY | SQUASH_SOURCE_BRANCH_COMMITS | REBASE_SOURCE_BRANCH_COMMITS. Leave empty to use the project's default merge strategy")
+
+	prGetTitleAndDescriptionRequirementCmd.Flags().String("source-branch", "", "Source branch (defaults to the current git branch)")
+	prGetTitleAndDescriptionRequirementCmd.Flags().String("target-branch", "", "Target branch (defaults to the target project's default branch)")
+	prGetTitleAndDescriptionRequirementCmd.Flags().String("source-project", "", "Source project (defaults to current project)")
+	prGetTitleAndDescriptionRequirementCmd.Flags().String("target-project", "", "Target project (defaults to current project, or forked from project for forks)")
+	prGetTitleAndDescriptionRequirementCmd.Flags().String("merge-strategy", "", "CREATE_MERGE_COMMIT | CREATE_MERGE_COMMIT_IF_NECESSARY | SQUASH_SOURCE_BRANCH_COMMITS | REBASE_SOURCE_BRANCH_COMMITS. Leave empty to use the project's default merge strategy")
+
+	prGetCommitMessageRequirementCmd.Flags().String("source-branch", "", "Source branch (defaults to the current git branch)")
+	prGetCommitMessageRequirementCmd.Flags().String("target-branch", "", "Target branch (defaults to the target project's default branch)")
+	prGetCommitMessageRequirementCmd.Flags().String("source-project", "", "Source project (defaults to current project)")
+	prGetCommitMessageRequirementCmd.Flags().String("target-project", "", "Target project (defaults to current project, or forked from project for forks)")
 
 	prEditCmd.Flags().String("title", "", "New pull request title")
 	prEditCmd.Flags().String("description", "", "New pull request description")
@@ -499,9 +616,12 @@ func initPullRequestCommands() {
 		prGetCmd,
 		prGetCommentsCmd,
 		prGetCodeCommentsCmd,
+		prGetBuildsCmd,
 		prGetPatchCmd,
 		prGetFileContentCmd,
 		prCreateCmd,
+		prGetTitleAndDescriptionRequirementCmd,
+		prGetCommitMessageRequirementCmd,
 		prEditCmd,
 		prApproveCmd,
 		prRequestChangesCmd,

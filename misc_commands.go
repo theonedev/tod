@@ -73,18 +73,35 @@ The list is fetched from the OneDev server endpoint
 }
 
 var getCommitMessageRequirementCmd = &cobra.Command{
-	Use:   "get-commit-message-requirement",
-	Short: "Print commit message requirement for non-merge commits",
-	Long: `Print commit message requirement for non-merge commits in a project.
-The project is inferred from the current git repository's OneDev project.`,
-	Args: cobra.NoArgs,
+	Use:   "get-commit-message-requirement [branch]",
+	Short: "Print commit message requirement",
+	Long: `Print commit message requirement for a branch.
+The project is inferred from the current git repository's OneDev project.
+Branch defaults to the current git branch when omitted.`,
+	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		project, err := currentProjectFor(cmd)
 		if err != nil {
 			return err
 		}
 
-		body, err := apiGetBytes("get-commit-message-requirement", url.Values{"project": {project}})
+		branch := ""
+		if len(args) > 0 {
+			branch = args[0]
+		} else {
+			branch, err = currentBranch(workingDirOf(cmd))
+			if err != nil {
+				return err
+			}
+			if branch == "" {
+				return fmt.Errorf("branch is required: could not detect current branch (detached HEAD)")
+			}
+		}
+
+		body, err := apiGetBytes("get-commit-message-requirement", url.Values{
+			"project": {project},
+			"branch":  {branch},
+		})
 		if err != nil {
 			return err
 		}

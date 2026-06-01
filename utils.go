@@ -23,9 +23,13 @@ func makeAPICall(req *http.Request) ([]byte, error) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
 		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("HTTP %d error for endpoint %s: %s", resp.StatusCode, req.URL.String(), string(body))
+	}
+
+	if resp.StatusCode == http.StatusNoContent {
+		return nil, nil
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -297,11 +301,10 @@ func checkoutPullRequest(workingDir string, pullRequestReference string, logger 
 		return fmt.Errorf("you have uncommitted changes in your working directory. Please commit or stash your changes first")
 	}
 
-	checkBranchCmd := exec.Command("git", "rev-parse", "--verify", localBranch)
+	checkBranchCmd := exec.Command("git", "rev-parse", "--verify", "--quiet", localBranch)
 	checkBranchCmd.Dir = workingDir
-	stdoutStderr, err = checkBranchCmd.CombinedOutput()
-	logger.Printf("Running command: git rev-parse --verify %s\n", localBranch)
-	logger.Printf("Command output:\n%s", string(stdoutStderr))
+	_, err = checkBranchCmd.CombinedOutput()
+	logger.Printf("Running command: git rev-parse --verify --quiet %s\n", localBranch)
 
 	if err == nil {
 		checkoutCmd := exec.Command("git", "checkout", localBranch)

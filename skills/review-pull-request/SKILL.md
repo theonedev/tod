@@ -17,11 +17,11 @@ finalizing the review.
   `tod config set` if needed).
 - The current working directory is inside a git repository pointing at the
   OneDev project that owns the pull request (or the PR uses a reference that
-  includes the project, e.g. `myproject#42`).
+  includes the project, e.g. `42`, `myproject#42`).
 
 ## Workflow
 
-Given a `<pr-reference>` (e.g. `#42`, `myproject#42`, or `PROJ-42`):
+Given a `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or `PROJ-42`):
 
 1. **Read the PR metadata.** Get title, description, source/target branches,
    reviewers, current review status, and any linked issues:
