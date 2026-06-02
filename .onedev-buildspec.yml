@@ -33,6 +33,18 @@ jobs:
     templateName: build binaries
     condition: SUCCESSFUL
     optional: false
+  - type: CommandStep
+    name: package skills
+    runInContainer: true
+    image: ubuntu
+    interpreter:
+      type: DefaultInterpreter
+      commands: |
+        tar zcvf skills skills.tar.gz
+    runAs: 0:0
+    useTTY: true
+    condition: SUCCESSFUL
+    optional: false
   - type: PublishArtifactStep
     name: publish artifacts
     artifacts: '**/tod* -tod.gif'
@@ -40,7 +52,7 @@ jobs:
     optional: false
   - type: PublishSiteStep
     name: publish site
-    artifacts: '**/tod* -tod.gif'
+    artifacts: '**/tod* -tod.gif skills.tar.gz'
     condition: SUCCESSFUL
     optional: false
   - type: CommandStep
