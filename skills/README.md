@@ -23,7 +23,7 @@ other agent that consumes `SKILL.md` files.
 ## Installing the skills
 
 ```bash
-# Install all tod skills for the auto-detected agent(s) in the current project
+# Install tod skills for auto-detected agent(s)
 npx skills add https://code.onedev.io/onedev/tod.git
 ```
 
