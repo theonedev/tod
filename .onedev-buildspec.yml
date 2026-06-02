@@ -40,7 +40,7 @@ jobs:
     interpreter:
       type: DefaultInterpreter
       commands: |
-        tar zcvf skills skills.tar.gz
+        tar zcvf skills.tar.gz skills
     runAs: 0:0
     useTTY: true
     condition: SUCCESSFUL
