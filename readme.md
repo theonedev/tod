@@ -136,8 +136,9 @@ teach AI agents how to drive common OneDev workflows through the CLI:
   project's commit-message requirement and the active issue
 - `work-on-issue` — create the issue branch on the server, switch the local
   checkout to it, read the issue, and implement the work
-- `submit-issue-work` — commit pending changes, push the issue branch, and
-  open a pull request
+- `submit-issue-work` — commit pending changes, push the issue branch, attach
+  to an existing open PR for the issue when one exists, otherwise open a pull
+  request
 - `work-on-pull-request` — check out a PR on its source project, address
   review or CI feedback locally, and draft push-dependent replies
 - `submit-pull-request-work` — commit pending changes, push to update an

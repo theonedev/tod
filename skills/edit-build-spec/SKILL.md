@@ -1,6 +1,6 @@
 ---
 name: edit-build-spec
-description: Create or edit a OneDev CI/CD spec (`.onedev-buildspec.yml`) using the `tod` CLI to fetch the schema and validate the result. Use when the user asks to set up CI/CD, configure build spec, or otherwise author `.onedev-buildspec.yml`.
+description: Create or edit a OneDev CI/CD spec (`.onedev-buildspec.yml`). Use when the user asks to set up CI/CD, configure a build spec, or otherwise author `.onedev-buildspec.yml`.
 ---
 
 # Edit OneDev CI/CD spec
@@ -17,8 +17,8 @@ OneDev project.
 
 ## Workflow
 
-1. **Fetch the spec first.** Before editing anything, get the authoritative
-   spec so the generated YAML matches the server's expectations:
+1. **Fetch the spec schema first.** Before editing anything, get the authoritative
+   spec schema so the generated YAML matches the server's expectations:
    ```bash
    tod build get-spec-schema
    ```

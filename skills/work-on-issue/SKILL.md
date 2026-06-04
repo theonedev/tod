@@ -1,20 +1,15 @@
 ---
 name: work-on-issue
-description: Set up the local checkout to work on a OneDev issue via the
-  `tod` CLI — check for an existing open pull request linked to the issue
-  (and delegate to work-on-pull-request when there is exactly one), otherwise
-  create the issue branch on the server, switch to it locally with the right
-  remote tracking, read the issue context, and implement the work. Use when
-  the user asks to start, pick up, begin, or work on a OneDev issue.
+description: Implement work for a OneDev issue. Use when the user asks to
+  start, pick up, begin, or work on a OneDev issue.
 ---
 
 # Work on a OneDev issue
 
 This skill prepares the local checkout to work on a specified OneDev issue.
-When the issue already has exactly one open pull request, it hands off to
-[`work-on-pull-request`](../work-on-pull-request/SKILL.md). Otherwise it
-ensures the issue branch exists, switches onto it (without clobbering
-uncommitted work), reads the issue context, and implements the work.
+It ensures the issue branch exists, switches onto it (without clobbering
+uncommitted work), reads the issue context (or uses the user's prompt when
+it specifies the work), and implements the work.
 
 ## Prerequisites
 
@@ -48,28 +43,7 @@ ones that do not spell it out explicitly.
 Given an `<issue-reference>` (e.g. `123`, `#123`, `myproject#123`, or
 `PROJ-123`):
 
-1. **Check for an existing open pull request.** Query pull requests that
-   include this issue and are still open:
-   ```bash
-   tod pr list --query 'includes issue "<issue-reference>" and open'
-   ```
-   Use the same reference form the user gave (e.g. `#123` or `PROJ-123`) inside
-   the quotes.
-
-   - **Exactly one match:** Stop this skill. Read and follow
-     [`work-on-pull-request`](../work-on-pull-request/SKILL.md) using that
-     PR's reference from the query result. The user asked to work on the
-     issue, so use issue's description and comments as the primary 
-     specification — run `tod issue get <issue reference>` and 
-     `tod issue get-comments <issue reference>`, and download any embedded 
-     resources from that issue text. Still gather other PR signals (comments, 
-     code comments, builds) when they apply, but the issue text drives what 
-     to implement.
-   - **Zero or multiple matches:** Tell the user when there are multiple
-     open PRs and ask which one to use, or continue below when there are
-     none. Do not create an issue branch until this step is resolved.
-
-2. **Create the issue branch on the server** and capture its name. The
+1. **Create the issue branch on the server** and capture its name. The
    command is a no-op when the branch already exists; in either case it
    prints the branch name to stdout:
    ```bash
@@ -77,12 +51,12 @@ Given an `<issue-reference>` (e.g. `123`, `#123`, `myproject#123`, or
    ```
    Save the output as `<issue-branch>`.
 
-3. **Switch the local checkout to `<issue-branch>`.** First check the
+2. **Switch the local checkout to `<issue-branch>`.** First check the
    current branch:
    ```bash
    git symbolic-ref --short HEAD
    ```
-   If it already equals `<issue-branch>`, skip ahead to step 4.
+   If it already equals `<issue-branch>`, skip ahead to step 3.
    Otherwise:
 
    a. **Require a clean working directory.**
@@ -121,18 +95,29 @@ Given an `<issue-reference>` (e.g. `123`, `#123`, `myproject#123`, or
       git branch --set-upstream-to=<remote>/<issue-branch> <issue-branch>
       ```
 
-4. **Read the issue context.** Fetch the metadata and the discussion to
-   learn what the work entails:
+3. **Determine the work specification.** The
+   work to do may come from the user's prompt directly or from the issue
+   on OneDev:
+
+   | Work instruction source | Primary specification | Issue context |
+   |-------------------------|---------------------|---------------|
+   | User prompt specifies the work | The prompt (concrete task, scope, approach, or constraints beyond naming the issue) | Fetch below; use title, description, and comments as supplementary background |
+   | Prompt only names the issue | Issue title and description | Comments are supplementary (clarifications, constraints, hints) |
+
+   When the prompt is the primary specification, still fetch issue metadata
+   and discussion as context — do not skip ahead to step 4 from partial output:
    ```bash
    tod issue get <issue-reference>
    tod issue get-comments <issue-reference>
+   tod get-login-name
    ```
-   Without the issue context you cannot plan the work reliably, so do
-   not skip ahead to step 5 from partial output.
 
-   Treat the title and description as the primary specification of the
-   work, and the comments as supplementary context (clarifications,
-   constraints, hints from collaborators, etc.).
+   When the prompt only names the issue, the same commands are required;
+   without that context you cannot plan the work reliably.
+
+   Save the login name and match it against each comment's author to
+   recognize comments you previously wrote. Treat those as your own prior
+   context rather than independent collaborator feedback.
 
    **Download and inspect embedded resources.** Descriptions and comments
    are often markdown with screenshots, mockups, logs, or other files.
@@ -151,8 +136,35 @@ Given an `<issue-reference>` (e.g. `123`, `#123`, `myproject#123`, or
      often carry requirements or repro steps that are not spelled out in
      plain text.
 
-5. **Plan and execute.** Summarize back to the user what the issue asks for
-   and outline what you will do before making changes. Implement in the
-   working copy. Follow [`using-tod`](../using-tod/SKILL.md) for write
-   commands; use [`submit-issue-work`](../submit-issue-work/SKILL.md) when
-   the user wants to push and open a pull request.
+4. **Assess, plan, and execute.** Check the requested work against the
+   current code and behavior before deciding that a code change is needed.
+
+   - If the request is reasonable and not already implemented, summarize
+     what you will do and outline your approach before making changes, then
+     implement it in the working copy.
+   - If the request is already implemented, verify that conclusion and do
+     not make redundant code changes. Draft a response explaining the
+     existing implementation and the evidence you found.
+   - If the request is unreasonable, technically incorrect, contradictory,
+     or unsafe, do not force a code change merely to satisfy it. Draft a
+     response that clearly explains the concern and, when useful, proposes
+     an alternative.
+
+   In either no-code-change case, responding on the relevant issue discussion is
+   the work product. Follow [`using-tod`](../using-tod/SKILL.md) consent
+   rules before posting it. For any other OneDev state change during the
+   work (issue state, logged time, etc.), follow the same consent rules.
+
+   **Push before publishing code-dependent updates.** If a OneDev state
+   change relies on code being submitted — for example, a comment such as
+   "Done the work" or any update claiming that a fix has been implemented —
+   draft it and obtain consent now, but do not post it yet. Defer it to
+   [`submit-issue-work`](../submit-issue-work/SKILL.md), where it is applied
+   only after the code has been pushed and the pull request has been opened
+   or updated. State changes that do not depend on submitted code may be
+   made immediately after following the consent rules.
+
+   When code was changed and the user wants it pushed and opened as a pull
+   request, use
+   [`submit-issue-work`](../submit-issue-work/SKILL.md). Do not run the
+   submission workflow when the outcome is only a discussion response.

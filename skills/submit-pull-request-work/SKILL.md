@@ -1,13 +1,8 @@
 ---
 name: submit-pull-request-work
-description: Submit completed work on a OneDev pull request via the `tod` CLI
-  — verify the checkout is on the PR's source branch in the source project,
-  commit any pending changes (using the `generate-commit-message` skill),
-  push to the matching remote branch so the existing pull request picks up the
-  new commits, then post any deferred PR/issue/code-comment replies from
-  work-on-pull-request. Use when the user asks to submit, push, or finish work
-  on a pull request (e.g. "submit PR work", "push my PR fixes", "submit work
-  on PR 42").
+description: Submit completed work on a OneDev pull request. Use when the user
+  asks to submit, push, or finish work on a pull request, such as "submit PR
+  work", "push my PR fixes", or "submit work on PR 42".
 ---
 
 # Submit pull request work
@@ -149,3 +144,27 @@ should ask the user.
    If there are no deferred writes for this session, skip this step. If a push
    was required but step 4d did not run or failed, do **not** post deferred
    replies.
+
+7. **Return to the previous branch and remove the local source branch.** Only
+   after steps 4–6 complete successfully:
+
+   a. Determine whether a previous branch exists:
+      ```bash
+      git rev-parse --abbrev-ref @{-1} 2>/dev/null
+      ```
+      Save non-empty output as `<previous-branch>`. If the command fails or
+      produces empty output, skip the rest of this step — leave the checkout
+      on `<source-branch>`.
+
+   b. If `<previous-branch>` equals `<source-branch>`, skip the rest of this
+      step — there is nowhere else to switch to.
+
+   c. Switch back and delete the local source branch. The remote branch on
+      `<remote>` stays for the open pull request:
+      ```bash
+      git checkout <previous-branch>
+      git branch -D <source-branch>
+      ```
+
+   Tell the user the checkout is now on `<previous-branch>` and the local
+   `<source-branch>` was removed.

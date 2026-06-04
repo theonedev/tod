@@ -91,32 +91,6 @@ var buildGetLogCmd = &cobra.Command{
 	},
 }
 
-var buildGetFileContentCmd = &cobra.Command{
-	Use:   "get-file-content <build-reference> <path>",
-	Short: "Get the content of a file at the commit used by a build",
-	Args:  cobra.ExactArgs(2),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		path := args[1]
-		currentProject, err := currentProjectFor(cmd)
-		if err != nil {
-			return err
-		}
-		build, err := getBuildDetail(args[0], currentProject)
-		if err != nil {
-			return err
-		}
-		project, _ := build["project"].(string)
-		commitHash, _ := build["commitHash"].(string)
-		rawURL := fmt.Sprintf("%s/%s/~raw/%s/%s", config.ServerUrl, project, commitHash, path)
-		body, err := apiGetAbsolute(rawURL)
-		if err != nil {
-			return err
-		}
-		emit(body)
-		return nil
-	},
-}
-
 var buildGetChangesSinceSuccessCmd = &cobra.Command{
 	Use:   "get-changes-since-success <build-reference>",
 	Short: "Get file changes since the previous successful similar build",
@@ -170,7 +144,7 @@ requiring a commit/push.`,
 	},
 }
 
-var buildGetSpecCmd = &cobra.Command{
+var buildGetSpecSchemaCmd = &cobra.Command{
 	Use:   "get-spec-schema",
 	Short: "Get schema of OneDev build spec in YAML",
 	Args:  cobra.NoArgs,
@@ -704,10 +678,9 @@ func initBuildCommands() {
 		buildListCmd,
 		buildGetCmd,
 		buildGetLogCmd,
-		buildGetFileContentCmd,
 		buildGetChangesSinceSuccessCmd,
 		buildRunCmd,
-		buildGetSpecCmd,
+		buildGetSpecSchemaCmd,
 		buildCheckSpecCmd,
 		buildGetQueryDescriptionCmd,
 	)

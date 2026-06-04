@@ -1,20 +1,16 @@
 ---
 name: submit-issue-work
-description: Submit completed work on a OneDev issue via the `tod` CLI — confirm
-  the issue branch exists on the server, verify the local checkout is on it,
-  commit any pending changes (using the `generate-commit-message` skill), push
-  to the matching remote branch, and open a pull request whose title and
-  description summarize the commits added on the issue branch. Use when the
-  user asks to submit, complete, or finish work on a OneDev issue (e.g.
-  "submit work 123", "complete work on PROJ-7", "finish issue myproject#42").
+description: Submit completed work on a OneDev issue. Use when the user asks
+  to submit, complete, or finish work on a OneDev issue, such as "submit work
+  123", "complete work on PROJ-7", or "finish issue myproject#42".
 ---
 
 # Submit work on a OneDev issue
 
 This skill takes a OneDev issue from "implementation done in the working
-copy" to "pull request opened on the server". It assumes the agent has
-already implemented the change on the issue branch (typically after
-running the `work-on-issue` skill).
+copy" to "pull request opened or updated on the server". It assumes the
+agent has already implemented the change on the issue branch (typically
+after running the `work-on-issue` skill).
 
 ## Prerequisites
 
@@ -118,7 +114,22 @@ Given an `<issue-reference>` (e.g. `123`, `#123`, `myproject#123`, or
       git push <remote> <issue-branch>
       ```
 
-5. **Create the pull request.** Decide the `tod pr create` flags first —
+5. **Open or attach to the pull request.** First check whether an open pull
+   request already includes this issue:
+   ```bash
+   tod pr list --query 'includes issue "<issue-reference>" and open'
+   ```
+   Use the same reference form the user gave (e.g. `#123` or `PROJ-123`) inside
+   the quotes.
+
+   - **Exactly one match:** Do **not** run `tod pr create`. The push in step 4
+     already updated that PR. Surface its reference and URL from the query
+     result to the user, then continue to step 6.
+   - **Multiple matches:** Stop and ask the user which open PR to use. Do not
+     create another pull request until this is resolved.
+   - **Zero matches:** Create a new pull request as below.
+
+   When creating a new pull request, decide the `tod pr create` flags first —
    by default omit them all (`--source-branch` defaults to the current
    git branch, which is `<issue-branch>`; `--target-branch` defaults to
    the target project's default branch; `--source-project` and
@@ -155,3 +166,38 @@ Given an `<issue-reference>` (e.g. `123`, `#123`, `myproject#123`, or
 
    Surface the server response (which contains the new PR's reference
    and URL) to the user.
+
+6. **Apply deferred OneDev state changes.** When `work-on-issue` drafted
+   comments or other state changes that depend on the submitted code, apply
+   them **now**, after the push and pull request creation or update succeeded.
+   Follow the consent rules in [`using-tod`](../using-tod/SKILL.md).
+
+   Typical examples include posting "Done the work", explaining an
+   implemented fix, or making another update whose truth depends on the code
+   being available on the server. If there are no deferred changes for this
+   session, skip this step. If the push or pull request step failed, do not
+   apply them.
+
+7. **Return to the previous branch and remove the local issue branch.** Only
+   after steps 5 and 6 succeed:
+
+   a. Determine whether a previous branch exists:
+      ```bash
+      git rev-parse --abbrev-ref @{-1} 2>/dev/null
+      ```
+      Save non-empty output as `<previous-branch>`. If the command fails or
+      produces empty output, skip the rest of this step — leave the checkout
+      on `<issue-branch>`.
+
+   b. If `<previous-branch>` equals `<issue-branch>`, skip the rest of this
+      step — there is nowhere else to switch to.
+
+   c. Switch back and delete the local issue branch. The remote branch on
+      `<remote>` stays for the open pull request:
+      ```bash
+      git checkout <previous-branch>
+      git branch -D <issue-branch>
+      ```
+
+   Tell the user the checkout is now on `<previous-branch>` and the local
+   `<issue-branch>` was removed.

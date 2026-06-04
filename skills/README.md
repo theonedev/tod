@@ -15,8 +15,8 @@ other agent that consumes `SKILL.md` files.
 | [investigate-build-failure](investigate-build-failure/SKILL.md) | Debug a failing build via `tod build get`, `tod build get-log`, and related commands. |
 | [review-pull-request](review-pull-request/SKILL.md) | Review a pull request via `tod pr get`, `tod pr get-patch`, and friends. |
 | [generate-commit-message](generate-commit-message/SKILL.md) | Compose a commit message that respects `tod get-commit-message-requirement` (and `tod pr get-commit-message-requirement` when submitting PR work), and adds a meaningful body or footer. |
-| [work-on-issue](work-on-issue/SKILL.md) | Work on a OneDev issue: hand off to `work-on-pull-request` when exactly one open PR includes the issue; otherwise `tod issue create-branch`, check out the issue branch, read context, and implement. |
-| [submit-issue-work](submit-issue-work/SKILL.md) | Submit completed issue work: commit pending changes (via `generate-commit-message` with branch and PR requirements), push the issue branch, and open a pull request via `tod pr create`. |
+| [work-on-issue](work-on-issue/SKILL.md) | Work on a OneDev issue: `tod issue create-branch`, check out the issue branch, read context, and implement. |
+| [submit-issue-work](submit-issue-work/SKILL.md) | Submit completed issue work: commit pending changes (via `generate-commit-message` with branch and PR requirements), push the issue branch, attach to an existing open PR for the issue when one exists, otherwise open a pull request via `tod pr create`. |
 | [work-on-pull-request](work-on-pull-request/SKILL.md) | Address follow-up on a pull request: verify the source project, check out with `tod pr checkout`, fix code locally, post comment-only replies immediately, and draft push-dependent replies for submit. |
 | [submit-pull-request-work](submit-pull-request-work/SKILL.md) | Submit completed pull request work: commit pending changes (via `generate-commit-message` with branch and PR requirements), push the PR source branch, then post deferred replies/resolves so notifications match visible commits. |
 

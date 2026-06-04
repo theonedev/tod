@@ -1,28 +1,21 @@
 ---
 name: work-on-pull-request
-description: Set up the local checkout to address concerns on a OneDev pull
-  request via the `tod` CLI — verify the working directory is the PR's source
-  project, check out the PR branch, inspect feedback (PR comments, code
-  comments, linked issue comments, failed builds, or the user's prompt), then
-  fix code locally and draft or post OneDev replies. Replies that claim a code
-  fix must not be posted until after `submit-pull-request-work` pushes. Use
-  when the user asks to work on, address, fix, or follow up on a pull request
-  (e.g. review feedback, failing CI, or requested changes).
+description: Implement changes for a OneDev pull request. Use when the user
+  asks to work on, address, fix, or follow up on a pull request.
 ---
 
 # Work on a OneDev pull request
 
-We work on a pull request when we need to address concerns raised by someone
-or the OneDev system against the PR. Those concerns can come from PR
-comments, line-anchored code comments, corresponding issue description and comments,
-failed builds of the PR, or from the user's prompt alone.
+This skill prepares the local checkout to work on a specified OneDev pull
+request. It verifies the source project, switches onto the PR's source branch
+(without clobbering uncommitted work), reads the PR context (or uses the user's
+prompt when it specifies the work), and implements the work.
 
-This skill prepares the local checkout on the PR's source branch, gathers the
-relevant feedback, and guides you to take the right actions — including code
-changes and replies on OneDev. **Push before publish:** any reply or resolve
-that implies the concern is fixed in the PR must wait until commits are on the
-server (via [`submit-pull-request-work`](../submit-pull-request-work/SKILL.md)),
-so reviewers are not notified of a fix they cannot see yet.
+The work may also require replies or resolutions on OneDev. **Push before
+publish:** any reply or resolve that implies a code change is complete must
+wait until the commits are on the server (via
+[`submit-pull-request-work`](../submit-pull-request-work/SKILL.md)), so
+reviewers are not notified of a change they cannot see yet.
 
 ## Prerequisites
 
@@ -82,31 +75,42 @@ Given a `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or `PROJ-42`):
    git symbolic-ref --short HEAD
    ```
 
-3. **Inspect the concern.** Use what the user pointed at; when they did not
-   specify a source, gather every signal that applies:
+3. **Determine the work specification.** The work may
+   come from the user's prompt directly or from feedback on OneDev:
 
-   | Concern source | How to inspect |
+   | Work instruction source | Primary specification | OneDev context |
+   |-------------------------|-----------------------|----------------|
+   | User prompt specifies the work | The prompt (concrete task, scope, approach, or constraints beyond naming the PR) | Always use PR metadata and description; inspect the feedback sources identified by the prompt and any directly related discussion as supplementary context |
+   | Prompt only names the PR | PR title and description | Comments, code comments |
+   | Prompt generally asks to address feedback | Applicable PR comments and code comments | PR metadata, description |
+
+   Even when the prompt is the primary specification, do not proceed from the
+   prompt alone. The PR metadata and description fetched in step 1 are required
+   context, and any feedback source the prompt points to must be fetched in
+   full, including its replies. First determine the current login name:
+   ```bash
+   tod get-login-name
+   ```
+   Save the login name and match it against the author of each PR comment,
+   code comment and reply. Treat matching comments as your own prior context 
+   rather than independent collaborator feedback.
+
+   | Context source | How to inspect |
    |----------------|----------------|
-   | User prompt only | Treat the prompt as the specification; skip rows that do not apply. |
    | PR comments | `tod pr get-comments <pr-reference>` |
    | Line-anchored code comments | `tod pr get-code-comments <pr-reference>` — note `id`, file, line range, resolution state, and replies. |
-   | Linked issue description and comments | `tod issue list --query 'fixed in pull request "<pr-reference>"'` → `tod issue get <issue-ref>` and `tod issue get-comments <issue-ref>` for each match |
-   | Failed PR builds | `tod pr get-builds <pr-reference>` — for each failed build, follow [`investigate-build-failure`](../investigate-build-failure/SKILL.md) |
 
-   For context on what changed, read the current patch when code edits are
-   likely:
+   Read the current patch to understand what the PR already changes relative
+   to its target:
    ```bash
    tod pr get-patch <pr-reference>
    ```
-   Fetch full files when the patch alone is insufficient:
-   ```bash
-   tod pr get-file-content <pr-reference> <path>
-   ```
+   When the patch alone is insufficient, inspect the corresponding files in
+   the checked-out working copy.
 
    **Download and inspect embedded resources.** PR descriptions, general
-   comments, code comments, issue description and comments often link to
-   screenshots, logs, or other files. Text alone is not enough when links
-   are present:
+   comments, and code comments often link to screenshots, logs, or other files. 
+   Text alone is not enough when links are present:
 
    - Find image and file links (`![alt](url)` and `[label](url)`) in every
      text source you read above.
@@ -116,39 +120,39 @@ Given a `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or `PROJ-42`):
      ```
    - Open images with the Read tool; read other files as needed.
 
-4. **Plan and execute.** Summarize the concern back to the user and outline
-   what you will do before making changes. Then work in two phases:
+4. **Assess, plan, and execute.** Check the requested work against the current
+   code and behavior before deciding that a code change is needed.
 
-   **Phase A — Local work**
+   - If the request is reasonable and not already implemented, summarize what
+     you will do, outline your approach, and then implement the change.
+   - If the request is already implemented, verify that conclusion and do not
+     make a redundant code change. Draft a response explaining the existing
+     implementation and the evidence you found.
+   - If the request is unreasonable, technically incorrect, contradictory, or
+     unsafe, do not force a code change merely to satisfy it. Draft a response
+     that clearly explains the issue and, when useful, proposes an
+     alternative.
 
-   - Implement any code changes in the working copy.
-   - For each OneDev reply or resolve you intend to send, decide whether it
-     **depends on pushed code** (see table below). When it does, **draft** the
-     text and show it to the user per [`using-tod`](../using-tod/SKILL.md)
-     consent rules, but **do not post it yet** — it belongs in
-     [`submit-pull-request-work`](../submit-pull-request-work/SKILL.md) step 6
-     after a successful push.
-   - When the user wants fixes on the server (or you drafted push-dependent
-     replies), run `submit-pull-request-work` before treating the PR follow-up
-     as complete. A single request such as "fix review feedback and submit"
-     means: finish phase A, then run that skill (including posting deferred
-     replies in its step 6).
+   In either no-code-change case, responding in the relevant PR or code-comment 
+   is the work product. Follow [`using-tod`](../using-tod/SKILL.md) consent 
+   rules before posting it.
 
-   | Reply depends on pushed code? | Examples | Where to post |
-   |------------------------------|----------|---------------|
-   | **Yes** | "Fixed in …", "addressed your feedback", `resolve`, replies explaining a code change | Draft in phase A; post in `submit-pull-request-work` step 6 after push |
-   | **No** | Clarification, "will fix", questions, disagreement without claiming a fix is already in the PR | Phase A — follow consent rules and post immediately |
+   **Push before publishing code-dependent updates.** If a reply or resolve
+   relies on code being submitted — for example, "Fixed", "addressed your
+   feedback", or an explanation of a code change — draft it and obtain consent
+   now, but do not post it yet. Defer it to
+   [`submit-pull-request-work`](../submit-pull-request-work/SKILL.md), where it
+   is applied only after the code has been pushed. Replies that do not depend
+   on submitted code, such as clarifications, questions, or disagreement, may
+   be posted immediately after following the consent rules.
 
-   Match the channel when posting (phase A or submit step 6):
+   Match the discussion channel when posting immediately or deferring an
+   update:
    - General PR feedback → `tod pr add-comment <pr-reference> "<reply>"`
    - Line-anchored thread → `tod code-comment add-reply <comment-id> "<reply>"`
    - Concern addressed in code → `tod code-comment resolve <comment-id> --note "<why>"` when appropriate
-   - Issue-side discussion → `tod issue add-comment <issue-ref> "<reply>"` when the thread lives on the issue
-
-   **Phase B — Publish on OneDev**
-
-   - Post only **push-independent** replies from the table above.
-   - Do **not** run `add-comment`, `add-reply`, or `resolve` here when the
-     message depends on code that is not yet on the server — use submit step 6
-     instead.
-
+   
+   When code was changed and the user wants it pushed to the existing pull
+   request, use
+   [`submit-pull-request-work`](../submit-pull-request-work/SKILL.md). Do not
+   run the submission workflow when the outcome is only a discussion response.

@@ -143,44 +143,6 @@ var prGetPatchCmd = &cobra.Command{
 	},
 }
 
-var prGetFileContentCmd = &cobra.Command{
-	Use:   "get-file-content <pr-reference> <path>",
-	Short: "Get the content of a file at a specific revision of a pull request",
-	Args:  cobra.ExactArgs(2),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		path := args[1]
-		oldRevision, _ := cmd.Flags().GetBool("old-revision")
-
-		currentProject, err := currentProjectFor(cmd)
-		if err != nil {
-			return err
-		}
-		pr, err := getPullRequestDetail(args[0], currentProject)
-		if err != nil {
-			return err
-		}
-
-		var commitHash string
-		if oldRevision {
-			info, err := getPullRequestPatchInfo(args[0], currentProject)
-			if err != nil {
-				return err
-			}
-			commitHash, _ = info["oldCommitHash"].(string)
-		} else {
-			commitHash, _ = pr["headCommitHash"].(string)
-		}
-		targetProject, _ := pr["targetProject"].(string)
-
-		body, err := apiGetAbsolute(fmt.Sprintf("%s/%s/~raw/%s/%s", config.ServerUrl, targetProject, commitHash, path))
-		if err != nil {
-			return err
-		}
-		emit(body)
-		return nil
-	},
-}
-
 var prCreateCmd = &cobra.Command{
 	Use:   "create <title>",
 	Short: "Create a new pull request",
@@ -569,7 +531,6 @@ func initPullRequestCommands() {
 
 	prGetPatchCmd.Flags().Bool("for-code-review", false, "If set, return only changes relevant for code review")
 
-	prGetFileContentCmd.Flags().Bool("old-revision", false, "If set, return the file content before pull request change")
 
 	prCreateCmd.Flags().String("source-branch", "", "Source branch (defaults to the current git branch)")
 	prCreateCmd.Flags().String("target-branch", "", "Target branch (defaults to the target project's default branch)")
@@ -618,7 +579,6 @@ func initPullRequestCommands() {
 		prGetCodeCommentsCmd,
 		prGetBuildsCmd,
 		prGetPatchCmd,
-		prGetFileContentCmd,
 		prCreateCmd,
 		prGetTitleAndDescriptionRequirementCmd,
 		prGetCommitMessageRequirementCmd,

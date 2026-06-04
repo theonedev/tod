@@ -54,7 +54,6 @@ Reference formats accepted by `<ref>`/`<target ref>`/`<source ref>` arguments:
 | `tod pr get-code-comments <ref>` | List code comments on a pull request. |
 | `tod pr get-builds <ref>` | List builds of a pull request. |
 | `tod pr get-patch <ref>` | Patch. Flag: `--for-code-review`. |
-| `tod pr get-file-content <ref> <path>` | File content at a specific revision. Flag: `--old-revision`. |
 | `tod pr create <title>` | Create a pull request. Flags: `--source-branch` (defaults to current git branch), `--target-branch`, `--description`, `--source-project`, `--target-project`, `--assignee`, `--reviewer`, `--label`, `--merge-strategy`. |
 | `tod pr get-title-and-description-requirement` | Get pull request title and description requirement. Flags: `--source-branch` (defaults to current git branch), `--target-branch`, `--source-project`, `--target-project`, `--merge-strategy`. |
 | `tod pr get-commit-message-requirement` | Get pull request commit message requirement. Flags: `--source-branch` (defaults to current git branch), `--target-branch`, `--source-project`, `--target-project`. |
@@ -86,7 +85,6 @@ Code comment IDs are returned by `tod pr get-code-comments <pr-reference>` (the
 | `tod build list` | Query builds. Flags: `--project`, `--query`, `--offset`, `--count`. |
 | `tod build get <ref>` | Detail information of a build. |
 | `tod build get-log <ref>` | Build log. |
-| `tod build get-file-content <ref> <path>` | File content at the build's commit. |
 | `tod build get-changes-since-success <ref>` | Patch between the build's commit and the previous successful similar build. |
 | `tod build run <job-name>` | Run a job against a branch, tag, or local changes. Flags: exactly one of `--branch`, `--tag`, or `--local`; `-p key=value`. Streams the log. |
 | `tod build get-spec-schema` | Print the build spec YAML definition. |

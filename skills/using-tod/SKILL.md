@@ -1,9 +1,9 @@
 ---
 name: using-tod
-description: Drive OneDev (issues, pull requests, builds) through the `tod` CLI. 
-  Use whenever the user asks to create, edit, query, change  state, comment on, review, 
-  checkout, run CI/CD job for, get commit message requirement, or otherwise interact 
-  with anything in OneDev.
+description: Interact with OneDev issues, pull requests, builds, and projects.
+  Use when the user asks to create, edit, query, change state, comment on,
+  review, check out, run a CI/CD job for, or otherwise manage anything in
+  OneDev.
 ---
 
 # Using the tod CLI
@@ -31,14 +31,14 @@ Commands are grouped by resource:
   `link`, `add-comment`, `log-work`, `create-branch`, `current-reference`,
   `get-query-description`, `get-valid-fields`, `get-valid-links`
 - `tod pr` — `list`, `get`, `get-comments`, `get-code-comments`, `get-builds`, `get-patch`,
-  `get-file-content`, `create`, `get-title-and-description-requirement`,
+  `create`, `get-title-and-description-requirement`,
   `get-commit-message-requirement`, `edit`, `approve`, `request-changes`, `merge`,
   `discard`, `add-comment`, `add-code-comment`, `checkout`, `get-query-description`
 - `tod code-comment` — `add-reply`, `resolve`, `unresolve` (operates on the
   `id` returned by `tod pr get-code-comments`)
-- `tod build` — `list`, `get`, `get-log`, `get-file-content`,
-  `get-changes-since-success`, `run` (with `--branch`, `--tag`, or `--local`),
-  `get-spec-schema`, `check-spec`, `get-query-description`
+- `tod build` — `list`, `get`, `get-log`, `get-changes-since-success`, `run`
+  (with `--branch`, `--tag`, or `--local`), `get-spec-schema`, `check-spec`,
+  `get-query-description`
 - `tod config` — `set`, `get`, `path`
 - `tod get-login-name`, `tod get-unix-timestamp`, `tod project`,
   `tod remote`, `tod get-valid-labels`,
