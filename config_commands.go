@@ -21,7 +21,7 @@ var configCmd = &cobra.Command{
 }
 
 var configSetCmd = &cobra.Command{
-	Use:   "set [server-url|access-token] [value]",
+	Use:   "set [server-url|access-token|trust-certs-file] [value]",
 	Short: "Create or update the tod config file",
 	Long: `Create or update the tod config file.
 
@@ -29,13 +29,15 @@ When invoked without arguments, you are prompted for each property in turn.
 The current server URL (if any) is shown in square brackets as a default —
 press Enter to keep it, or type a new value to replace it. The access token
 prompt is always blank for security; press Enter on an empty line to keep
-the existing token, or type a new one to replace it.
+the existing token, or type a new one to replace it. The trust certs file is
+optional; leave it blank to skip adding custom trusted certificates.
 
 To update a single property without prompts (for scripts), pass the
 property name and value positionally:
 
   tod config set server-url https://onedev.example.com
   tod config set access-token your-personal-access-token
+  tod config set trust-certs-file /path/to/trust-certs.pem
 
 The config file is written to the first existing file in the standard
 search order ($XDG_CONFIG_HOME/tod/config, ~/.config/tod/config). If
@@ -59,7 +61,7 @@ set) is created.`,
 }
 
 var configGetCmd = &cobra.Command{
-	Use:   "get [server-url|access-token]",
+	Use:   "get [server-url|access-token|trust-certs-file]",
 	Short: "Print the active configuration (access token is always redacted)",
 	Args: func(cmd *cobra.Command, args []string) error {
 		if len(args) > 1 {
@@ -85,6 +87,7 @@ var configGetCmd = &cobra.Command{
 		fmt.Fprintf(os.Stderr, "# config file: %s\n", path)
 		fmt.Printf("%s=%s\n", serverUrlKey, c.ServerUrl)
 		fmt.Printf("%s=%s\n", accessTokenKey, configPropertyValue(c, accessTokenKey))
+		fmt.Printf("%s=%s\n", trustCertsFileKey, c.TrustCertsFile)
 		return nil
 	},
 }
@@ -125,6 +128,7 @@ func setFullConfig() error {
 
 	serverUrl := existing.ServerUrl
 	accessToken := existing.AccessToken
+	trustCertsFile := existing.TrustCertsFile
 
 	reader := bufio.NewReader(os.Stdin)
 
@@ -163,6 +167,23 @@ func setFullConfig() error {
 		return err
 	}
 
+	if trustCertsFile != "" {
+		prompt = fmt.Sprintf("Trust certs file [%s]: ", trustCertsFile)
+	} else {
+		prompt = "Trust certs file (optional, press Enter to skip): "
+	}
+	value, err = promptValue(reader, prompt)
+	if err != nil {
+		return err
+	}
+	if value != "" {
+		trustCertsFile = value
+	}
+	trustCertsFile, err = normalizeConfigProperty(trustCertsFileKey, trustCertsFile)
+	if err != nil {
+		return err
+	}
+
 	for _, stale := range allConfigFilePaths() {
 		if stale == targetPath {
 			continue
@@ -176,7 +197,7 @@ func setFullConfig() error {
 		}
 	}
 
-	if err := writeConfigFile(targetPath, serverUrl, accessToken); err != nil {
+	if err := writeConfigFile(targetPath, serverUrl, accessToken, trustCertsFile); err != nil {
 		return err
 	}
 	fmt.Fprintf(os.Stderr, "Wrote config to %s\n", targetPath)
@@ -203,18 +224,20 @@ func setConfigProperty(propertyName, propertyValue string) error {
 		config.ServerUrl = normalizedValue
 	case accessTokenKey:
 		config.AccessToken = normalizedValue
+	case trustCertsFileKey:
+		config.TrustCertsFile = normalizedValue
 	default:
 		return validateConfigPropertyName(propertyName)
 	}
 
-	if err := writeConfigFile(targetPath, config.ServerUrl, config.AccessToken); err != nil {
+	if err := writeConfigFile(targetPath, config.ServerUrl, config.AccessToken, config.TrustCertsFile); err != nil {
 		return err
 	}
 	fmt.Fprintf(os.Stderr, "Wrote %s to %s\n", propertyName, targetPath)
 	return nil
 }
 
-func writeConfigFile(path, serverUrl, accessToken string) error {
+func writeConfigFile(path, serverUrl, accessToken, trustCertsFile string) error {
 	if dir := filepath.Dir(path); dir != "" && dir != "." {
 		if err := os.MkdirAll(dir, 0o700); err != nil {
 			return fmt.Errorf("failed to create config directory %s: %w", dir, err)
@@ -222,6 +245,9 @@ func writeConfigFile(path, serverUrl, accessToken string) error {
 	}
 
 	contents := fmt.Sprintf("%s=%s\n%s=%s\n", serverUrlKey, serverUrl, accessTokenKey, accessToken)
+	if trustCertsFile != "" {
+		contents += fmt.Sprintf("%s=%s\n", trustCertsFileKey, trustCertsFile)
+	}
 	if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
 		return fmt.Errorf("failed to write config file %s: %w", path, err)
 	}
@@ -230,16 +256,16 @@ func writeConfigFile(path, serverUrl, accessToken string) error {
 
 func validateConfigPropertyName(propertyName string) error {
 	switch propertyName {
-	case serverUrlKey, accessTokenKey:
+	case serverUrlKey, accessTokenKey, trustCertsFileKey:
 		return nil
 	default:
-		return fmt.Errorf("unknown config property %q (expected %q or %q)", propertyName, serverUrlKey, accessTokenKey)
+		return fmt.Errorf("unknown config property %q (expected %q, %q, or %q)", propertyName, serverUrlKey, accessTokenKey, trustCertsFileKey)
 	}
 }
 
 func normalizeConfigProperty(propertyName, propertyValue string) (string, error) {
 	value := strings.TrimSpace(propertyValue)
-	if value == "" {
+	if value == "" && propertyName != trustCertsFileKey {
 		return "", fmt.Errorf("%s must not be empty", propertyName)
 	}
 
@@ -250,6 +276,17 @@ func normalizeConfigProperty(propertyName, propertyValue string) (string, error)
 			return "", fmt.Errorf("invalid server url (must start with http:// or https://): %s", value)
 		}
 	case accessTokenKey:
+	case trustCertsFileKey:
+		if value != "" {
+			info, err := os.Stat(value)
+			if err != nil {
+				return "", fmt.Errorf("invalid trust-certs-file %q: %w", value, err)
+			}
+			if !info.Mode().IsRegular() {
+				return "", fmt.Errorf("invalid trust-certs-file %q: not a regular file", value)
+			}
+			value = filepath.Clean(value)
+		}
 	default:
 		return "", validateConfigPropertyName(propertyName)
 	}
@@ -262,6 +299,8 @@ func configPropertyValue(config *Config, propertyName string) string {
 		return config.ServerUrl
 	case accessTokenKey:
 		return redactToken(config.AccessToken)
+	case trustCertsFileKey:
+		return config.TrustCertsFile
 	default:
 		return ""
 	}

@@ -10,16 +10,19 @@ import (
 )
 
 const (
-	serverUrlKey              = "server-url"
-	accessTokenKey            = "access-token"
-	serverUrlEnvironmentKey   = "ONEDEV_SERVER_URL"
-	accessTokenEnvironmentKey = "ONEDEV_ACCESS_TOKEN"
+	serverUrlKey                 = "server-url"
+	accessTokenKey               = "access-token"
+	trustCertsFileKey            = "trust-certs-file"
+	serverUrlEnvironmentKey      = "ONEDEV_SERVER_URL"
+	accessTokenEnvironmentKey    = "ONEDEV_ACCESS_TOKEN"
+	trustCertsFileEnvironmentKey = "ONEDEV_TRUST_CERTS_FILE"
 )
 
 // Config holds configuration values shared across all commands
 type Config struct {
-	ServerUrl   string
-	AccessToken string
+	ServerUrl      string
+	AccessToken    string
+	TrustCertsFile string
 }
 
 // allConfigFilePaths returns every location where a config file could exist,
@@ -103,6 +106,7 @@ func loadConfigFile(configFilePath string) (*Config, error) {
 	defaultSec := cfg.Section("")
 	config.ServerUrl = defaultSec.Key(serverUrlKey).String()
 	config.AccessToken = defaultSec.Key(accessTokenKey).String()
+	config.TrustCertsFile = defaultSec.Key(trustCertsFileKey).String()
 	return config, nil
 }
 
@@ -112,6 +116,9 @@ func applyConfigEnvironmentOverrides(config *Config) {
 	}
 	if accessToken, ok := os.LookupEnv(accessTokenEnvironmentKey); ok {
 		config.AccessToken = accessToken
+	}
+	if trustCertsFile, ok := os.LookupEnv(trustCertsFileEnvironmentKey); ok {
+		config.TrustCertsFile = trustCertsFile
 	}
 }
 
@@ -132,6 +139,16 @@ func (config *Config) Validate() error {
 	}
 	// Trim trailing slash if present
 	config.ServerUrl = strings.TrimRight(config.ServerUrl, "/")
+
+	if config.TrustCertsFile != "" {
+		info, err := os.Stat(config.TrustCertsFile)
+		if err != nil {
+			return fmt.Errorf("invalid trust-certs-file %q: %w", config.TrustCertsFile, err)
+		}
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("invalid trust-certs-file %q: not a regular file", config.TrustCertsFile)
+		}
+	}
 
 	return nil
 }

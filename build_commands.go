@@ -427,8 +427,11 @@ func runLocalJob(jobName string, workingDir string, params map[string][]string,
 		runCommit = strings.TrimSpace(string(out))
 	}
 
-	cmd = exec.Command("git", "-c", "http.extraHeader=Authorization: Bearer "+config.AccessToken, "push", "-f", projectUrl, runCommit+":refs/onedev/tod")
-	cmd.Dir = workingDir
+	cmd, cleanup, err := newTrustedGitCommand(workingDir, "-c", "http.extraHeader=Authorization: Bearer "+config.AccessToken, "push", "-f", projectUrl, runCommit+":refs/onedev/tod")
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare git push: %v", err)
+	}
+	defer cleanup()
 
 	logger.Printf("Running command: git push -f %s %s:refs/onedev/tod\n", projectUrl, runCommit)
 	stdoutStderr, err := cmd.CombinedOutput()
@@ -527,7 +530,10 @@ func streamBuildLog(buildId int, buildNumber int, signalChannel <-chan os.Signal
 	}
 	req.Header.Set("Authorization", "Bearer "+config.AccessToken)
 
-	client := http.Client{}
+	client, err := newHTTPClient(config)
+	if err != nil {
+		return err
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to stream build log: %v", err)
@@ -545,7 +551,11 @@ func streamBuildLog(buildId int, buildNumber int, signalChannel <-chan os.Signal
 		defer mutex.Unlock()
 		if !buildFinished {
 			fmt.Println("Cancelling build...")
-			client := &http.Client{}
+			client, err := newHTTPClient(config)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "Failed to cancel build:", err)
+				return
+			}
 
 			targetUrl := fmt.Sprintf("%s/~api/job-runs/%d", config.ServerUrl, buildId)
 

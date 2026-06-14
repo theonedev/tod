@@ -13,10 +13,16 @@ const minRequiredServerVersion = "15.1.0"
 
 var config *Config
 
+var checkedVersionInfo VersionInfo
+
 var rootCmd = &cobra.Command{
 	Use:   "tod",
 	Short: "TOD (TheOneDev) is a command line tool for OneDev 15.1+",
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		if cmd.Name() == "version" {
+			return nil
+		}
+
 		var err error
 		config, err = LoadConfig()
 		if err != nil {
@@ -27,7 +33,7 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 
-		if err := checkVersion(config.ServerUrl, config.AccessToken); err != nil {
+		if checkedVersionInfo, err = checkVersion(config); err != nil {
 			cmd.SilenceUsage = true
 			cmd.SilenceErrors = true
 			fmt.Fprintln(os.Stderr, err)
@@ -101,6 +107,8 @@ func init() {
 	rootCmd.AddCommand(
 		runJobCmd,
 		checkoutPullRequestCmd,
+		checkVersionCmd,
+		versionCmd,
 	)
 }
 

@@ -80,12 +80,18 @@ value positionally to update one property at a time without prompts:
 ```bash
 tod config set server-url https://onedev.example.com
 tod config set access-token your-personal-access-token
+tod config set trust-certs-file /path/to/trust-certs.pem
 ```
 
 `tod config get` prints the active configuration (with the token redacted)
 and `tod config get <property name>` prints a single property. Property
-names are `server-url` and `access-token`. `tod config path` prints the
-path being used.
+names are `server-url`, `access-token`, and `trust-certs-file`.
+`tod config path` prints the path being used.
+
+Set `trust-certs-file` when the OneDev server uses a self-signed certificate
+or a CA root not trusted by your system. The file should contain one or more
+Base64 encoded PEM certificates, beginning with
+`-----BEGIN CERTIFICATE-----` and ending with `-----END CERTIFICATE-----`.
 
 The config file is searched at the following locations (first match wins):
 
@@ -97,7 +103,12 @@ It uses INI format and is written with mode `0600`:
 ```ini
 server-url=https://onedev.example.com
 access-token=your-personal-access-token
+trust-certs-file=/path/to/trust-certs.pem
 ```
+
+The `ONEDEV_SERVER_URL`, `ONEDEV_ACCESS_TOKEN`, and
+`ONEDEV_TRUST_CERTS_FILE` environment variables override their corresponding
+config-file properties.
 
 ## Quick start
 

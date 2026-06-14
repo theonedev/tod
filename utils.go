@@ -16,7 +16,10 @@ import (
 func makeAPICall(req *http.Request) ([]byte, error) {
 	req.Header.Set("Authorization", "Bearer "+config.AccessToken)
 
-	client := &http.Client{}
+	client, err := newHTTPClient(config)
+	if err != nil {
+		return nil, err
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request to %s: %v", req.URL.String(), err)
@@ -274,8 +277,11 @@ func checkoutPullRequest(workingDir string, pullRequestReference string, logger 
 
 	projectUrl := config.ServerUrl + "/" + targetProject
 
-	fetchCmd := exec.Command("git", "-c", "http.extraHeader=Authorization: Bearer "+config.AccessToken, "fetch", projectUrl, headCommitHash)
-	fetchCmd.Dir = workingDir
+	fetchCmd, cleanup, err := newTrustedGitCommand(workingDir, "-c", "http.extraHeader=Authorization: Bearer "+config.AccessToken, "fetch", projectUrl, headCommitHash)
+	if err != nil {
+		return fmt.Errorf("failed to prepare git fetch: %v", err)
+	}
+	defer cleanup()
 	stdoutStderr, err := fetchCmd.CombinedOutput()
 	logger.Printf("Running command: git fetch %s %s\n", projectUrl, headCommitHash)
 	logger.Printf("Command output:\n%s", string(stdoutStderr))
@@ -384,63 +390,66 @@ type VersionInfo struct {
 	MinRequiredTodVersion string `json:"minRequiredTodVersion"`
 }
 
-func checkVersion(serverUrl string, accessToken string) error {
-	client := &http.Client{}
-
-	req, err := http.NewRequest("GET", serverUrl+"/~api/tod/check-version", nil)
+func checkVersion(config *Config) (VersionInfo, error) {
+	client, err := newHTTPClient(config)
 	if err != nil {
-		return fmt.Errorf("failed to check version: %v", err)
+		return VersionInfo{}, err
 	}
 
-	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req, err := http.NewRequest("GET", config.ServerUrl+"/~api/tod/check-version", nil)
+	if err != nil {
+		return VersionInfo{}, fmt.Errorf("failed to check version: %v", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+config.AccessToken)
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("failed to check version: %v", err)
+		return VersionInfo{}, fmt.Errorf("failed to check version: %v", err)
 	}
 
 	defer resp.Body.Close()
 
 	err = checkResponse(resp)
 	if err != nil {
-		return fmt.Errorf("failed to check version: %v", err)
+		return VersionInfo{}, fmt.Errorf("failed to check version: %v", err)
 	}
 
 	var versionInfo VersionInfo
 
 	err = json.NewDecoder(resp.Body).Decode(&versionInfo)
 	if err != nil {
-		return fmt.Errorf("failed to decode version info response: %v", err)
+		return VersionInfo{}, fmt.Errorf("failed to decode version info response: %v", err)
 	}
 
 	todSemVer, err := semver.NewVersion(version)
 	if err != nil {
-		return fmt.Errorf("failed to parse tod version %q: %v", version, err)
+		return VersionInfo{}, fmt.Errorf("failed to parse tod version %q: %v", version, err)
 	}
 
 	if versionInfo.MinRequiredTodVersion != "" {
 		minTodSemVer, err := semver.NewVersion(versionInfo.MinRequiredTodVersion)
 		if err != nil {
-			return fmt.Errorf("failed to parse minimum required tod version %q: %v", versionInfo.MinRequiredTodVersion, err)
+			return VersionInfo{}, fmt.Errorf("failed to parse minimum required tod version %q: %v", versionInfo.MinRequiredTodVersion, err)
 		}
 		if todSemVer.LessThan(minTodSemVer) {
-			return fmt.Errorf("this server requires tod version >= %s (current: %s), please download a newer tod from https://code.onedev.io/onedev/tod/~builds?query=%%22Job%%22+is+%%22Release%%22+and+successful", versionInfo.MinRequiredTodVersion, version)
+			return VersionInfo{}, fmt.Errorf("this server requires tod version >= %s (current: %s), please download a newer tod from https://code.onedev.io/onedev/tod/~builds?query=%%22Job%%22+is+%%22Release%%22+and+successful", versionInfo.MinRequiredTodVersion, version)
 		}
 	}
 
 	if versionInfo.ServerVersion != "" {
 		serverSemVer, err := semver.NewVersion(versionInfo.ServerVersion)
 		if err != nil {
-			return fmt.Errorf("failed to parse server version %q: %v", versionInfo.ServerVersion, err)
+			return VersionInfo{}, fmt.Errorf("failed to parse server version %q: %v", versionInfo.ServerVersion, err)
 		}
 		minServerSemVer, err := semver.NewVersion(minRequiredServerVersion)
 		if err != nil {
-			return fmt.Errorf("failed to parse minimum required server version %q: %v", minRequiredServerVersion, err)
+			return VersionInfo{}, fmt.Errorf("failed to parse minimum required server version %q: %v", minRequiredServerVersion, err)
 		}
 		if serverSemVer.LessThan(minServerSemVer) {
-			return fmt.Errorf("this tod requires OneDev server version >= %s (current: %s), please upgrade your OneDev server", minRequiredServerVersion, versionInfo.ServerVersion)
+			return VersionInfo{}, fmt.Errorf("this tod requires OneDev server version >= %s (current: %s), please upgrade your OneDev server", minRequiredServerVersion, versionInfo.ServerVersion)
 		}
 	}
 
-	return nil
+	return versionInfo, nil
 }

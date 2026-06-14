@@ -9,6 +9,28 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var checkVersionCmd = &cobra.Command{
+	Use:    "check-version",
+	Short:  "Check tod/server version compatibility",
+	Hidden: true,
+	Args:   cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		fmt.Printf("tod %s is compatible with OneDev server %s\n", version, checkedVersionInfo.ServerVersion)
+		return nil
+	},
+}
+
+var versionCmd = &cobra.Command{
+	Use:    "version",
+	Short:  "Print the tod version",
+	Hidden: true,
+	Args:   cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		fmt.Println(version)
+		return nil
+	},
+}
+
 var getLoginNameCmd = &cobra.Command{
 	Use:   "get-login-name",
 	Short: "Get the OneDev login name of the current user (or of --user)",

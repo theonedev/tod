@@ -4,7 +4,10 @@ Every `tod` subcommand writes the raw OneDev server response to stdout (same
 payload the old MCP server returned in `ToolContent.Text`) and logs progress
 to stderr. Commands that need to talk to OneDev require a config file with
 `server-url` and `access-token` set — `$XDG_CONFIG_HOME/tod/config` or
-`~/.config/tod/config` (run `tod config set` to create one). Commands that
+`~/.config/tod/config` (run `tod config set` to create one). Set the optional
+`trust-certs-file` property to trust additional PEM certificates when
+interacting with a OneDev server using a self-signed certificate or private
+CA. Commands that
 interact with the current project also expect the working directory to be
 inside a git repository whose remote points at that project (override with
 `--working-dir`).
@@ -100,13 +103,15 @@ Code comment IDs are returned by `tod pr get-code-comments <pr-reference>` (the
 
 ## `tod config`
 
-Create or inspect the tod config file (`server-url` and `access-token`).
+Create or inspect the tod config file (`server-url`, `access-token`, and
+optional `trust-certs-file`). The `ONEDEV_SERVER_URL`, `ONEDEV_ACCESS_TOKEN`,
+and `ONEDEV_TRUST_CERTS_FILE` environment variables override these properties.
 These commands run even when the config file is missing or invalid.
 
 | Command | Description |
 |---------|-------------|
 | `tod config set` | Create or update the config file interactively. You are prompted for each property in turn: the current server URL is shown in `[brackets]` as a default (press Enter to keep, or type to replace), and the access-token prompt is always blank (press Enter to keep the existing token, or type a new one). For non-interactive single-property updates, use `tod config set <property name> <property value>`. The file is written with mode `0600` to whichever of `$XDG_CONFIG_HOME/tod/config` or `~/.config/tod/config` already exists, otherwise to `~/.config/tod/config` (or `$XDG_CONFIG_HOME/tod/config` when set). |
-| `tod config set <property name> <property value>` | Set one config property. Property name must be `server-url` or `access-token`. |
+| `tod config set <property name> <property value>` | Set one config property. Property name must be `server-url`, `access-token`, or `trust-certs-file`. The trust certs file contains one or more Base64 encoded PEM certificates beginning with `-----BEGIN CERTIFICATE-----` and ending with `-----END CERTIFICATE-----`. |
 | `tod config get [property name]` | Print the active configuration or one config property. The access token is always redacted. |
 | `tod config path` | Print the path of the config file (the first match in the search order, or the default destination if no file exists yet). |
 
