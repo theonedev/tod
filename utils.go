@@ -415,11 +415,21 @@ func checkVersion(config *Config) (VersionInfo, error) {
 		return VersionInfo{}, fmt.Errorf("failed to check version: %v", err)
 	}
 
-	var versionInfo VersionInfo
-
-	err = json.NewDecoder(resp.Body).Decode(&versionInfo)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return VersionInfo{}, fmt.Errorf("failed to decode version info response: %v", err)
+		return VersionInfo{}, fmt.Errorf("failed to read version info response from %s: %v", req.URL.String(), err)
+	}
+
+	var versionInfo VersionInfo
+	if err := json.Unmarshal(body, &versionInfo); err != nil {
+		responsePreview := strings.TrimSpace(string(body))
+		if len(responsePreview) > 512 {
+			responsePreview = responsePreview[:512] + "..."
+		}
+		return VersionInfo{}, fmt.Errorf(
+			"failed to decode version info response from %s as JSON (content-type: %q): %v; response: %q",
+			req.URL.String(), resp.Header.Get("Content-Type"), err, responsePreview,
+		)
 	}
 
 	todSemVer, err := semver.NewVersion(version)

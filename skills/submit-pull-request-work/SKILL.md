@@ -1,60 +1,36 @@
 ---
 name: submit-pull-request-work
-description: Submit completed work on a OneDev pull request. Use when the user
-  asks to submit, push, or finish work on a pull request, such as "submit PR
-  work", "push my PR fixes", or "submit work on PR 42".
+description: Submit completed work for an existing OneDev pull request. Use when the user asks to submit, complete, or finish PR work.
 ---
 
 # Submit pull request work
 
-This skill publishes local changes to an **existing** pull request and, when
-applicable, posts OneDev replies that were deferred in
-[`work-on-pull-request`](../work-on-pull-request/SKILL.md) until after push.
-It assumes the agent has already addressed feedback in the working copy
-(typically after running `work-on-pull-request`). It does **not** create a new
-pull request.
+Publish local changes to an existing pull request, then apply any OneDev
+updates deferred until after the push. This workflow does not create a pull
+request.
 
 ## Prerequisites
 
-- `tod` is installed and on `PATH` with a configured tod config file (run
-  `tod config set` if needed).
-- The current working directory is inside a git repository whose OneDev
-  remote points at the **source project** of the pull request.
+- `tod` is installed and configured.
+- The current repository is the PR's source project.
 
 ## Stop on error
 
-**The steps below are sequential and each one depends on the previous
-one succeeding.** If any command in the workflow fails — non-zero exit
-code, an error message on stderr, empty output where output is
-required, a failed precondition check (e.g. "wrong branch", "no new
-commits to push"), or the user declining to confirm a commit message —
-you **must**:
-
-1. **Immediately stop the workflow.** Do not run any later step, do
-   not "try the next thing anyway" (for example, do not push if the
-   commit failed, do not amend or force-push to work around an error),
-   and do not silently retry.
-2. **Surface the exact error to the user** (the command that failed,
-   its stderr/stdout, and which step it belongs to).
-3. **Wait for the user** to either fix the underlying problem and
-   ask you to re-run the skill, or tell you how to proceed.
-
-Per-step instructions below repeat this in places where it is most
-easily forgotten, but the rule applies to **every** step, including
-ones that do not spell it out explicitly.
+Run the workflow sequentially. On any command failure, missing required
+output, failed precondition, or declined confirmation, stop immediately,
+report the command and error, and wait for the user. Do not continue, retry
+silently, amend, or force-push.
 
 ## Workflow
 
 Resolve a `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
-`PROJ-42`) from the user's message. When they did not name one, use the
-PR from a recent `work-on-pull-request` session. If still unknown, query
-for an open PR whose source branch is the current branch:
+`PROJ-42`) from the user's message. When they did not name one, query for an
+open PR whose source branch is the current branch:
 ```bash
 git symbolic-ref --short HEAD
 tod pr list --query 'open and "Source Branch" is "<current-branch>"'
 ```
-Exactly one match gives the reference; zero or multiple matches mean you
-should ask the user.
+Use the sole match. Ask the user when there are zero or multiple matches.
 
 1. **Read the pull request and confirm the source project.**
    ```bash
@@ -67,24 +43,29 @@ should ask the user.
    `<source-project>`. If it does not, stop and tell the user the checkout
    is in the wrong project. If the PR is not open, stop and tell the user.
 
-2. **Verify the local checkout is on the source branch.**
+2. **Prepare the local source branch.**
    ```bash
    git symbolic-ref --short HEAD
    ```
    If the output does **not** equal `<source-branch>`, stop and tell the
-   user to check out the PR (run the `work-on-pull-request` skill) before
-   submitting.
+   user to check out the PR source branch before submitting.
 
 3. **Commit any pending work.** Check whether the working copy is clean:
    ```bash
    git status --porcelain
    ```
    - **Empty output** → working copy is clean, skip to step 4.
-   - **Non-empty output** → there are uncommitted changes. Apply the
-     [`generate-commit-message`](../generate-commit-message/SKILL.md)
-     skill **with pull request context** — pass PR reference and detail 
-     from step 1. Show the proposed message to the user and only after 
-     explicit confirmation run:
+   - **Non-empty output** → there are uncommitted changes. Generate the commit
+     message as follows:
+     1. Run `tod get-commit-message-requirement`.
+     2. Run `tod pr get-commit-message-requirement` with the source and target
+        project and branch values from step 1.
+     3. Inspect `git diff` and `git status`, then compose a concise imperative
+        subject and a body explaining why the change was made.
+     4. Validate the message against every non-empty requirement.
+
+     Show the proposed message to the user and only after explicit confirmation
+     run:
      ```bash
      git add -A
      git commit -m "<subject>" -m "<body>"
@@ -124,18 +105,17 @@ should ask the user.
       git push <remote> <source-branch>
       ```
 
-5. **Confirm the update.** Surface `<commits-to-push>` (when non-empty) and
+5. **Report the update.** Surface `<commits-to-push>` (when non-empty) and
    the PR reference/URL from step 1 to the user. When you pushed, the existing
    pull request now includes the new commits; do **not** run `tod pr create`.
 
-6. **Post deferred follow-up on OneDev.** When `work-on-pull-request` drafted
-   replies or resolves that depend on pushed code, post them **now** — only
-   after step 4d succeeded when there was a push, or immediately when
-   `<commits-to-push>` was empty but those fixes are already on the server.
+6. **Post deferred follow-up on OneDev.** If this session has replies or
+   resolves that depend on pushed code, post them **now** — only after step 4d
+   succeeded when there was a push, or immediately when `<commits-to-push>` was
+   empty but those fixes are already on the server.
 
-   Follow the consent rules in [`using-tod`](../using-tod/SKILL.md). When
-   helpful, mention a commit from `<commits-to-push>` (e.g. the latest short
-   hash) so threads are easy to verify. Match the channel:
+   Before each state-changing `tod` command, show the exact planned action and
+   obtain explicit user consent. Match the channel:
    - General PR feedback → `tod pr add-comment <pr-reference> "<reply>"`
    - Line-anchored thread → `tod code-comment add-reply <comment-id> "<reply>"`
    - Concern addressed in code → `tod code-comment resolve <comment-id> --note "<why>"` when appropriate

@@ -1,27 +1,16 @@
 ---
 name: using-tod
-description: Interact with OneDev issues, pull requests, builds, and projects.
-  Use when the user asks to create, edit, query, change state, comment on,
-  review, check out, run a CI/CD job for, or otherwise manage anything in
-  OneDev.
+description: Operate OneDev issues, pull requests, builds, and projects with `tod`. Use for general OneDev queries and actions not covered by a more specific skill.
 ---
 
 # Using the tod CLI
 
-This skill is the umbrella guide for driving OneDev through the `tod` CLI.
-More specialized skills (`edit-build-spec`, `investigate-build-failure`,
-`review-pull-request`, `generate-commit-message`, `work-on-issue`,
-`submit-issue-work`, `work-on-pull-request`, `submit-pull-request-work`) cover specific workflows in more
-detail — read them when their description matches the user's intent.
+Use the command and consent rules below for general OneDev interactions.
 
 ## Prerequisites
 
-- `tod` is installed and on `PATH`.
-- A tod config file (`$XDG_CONFIG_HOME/tod/config` or
-  `~/.config/tod/config`) has `server-url` and `access-token` set. Run
-  `tod config set` to create one.
-- For commands that operate on the current project, the working directory is
-  inside a git repository whose remote points at that OneDev project.
+- `tod` is installed and configured with `server-url` and `access-token`.
+- Project-scoped commands run inside the corresponding OneDev repository.
 
 ## Command shape
 
@@ -44,8 +33,8 @@ Commands are grouped by resource:
   `tod remote`, `tod get-valid-labels`,
   `tod get-commit-message-requirement`, `tod download`
 
-Every command writes the raw OneDev server response to stdout. Run
-`tod <command> --help` at any time to see exact flag names.
+Commands write the raw OneDev server response to stdout. Run
+`tod <command> --help` for exact flags.
 
 ## Reference formats
 
@@ -74,7 +63,7 @@ written in the markdown:
 tod download <resource-url> <output-file>
 ```
 
-Then open images with the Read tool and read other files as needed.
+Then inspect images and read other files as needed.
 
 ## Requesting user consent for state-changing calls
 

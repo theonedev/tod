@@ -1,42 +1,23 @@
 ---
 name: work-on-issue
-description: Implement work for a OneDev issue. Use when the user asks to
-  start, pick up, begin, or work on a OneDev issue.
+description: Implement work for a OneDev issue. Use when the user asks to start, pick up, or continue issue work.
 ---
 
 # Work on a OneDev issue
 
-This skill prepares the local checkout to work on a specified OneDev issue.
-It ensures the issue branch exists, switches onto it (without clobbering
-uncommitted work), reads the issue context (or uses the user's prompt when
-it specifies the work), and implements the work.
+Set up the issue branch, read the relevant context, and implement the work.
 
 ## Prerequisites
 
-- `tod` is installed and on `PATH` with a configured tod config file (run
-  `tod config set` if needed).
-- The current working directory is inside a git repository pointing at
-  the OneDev project that owns the issue.
+- `tod` is installed and configured.
+- The current repository belongs to the project that owns the issue.
 
 ## Stop on error
 
-**The steps below are sequential and each one depends on the previous
-one succeeding.** If any command in the workflow fails — non-zero exit
-code, an error message on stderr, empty output where output is
-required, or a precondition check (e.g. clean working directory) that
-does not hold — you **must**:
-
-1. **Immediately stop the workflow.** Do not run any later step, do
-   not "try the next thing anyway", do not attempt to repair state
-   beyond what the step itself describes, and do not silently retry.
-2. **Surface the exact error to the user** (the command that failed,
-   its stderr/stdout, and which step it belongs to).
-3. **Wait for the user** to either fix the underlying problem and
-   ask you to re-run the skill, or tell you how to proceed.
-
-Per-step instructions below repeat this in places where it is most
-easily forgotten, but the rule applies to **every** step, including
-ones that do not spell it out explicitly.
+Run the workflow sequentially. On any command failure, missing required
+output, or failed precondition, stop immediately, report the command and
+error, and wait for the user. Do not continue, repair state beyond the
+current step, or retry silently.
 
 ## Workflow
 
@@ -119,10 +100,8 @@ Given an `<issue-reference>` (e.g. `123`, `#123`, `myproject#123`, or
    recognize comments you previously wrote. Treat those as your own prior
    context rather than independent collaborator feedback.
 
-   **Download and inspect embedded resources.** Descriptions and comments
-   are often markdown with screenshots, mockups, logs, or other files.
-   Text from `tod issue get` / `get-comments` alone is not enough when
-   links are present — you must download and check each attachment:
+   **Inspect embedded resources.** Download every linked image or file from
+   the issue description and comments:
 
    - Find image and file links in the description and every comment
      (`![alt](url)` and `[label](url)`).
@@ -131,10 +110,7 @@ Given an `<issue-reference>` (e.g. `123`, `#123`, `myproject#123`, or
      ```bash
      tod download <resource-url> <output-file>
      ```
-   - Open images with the Read tool; read other downloaded files as
-     needed. Do not skip this step when attachments are linked — they
-     often carry requirements or repro steps that are not spelled out in
-     plain text.
+   - Open images and read other downloaded files as needed.
 
 4. **Assess, plan, and execute.** Check the requested work against the
    current code and behavior before deciding that a code change is needed.
@@ -151,20 +127,17 @@ Given an `<issue-reference>` (e.g. `123`, `#123`, `myproject#123`, or
      an alternative.
 
    In either no-code-change case, responding on the relevant issue discussion is
-   the work product. Follow [`using-tod`](../using-tod/SKILL.md) consent
-   rules before posting it. For any other OneDev state change during the
-   work (issue state, logged time, etc.), follow the same consent rules.
+   the work product. Before running any `tod` command that changes OneDev state, show the exact planned action and obtain explicit user consent.
 
    **Push before publishing code-dependent updates.** If a OneDev state
    change relies on code being submitted — for example, a comment such as
    "Done the work" or any update claiming that a fix has been implemented —
-   draft it and obtain consent now, but do not post it yet. Defer it to
-   [`submit-issue-work`](../submit-issue-work/SKILL.md), where it is applied
-   only after the code has been pushed and the pull request has been opened
-   or updated. State changes that do not depend on submitted code may be
-   made immediately after following the consent rules.
+   draft it and obtain consent now, but do not post it yet. Record the deferred
+   action so it can be applied only after the code has been pushed and the pull
+   request has been opened or updated. State changes that do not depend on
+   submitted code may be made immediately after obtaining consent.
 
-   When code was changed and the user wants it pushed and opened as a pull
-   request, use
-   [`submit-issue-work`](../submit-issue-work/SKILL.md). Do not run the
-   submission workflow when the outcome is only a discussion response.
+   When code was changed, leave the working copy on the issue branch with the
+   implementation and any deferred OneDev actions ready for a separate
+   submission request. No submission is needed when the outcome is only a
+   discussion response.

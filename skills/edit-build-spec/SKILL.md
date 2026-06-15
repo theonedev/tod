@@ -1,19 +1,17 @@
 ---
 name: edit-build-spec
-description: Create or edit a OneDev CI/CD spec (`.onedev-buildspec.yml`). Use when the user asks to set up CI/CD, configure a build spec, or otherwise author `.onedev-buildspec.yml`.
+description: Author or update `.onedev-buildspec.yml` for OneDev CI/CD. Use when the user asks to create, configure, or modify a OneDev build spec.
 ---
 
 # Edit OneDev CI/CD spec
 
-This skill helps the agent author or modify `.onedev-buildspec.yml` for a
-OneDev project.
+Author or update `.onedev-buildspec.yml` for the current OneDev project.
 
 ## Prerequisites
 
-- `tod` is installed and on `PATH` with a configured tod config file (run
-  `tod config set` if needed).
-- The current working directory is the project root (the directory that
-  contains, or should contain, `.onedev-buildspec.yml`).
+- `tod` is installed and configured.
+- The current directory is the project root where
+  `.onedev-buildspec.yml` belongs.
 
 ## Workflow
 
@@ -41,14 +39,14 @@ OneDev project.
 
 ## Authoring rules
 
-When writing or modifying `.onedev-buildspec.yml`, remember:
+When writing or modifying `.onedev-buildspec.yml`:
 
 1. A checkout step is generally needed to clone repository into job working directory
 2. Always call `tod build get-spec-schema` first so the YAML you produce matches
    the spec schema.
 3. If a `command` step is used, enable "run in container" unless the user
    explicitly asks otherwise.
-4. Different steps run in isolated environments but share the job workspace.
+4. Different steps run in isolated environments and only share the job working directory.
    Installing dependencies in one step and running commands that rely on them
    in another will not work. Keep them in a single step unless the user
    explicitly wants them separated.

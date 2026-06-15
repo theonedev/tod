@@ -1,44 +1,25 @@
 ---
 name: review-pull-request
-description: Review a OneDev pull request and provide actionable feedback. Use when the user asks to review, approve, request changes on, or comment on a OneDev pull request.
+description: Review a OneDev pull request and act on the findings. Use when the user asks to review, approve, request changes, or leave review feedback.
 ---
 
 # Review a OneDev pull request
 
-This skill walks the agent through a complete pull request review using the
-`tod pr` and `tod code-comment` subcommands. It covers reading context,
-temporarily checking out the PR head, following review instructions from the
-user's prompt, leaving line-anchored code comments on problematic snippets,
-reconciling the agent's own prior code comments against the current patch,
-and finalizing the review.
+Review the exact PR head, account for existing discussion, and prepare
+line-anchored findings and an overall outcome.
 
 ## Prerequisites
 
-- `tod` is installed and on `PATH` with a configured tod config file (run
-  `tod config set` if needed).
-- The current working directory is inside a git repository pointing at the
-  OneDev project that owns the pull request (or the PR uses a reference that
-  includes the project, e.g. `42`, `myproject#42`).
+- `tod` is installed and configured.
+- The current repository owns the PR, or the PR reference includes its
+  project.
 
 ## Stop on error
 
-**The steps below are sequential and each one depends on the previous
-one succeeding.** If any command in the workflow fails — non-zero exit
-code, an error message on stderr, empty output where output is
-required, or a precondition check (e.g. clean working directory) that
-does not hold — you **must**:
-
-1. **Immediately stop the workflow.** Do not run any later step, do
-   not "try the next thing anyway", do not attempt to repair state
-   beyond what the step itself describes, and do not silently retry.
-2. **Surface the exact error to the user** (the command that failed,
-   its stderr/stdout, and which step it belongs to).
-3. **Wait for the user** to either fix the underlying problem and
-   ask you to re-run the skill, or tell you how to proceed.
-
-Per-step instructions below repeat this in places where it is most
-easily forgotten, but the rule applies to **every** step, including
-ones that do not spell it out explicitly.
+Run the workflow sequentially. On any command failure, missing required
+output, or failed precondition, stop immediately, report the command and
+error, and wait for the user. Do not continue, repair state beyond the
+current step, or retry silently.
 
 ## Workflow
 
@@ -52,10 +33,8 @@ Given a `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or `PROJ-42`):
    | User prompt specifies review instructions | The prompt (scope, focus areas, criteria, constraints, or requested outcome beyond naming the PR) | Fetch below; use PR metadata and discussion as supplementary context |
    | Prompt only names the PR or asks for a general review | The complete review workflow in this skill | PR metadata and discussion provide the review context |
 
-   Follow concrete review instructions from the prompt directly. Still
-   complete the context-gathering steps below; prompt instructions do not
-   justify skipping the PR metadata, patch, discussion, or relevant
-   attachments.
+   Follow concrete prompt instructions, but still read the PR metadata, patch,
+   discussion, and relevant attachments.
 
 2. **Read the PR detail.** Get the title, description, source/target branches,
    head commit hash, reviewers, current review status, and any linked issues:
@@ -116,11 +95,8 @@ Given a `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or `PROJ-42`):
      but do not modify their code-comment state unless the user explicitly
      asks you to.
 
-   **Download and inspect embedded resources.** The PR description (step 2),
-   general comments, line-anchored code comments, and replies on those code
-   comments (all from steps 2 and 5) are often markdown with screenshots,
-   diagrams, or other files. Text alone is not enough when links are
-   present — you must download and check each attachment:
+   **Inspect embedded resources.** Download every linked image or file from
+   the PR description, general comments, code comments, and replies:
 
    - Find image and file links in the description, every general comment,
      every code comment body, and every reply (`![alt](url)` and
@@ -131,9 +107,7 @@ Given a `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or `PROJ-42`):
      ```bash
      tod download <resource-url> <output-file>
      ```
-   - Open images with the Read tool; read other downloaded files as
-     needed. Do not skip this when attachments are linked — they often
-     document expected behavior, UI, or failures relevant to the review.
+   - Open images and read other downloaded files as needed.
 6. **Read/search file contents as needed.** For file contents whose context
    matters beyond the hunk shown in the diff, read and search them in the
    checked-out PR head.

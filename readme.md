@@ -139,22 +139,19 @@ See [cli.md](cli.md) for the full command reference.
 TOD ships nine tool-agnostic `SKILL.md` files under [`skills/`](skills/) that
 teach AI agents how to drive common OneDev workflows through the CLI:
 
-- `using-tod` — umbrella guide for any OneDev interaction via `tod`
-- `edit-build-spec` — create or edit `.onedev-buildspec.yml`
-- `investigate-build-failure` — debug a failing build
-- `review-pull-request` — perform a structured pull request review
-- `generate-commit-message` — compose a commit message that respects the
-  project's commit-message requirement and the active issue
-- `work-on-issue` — create the issue branch on the server, switch the local
-  checkout to it, read the issue, and implement the work
-- `submit-issue-work` — commit pending changes, push the issue branch, attach
-  to an existing open PR for the issue when one exists, otherwise open a pull
+- `using-tod` — perform general OneDev queries and actions
+- `edit-build-spec` — author and validate `.onedev-buildspec.yml`
+- `investigate-build-failure` — diagnose a failed or suspicious build
+- `review-pull-request` — review a pull request and act on the findings
+- `generate-commit-message` — compose a message that satisfies OneDev
+  requirements
+- `work-on-issue` — check out and implement issue work
+- `submit-issue-work` — commit and push issue work, then update or create its
+  pull request
+- `work-on-pull-request` — check out a pull request and implement follow-up
+  work
+- `submit-pull-request-work` — commit and push work for an existing pull
   request
-- `work-on-pull-request` — check out a PR on its source project, address
-  review or CI feedback locally, and draft push-dependent replies
-- `submit-pull-request-work` — commit pending changes, push to update an
-  existing pull request, then post deferred replies so notifications match
-  visible commits
 
 See [skills/README.md](skills/README.md) for how to install these into Claude
 Code, Codex, Cursor, or any other agent that reads `SKILL.md` files.

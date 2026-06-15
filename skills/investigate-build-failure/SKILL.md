@@ -1,49 +1,30 @@
 ---
 name: investigate-build-failure
-description: Investigate why a OneDev build failed or misbehaved. Use when the user asks to debug, diagnose, or triage a failing or suspicious OneDev build.
+description: Diagnose a failed or suspicious OneDev build. Use when the user asks to investigate, debug, or triage build behavior.
 ---
 
 # Investigate OneDev build failure
 
-Investigate a failing OneDev build using `tod build` commands and files in
-the current workspace.
+Diagnose a OneDev build from its metadata, log, source, and recent changes.
 
 ## Prerequisites
 
-- `tod` is installed and on `PATH` with a configured tod config file (run
-  `tod config set` if needed).
-- The current working directory is inside a git repository pointing at the
-  OneDev project that owns the build (or the build uses a reference that
-  includes the project, e.g. `42`, `myproject#42`)
+- `tod` is installed and configured.
+- The current repository owns the build, or the build reference includes its
+  project.
 
 ## Stop on error
 
-**The steps below are sequential and each one depends on the previous
-one succeeding.** If any command in the workflow fails — non-zero exit
-code, an error message on stderr, empty output where output is
-required, or a precondition check (e.g. clean working directory) that
-does not hold — you **must**:
-
-1. **Immediately stop the investigation.** Do not run any later
-   investigation step, do not "try the next thing anyway", do not
-   attempt to repair state beyond what the step itself describes, and
-   do not silently retry.
-2. **Restore the previous branch if required.** If step 2 has already
-   checked out the build commit, perform only the restoration described
-   in step 7 before returning to the user.
-3. **Surface the exact error to the user** (the command that failed,
-   its stderr/stdout, and which step it belongs to).
-4. **Wait for the user** to either fix the underlying problem and ask
-   you to re-run the skill, or tell you how to proceed.
-
-The rule applies to **every** step, including ones that do not spell it
-out explicitly.
+Run the workflow sequentially. On any command failure, missing required
+output, or failed precondition, stop, report the command and error, and wait
+for the user. Do not continue or retry silently. If the build commit was
+checked out, perform only the final restoration step before stopping.
 
 ## Workflow
 
 Given a `<build-reference>` (e.g. `789`, `#789`, `myproject#789`, or `PROJ-789`):
 
-1. **Get build detail** — overall status, job name, commit, trigger:
+1. **Read build details** such as status, job, commit, and trigger:
    ```bash
    tod build get <build-reference>
    ```
@@ -71,15 +52,14 @@ Given a `<build-reference>` (e.g. `789`, `#789`, `myproject#789`, or `PROJ-789`)
       git rev-parse HEAD
       ```
       The output must equal `<build-commit>`. Otherwise stop.
-3. **Get the build log** — scan for errors and the exact failing step:
+3. **Read the build log** and identify errors and the failing step:
    ```bash
    tod build get-log <build-reference>
    ```
 4. **Inspect or search workspace files as necessary.** Follow references
    from the log to relevant files or symbols. Inspect
    `.onedev-buildspec.yml` when the failure may involve job configuration.
-5. **Look at recent changes** — compare the failing build's commit against
-   the previous successful similar build to see what changed:
+5. **Inspect recent changes** since the previous successful similar build:
    ```bash
    tod build get-changes-since-success <build-reference>
    ```
