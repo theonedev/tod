@@ -25,9 +25,9 @@ Commands are grouped by resource:
   `discard`, `add-comment`, `add-code-comment`, `checkout`, `get-query-description`
 - `tod code-comment` — `add-reply`, `resolve`, `unresolve` (operates on the
   `id` returned by `tod pr get-code-comments`)
-- `tod build` — `list`, `get`, `get-log`, `get-changes-since-success`, `run`
-  (with `--branch`, `--tag`, or `--local`), `get-spec-schema`, `check-spec`,
-  `get-query-description`
+- `tod build` — `list`, `get`, `get-log`, `get-code-problems`,
+  `get-changes-since-success`, `run` (with `--branch`, `--tag`, or `--local`),
+  `get-spec-schema`, `check-spec`, `get-query-description`
 - `tod config` — `set`, `get`, `path`
 - `tod get-login-name`, `tod get-unix-timestamp`, `tod project`,
   `tod remote`, `tod get-valid-labels`,
@@ -35,6 +35,11 @@ Commands are grouped by resource:
 
 Commands write the raw OneDev server response to stdout. Run
 `tod <command> --help` for exact flags.
+
+`tod build get-code-problems <build-reference> <report-name> <severity-level>`
+returns found code problems for a build with or higher than the specified
+severity. `<severity-level>` must be one of `CRITICAL`, `HIGH`, `MEDIUM`, or
+`LOW`.
 
 ## Reference formats
 

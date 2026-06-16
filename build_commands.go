@@ -91,6 +91,34 @@ var buildGetLogCmd = &cobra.Command{
 	},
 }
 
+var buildGetCodeProblemsCmd = &cobra.Command{
+	Use:   "get-code-problems <build-reference> <report-name> <severity-level>",
+	Short: "Get code problems reported in a build",
+	Long: `Get code problems reported in a build.
+
+The command returns found code problems for a build with or higher than the
+specified severity. Severity level expects one value of CRITICAL, HIGH,
+MEDIUM, or LOW.`,
+	Args: cobra.ExactArgs(3),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		currentProject, err := currentProjectFor(cmd)
+		if err != nil {
+			return err
+		}
+		body, err := apiGetBytes("get-build-code-problems", url.Values{
+			"currentProject": {currentProject},
+			"reference":      {args[0]},
+			"reportName":     {args[1]},
+			"severityLevel":  {args[2]},
+		})
+		if err != nil {
+			return err
+		}
+		emit(body)
+		return nil
+	},
+}
+
 var buildGetChangesSinceSuccessCmd = &cobra.Command{
 	Use:   "get-changes-since-success <build-reference>",
 	Short: "Get file changes since the previous successful similar build",
@@ -688,6 +716,7 @@ func initBuildCommands() {
 		buildListCmd,
 		buildGetCmd,
 		buildGetLogCmd,
+		buildGetCodeProblemsCmd,
 		buildGetChangesSinceSuccessCmd,
 		buildRunCmd,
 		buildGetSpecSchemaCmd,

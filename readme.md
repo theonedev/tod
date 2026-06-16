@@ -10,6 +10,8 @@ AI agents via shipped skill files.
 
 - **Query and edit OneDev entities** — issues, pull requests, and builds —
   directly from the shell.
+- **Inspect build diagnostics** including logs, recent changes, and code
+  problem reports.
 - **Run CI/CD jobs against local changes, branches, or tags** with real-time
   log streaming (`tod build run --local`, `--branch`, or `--tag`).
 - **Check out pull requests** locally (`tod pr checkout`).

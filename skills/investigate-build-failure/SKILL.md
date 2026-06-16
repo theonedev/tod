@@ -56,17 +56,26 @@ Given a `<build-reference>` (e.g. `789`, `#789`, `myproject#789`, or `PROJ-789`)
    ```bash
    tod build get-log <build-reference>
    ```
-4. **Inspect or search workspace files as necessary.** Follow references
-   from the log to relevant files or symbols. Inspect
-   `.onedev-buildspec.yml` when the failure may involve job configuration.
-5. **Inspect recent changes** since the previous successful similar build:
+4. **Read code problem reports when the log points to one.** Note the report
+   name and severity threshold from the log, then fetch the report:
+   ```bash
+   tod build get-code-problems <build-reference> <report-name> <severity-level>
+   ```
+   `<severity-level>` is one of `CRITICAL`, `HIGH`, `MEDIUM`, or `LOW`. The
+   report returns problems at that severity or higher. Problems may point to
+   workspace files, 1-based line ranges, or non-workspace artifacts.
+
+5. **Inspect referenced files and symbols as necessary.** Follow references
+   from the log and code problem report, including generated artifacts or build
+   inputs. Inspect `.onedev-buildspec.yml` when job configuration may be involved.
+6. **Inspect recent changes** since the previous successful similar build:
    ```bash
    tod build get-changes-since-success <build-reference>
    ```
-6. **Form a hypothesis** — combine the log output, the referenced source,
+7. **Form a hypothesis** — combine the log output, the referenced source,
    and the recent diff to identify the likely cause. Call out specific lines
    in the log and specific hunks in the diff when explaining the failure.
-7. **Restore the previous branch.** Once step 2 has checked out the build
+8. **Restore the previous branch.** Once step 2 has checked out the build
    commit, always attempt this restoration before returning to the user,
    including when a later investigation step fails.
 

@@ -88,6 +88,7 @@ Code comment IDs are returned by `tod pr get-code-comments <pr-reference>` (the
 | `tod build list` | Query builds. Flags: `--project`, `--query`, `--offset`, `--count`. |
 | `tod build get <ref>` | Detail information of a build. |
 | `tod build get-log <ref>` | Build log. |
+| `tod build get-code-problems <ref> <report-name> <severity-level>` | Found code problems for a build with or higher than the specified severity. Severity level must be one of `CRITICAL`, `HIGH`, `MEDIUM`, or `LOW`. |
 | `tod build get-changes-since-success <ref>` | Patch between the build's commit and the previous successful similar build. |
 | `tod build run <job-name>` | Run a job against a branch, tag, or local changes. Flags: exactly one of `--branch`, `--tag`, or `--local`; `-p key=value`. Streams the log. |
 | `tod build get-spec-schema` | Print the build spec YAML definition. |
