@@ -271,9 +271,10 @@ func normalizeConfigProperty(propertyName, propertyValue string) (string, error)
 
 	switch propertyName {
 	case serverUrlKey:
-		value = strings.TrimRight(value, "/")
-		if !(strings.HasPrefix(value, "http://") || strings.HasPrefix(value, "https://")) {
-			return "", fmt.Errorf("invalid server url (must start with http:// or https://): %s", value)
+		var err error
+		value, err = normalizeServerURL(value)
+		if err != nil {
+			return "", err
 		}
 	case accessTokenKey:
 	case trustCertsFileKey:

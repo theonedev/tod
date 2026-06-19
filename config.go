@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -133,12 +134,11 @@ func (config *Config) Validate() error {
 		return fmt.Errorf("missing setting 'access-token' in %s", configFilePath)
 	}
 
-	// Validate server URL format: must start with http:// or https://, and trim trailing slash
-	if !(strings.HasPrefix(config.ServerUrl, "http://") || strings.HasPrefix(config.ServerUrl, "https://")) {
-		return fmt.Errorf("invalid server url (must start with http:// or https://): %s", config.ServerUrl)
+	normalizedServerUrl, err := normalizeServerURL(config.ServerUrl)
+	if err != nil {
+		return err
 	}
-	// Trim trailing slash if present
-	config.ServerUrl = strings.TrimRight(config.ServerUrl, "/")
+	config.ServerUrl = normalizedServerUrl
 
 	if config.TrustCertsFile != "" {
 		info, err := os.Stat(config.TrustCertsFile)
@@ -151,4 +151,21 @@ func (config *Config) Validate() error {
 	}
 
 	return nil
+}
+
+func normalizeServerURL(value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if !(strings.HasPrefix(value, "http://") || strings.HasPrefix(value, "https://")) {
+		return "", fmt.Errorf("invalid server url (must start with http:// or https://): %s", value)
+	}
+
+	parsed, err := url.Parse(value)
+	if err != nil {
+		return "", fmt.Errorf("invalid server url: %w", err)
+	}
+	if path := strings.TrimRight(parsed.Path, "/"); path != "" {
+		return "", fmt.Errorf("invalid server url (must not contain a path): %s", value)
+	}
+
+	return parsed.Scheme + "://" + parsed.Host, nil
 }

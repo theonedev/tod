@@ -42,23 +42,33 @@ Given an `<issue-reference>` (e.g. `123`, `#123`, `myproject#123`, or
      tod project current
      ```
      Record the PR reference, URL, source, and target values.
-   - **No matches:** Plan a new PR. Use default `tod pr create` values unless
-     the user requested non-default source/target projects, target branch, or
-     merge strategy.
+   - **No matches:** For target project and target branch, use any
+     user-provided value. For any missing value, read the issue detail and use
+     the corresponding default:
+     ```bash
+     tod issue get <issue-reference>
+     ```
+     If the required target value is still missing, report that work is not
+     submitted because that value is missing, and stop.
+     Otherwise record the planned PR source/target values and any non-default
+     flags.
    - **Multiple matches:** Ask the user which PR to use, then stop.
 
 3. **Commit pending work.**
    ```bash
    git status --porcelain
    ```
-   If dirty, generate a message using:
+   If dirty, inspect the diff and generate a message using:
    ```bash
    tod get-commit-message-requirement
+   ```
+   When using an existing PR or creating a new PR, also run:
+   ```bash
    tod pr get-commit-message-requirement
    ```
-   Pass the existing or planned PR source/target values from step 2 to the
-   second command. Inspect the diff, satisfy all non-empty requirements, and
-   ask the user to confirm the full message before running:
+   Pass the existing or planned PR source/target values from step 2 to that
+   command. Satisfy all non-empty requirements and ask the user to confirm the
+   full message before running:
    ```bash
    git add -A
    git commit -m "<subject>" -m "<body>"
@@ -93,8 +103,8 @@ Given an `<issue-reference>` (e.g. `123`, `#123`, `myproject#123`, or
      Pass the same non-default flags used for the requirement command and
      report the returned PR reference and URL.
 
-6. **Apply deferred OneDev changes.** After the push and PR update/create
-   succeed, apply any deferred comments or state changes. Obtain explicit
+6. **Apply deferred OneDev changes.** After the push and PR update or PR create
+   succeeds, apply any deferred comments or state changes. Obtain explicit
    consent before each state-changing `tod` command.
 
 7. **Restore the previous branch.**

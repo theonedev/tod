@@ -100,6 +100,41 @@ Given an `<issue-reference>` (e.g. `123`, `#123`, `myproject#123`, or
    recognize comments you previously wrote. Treat those as your own prior
    context rather than independent collaborator feedback.
 
+   **When the work is to investigate a build failure or fix a failed build,
+   gather and examine build evidence before planning code changes.** Given
+   the relevant `<build-reference>`:
+   ```bash
+   tod build get <build-reference>
+   tod build get-log <build-reference>
+   ```
+   Read the build detail and log content carefully to identify the failure:
+
+   - If the log contains a statement like
+     `Dependency build is required to be successful but failed: <dependency-build-reference>`,
+     get the dependency build detail. If its commit hash is the same as the
+     current build, investigate or fix the dependency build failure instead;
+     repeat this process for same-commit dependency build failures. If the
+     dependency build's commit hash differs from the current build, conclude
+     that the current build failure is caused by this dependency build.
+   - If the log contains a statement like
+     `<report-name>: found problems with severity <severity-level> or higher`,
+     fetch the referenced problems report:
+     ```bash
+     tod build get-code-problems <build-reference> <report-name> <severity-level>
+     ```
+     Problems may point to workspace files, 1-based line ranges, or
+     non-workspace artifacts used by the project.
+   - Inspect referenced workspace files as necessary. Inspect
+     `.onedev-buildspec.yml` when job configuration may be involved, and 
+     run below command to get its schema if you need to modify it:
+     ```
+     tod build get-spec-schema
+     ```
+   - If useful, inspect changes since the previous successful build:
+     ```bash
+     tod build get-changes-since-success <build-reference>
+     ```
+
    **Inspect embedded resources.** Download every linked image or file from
    the issue description and comments:
 
