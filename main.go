@@ -7,9 +7,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const version = "3.0.0"
+const version = "4.0.0"
 
-const minRequiredServerVersion = "15.1.0"
+const minRequiredServerVersion = "16.0.0"
 
 var config *Config
 
