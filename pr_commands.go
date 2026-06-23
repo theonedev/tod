@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
+	"strconv"
 
 	"github.com/spf13/cobra"
 )
@@ -506,6 +508,58 @@ pull request query syntax reference for this server.`,
 	},
 }
 
+var prCurrentReferenceCmd = &cobra.Command{
+	Use:           "current-reference",
+	Short:         "Print the pull request number inferred from the current branch",
+	SilenceErrors: true,
+	Long: `Print the pull request number inferred from the current git branch in
+the working directory.
+
+The current branch is used as the source branch in this pull request query:
+open and "Source Branch" is "<source branch>"
+
+Exactly one pull request must match. The matching pull request number is
+printed to stdout. If no pull request or multiple pull requests match, the
+command prints an error and exits non-zero.`,
+	Args: cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		wd := workingDirOf(cmd)
+		sourceBranch, err := currentBranch(wd)
+		if err != nil {
+			return currentReferenceError(cmd, err)
+		}
+		if sourceBranch == "" {
+			return currentReferenceError(cmd, fmt.Errorf("could not detect current branch (detached HEAD)"))
+		}
+
+		currentProject, err := currentProjectFor(cmd)
+		if err != nil {
+			return currentReferenceError(cmd, err)
+		}
+
+		query := fmt.Sprintf(`open and "Source Branch" is "%s"`, escapeQueryStringValue(sourceBranch))
+		body, err := queryEntities("query-pull-requests", "", currentProject, query, 0, 2)
+		if err != nil {
+			return currentReferenceError(cmd, err)
+		}
+
+		var pullRequests []map[string]interface{}
+		if err := json.Unmarshal(body, &pullRequests); err != nil {
+			return currentReferenceError(cmd, fmt.Errorf("failed to parse pull request query response: %v", err))
+		}
+		if len(pullRequests) != 1 {
+			return currentReferenceError(cmd, fmt.Errorf("expected exactly one open pull request with source branch %q, found %d", sourceBranch, len(pullRequests)))
+		}
+
+		number, err := pullRequestNumberString(pullRequests[0])
+		if err != nil {
+			return currentReferenceError(cmd, err)
+		}
+		fmt.Println(number)
+		return nil
+	},
+}
+
 var prCheckoutCmd = &cobra.Command{
 	Use:   "checkout <pr-reference>",
 	Short: "Checkout a pull request into the working directory",
@@ -530,7 +584,6 @@ func initPullRequestCommands() {
 	prListCmd.Flags().Int("count", DefaultQueryCount, fmt.Sprintf("number of pull requests to return (optional, defaults to %d, max %d)", DefaultQueryCount, MaxQueryCount))
 
 	prGetPatchCmd.Flags().Bool("for-code-review", false, "If set, return only changes relevant for code review")
-
 
 	prCreateCmd.Flags().String("source-branch", "", "Source branch (defaults to the current git branch)")
 	prCreateCmd.Flags().String("target-branch", "", "Target branch (defaults to the target project's default branch)")
@@ -590,6 +643,43 @@ func initPullRequestCommands() {
 		prAddCommentCmd,
 		prAddCodeCommentCmd,
 		prCheckoutCmd,
+		prCurrentReferenceCmd,
 		prGetQueryDescriptionCmd,
 	)
+}
+
+func escapeQueryStringValue(value string) string {
+	escaped := ""
+	for _, r := range value {
+		if r == '\\' || r == '"' {
+			escaped += "\\"
+		}
+		escaped += string(r)
+	}
+	return escaped
+}
+
+func pullRequestNumberString(pullRequest map[string]interface{}) (string, error) {
+	number, ok := pullRequest["number"]
+	if !ok {
+		number, ok = pullRequest["Number"]
+	}
+	if !ok {
+		return "", fmt.Errorf("pull request query response does not include number")
+	}
+
+	switch n := number.(type) {
+	case float64:
+		if n != float64(int64(n)) {
+			return "", fmt.Errorf("pull request query response has non-integer number %v", n)
+		}
+		return strconv.FormatInt(int64(n), 10), nil
+	case string:
+		if n == "" {
+			return "", fmt.Errorf("pull request query response has empty number")
+		}
+		return n, nil
+	default:
+		return "", fmt.Errorf("pull request query response has unsupported number type %T", number)
+	}
 }

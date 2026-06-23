@@ -5,14 +5,29 @@ description: Submit completed work for an existing OneDev pull request. Use when
 
 # Submit pull request work
 
-Publish local changes to an existing pull request, then apply any OneDev
-updates deferred until after the push. This workflow does not create a pull
-request.
+Submit code changes and/or saved comments for an existing pull request. This
+workflow does not create a pull request.
 
 ## Prerequisites
 
 - `tod` is installed and configured.
-- The current repository is the PR's source project.
+- The current repository belongs to the PR's source or target project.
+
+## Session handoff
+
+This workflow pairs with `work-on-pull-request`. At the start, recover
+`<saved-pr-actions>` from the **same chat session**:
+
+1. **From a prior `work-on-pull-request` run** — use the exact drafted actions
+   presented or amended earlier in this session, including comment text and
+   parameters (`comment-id`, file, line range, approve/request-changes, merge,
+   commit message, etc.).
+2. **From the user's submit prompt** — if the user supplies or revises actions
+   when asking to submit, treat that as `<saved-pr-actions>`.
+3. **Otherwise** — `<saved-pr-actions>` is empty.
+
+`<saved-pr-actions>` is session state, not a file on disk and not discussion
+already on OneDev. Step 6 applies these deferred drafts.
 
 ## Stop on error
 
@@ -23,128 +38,99 @@ silently, amend, or force-push.
 
 ## Workflow
 
-Resolve a `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
-`PROJ-42`) from the user's message. When they did not name one, query for an
-open PR whose source branch is the current branch:
-```bash
-git symbolic-ref --short HEAD
-tod pr list --query 'open and "Source Branch" is "<current-branch>"'
-```
-Use the sole match. Ask the user when there are zero or multiple matches.
+Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
+`PROJ-42`):
 
-1. **Read the pull request and confirm the source project.**
+1. **Resolve the PR reference.** If the user prompt or session context already
+   provides `<pr-reference>`, use it. Otherwise derive it from the working
+   directory:
+   ```bash
+   tod pr current-reference
+   ```
+   Save non-empty output as `<pr-reference>`. If the output is empty, stop
+   and report that the PR reference could not be derived.
+
+2. **Check whether code can be submitted.**
+   ```bash
+   git symbolic-ref --short HEAD 2>/dev/null
+   ```
+   Save successful output as `<current-branch>`. If there is no branch, apply
+   `<saved-pr-actions>` using the routing in step 6, and continue with rest
+   steps.
+
+3. **Verify the current branch.**
    ```bash
    tod pr get <pr-reference>
    tod project current
+   tod remote
+   git fetch <remote> <source-branch>
+   git rev-parse --abbrev-ref <current-branch>@{upstream}
    ```
    From `tod pr get`, note `<source-project>`, `<target-project>`,
-   `<source-branch>`, `<target-branch>`, and the PR reference/URL. The
-   output of `tod project current` must equal
-   `<source-project>`. If it does not, stop and tell the user the checkout
-   is in the wrong project. If the PR is not open, stop and tell the user.
+   `<source-branch>`, `<target-branch>`, and the PR reference/URL. Save the
+   other outputs as `<current-project>`, `<remote>`, and `<upstream>`. If the PR
+   is not open, stop and tell the user. Verify that `<current-project>` equals
+   `<source-project>`, `<current-branch>` equals `<source-branch>`, and
+   `<upstream>` equals `<remote>/<source-branch>`. If any check fails, report
+   the mismatch and stop.
 
-2. **Prepare the local source branch.**
-   ```bash
-   git symbolic-ref --short HEAD
-   ```
-   If the output does **not** equal `<source-branch>`, stop and tell the
-   user to check out the PR source branch before submitting.
-
-3. **Commit any pending work.** Check whether the working copy is clean:
+4. **Verify the working copy is clean.**
    ```bash
    git status --porcelain
    ```
-   - **Empty output** → working copy is clean, skip to step 4.
-   - **Non-empty output** → there are uncommitted changes. Generate the commit
-     message as follows:
-     1. Run `tod get-commit-message-requirement`.
-     2. Run `tod pr get-commit-message-requirement` with the source and target
-        project and branch values from step 1.
-     3. Inspect `git diff` and `git status`, then compose a concise imperative
-        subject and a body explaining why the change was made.
-     4. Validate the message against every non-empty requirement.
+   If the output is non-empty, report that code submission expects committed
+   work on `<source-branch>` and stop. Do not stage, commit, amend, or discard
+   changes in this workflow.
 
-     Show the proposed message to the user and only after explicit confirmation
-     run:
-     ```bash
-     git add -A
-     git commit -m "<subject>" -m "<body>"
-     ```
-     (Use a `HEREDOC`-style invocation if the message contains multiple
-     paragraphs or special characters.) After the commit, re-run
-     `git status --porcelain` to confirm the working copy is now clean.
+5. **Push outstanding commits.**
+   ```bash
+   git log --reverse --pretty=format:'%h %s%n%b%n---' <remote>/<source-branch>..HEAD
+   ```
+   Save the output as `<commits-to-push>`. If it is empty, skip the push and
+   continue to deferred comments or state changes. Otherwise:
+   ```bash
+   git push <remote> <source-branch>
+   ```
+   Report the PR reference/URL from step 3. When you pushed, the existing pull
+   request now includes the new commits; do **not** run `tod pr create`.
 
-4. **Set up remote tracking and push.**
+6. **Apply deferred OneDev changes.** Apply `<saved-pr-actions>` from
+   **Session handoff**, whether or not this workflow submitted code. If code
+   submission started and then failed, do **not** apply saved actions.
 
-   a. Identify the OneDev remote:
-      ```bash
-      tod remote
-      ```
-      Save the output as `<remote>`.
+   - If `<saved-pr-actions>` is non-empty, apply every action — do not skip
+     because similar text already appears elsewhere on the PR.
+   - If `<saved-pr-actions>` is empty and no code was submitted, report that
+     there is nothing to submit.
 
-   b. Make sure the local branch tracks the same-named branch on the
-      server. This is idempotent:
-      ```bash
-      git fetch <remote> <source-branch>
-      git branch --set-upstream-to=<remote>/<source-branch> <source-branch>
-      ```
-
-   c. **Capture the commits to be pushed before pushing**, because after
-      the push the local branch and its upstream are identical:
-      ```bash
-      git log --reverse --pretty=format:'%h %s%n%b%n---' <remote>/<source-branch>..HEAD
-      ```
-      Save the output as `<commits-to-push>`. **If the output is empty**,
-      there are no new commits to push — skip step 4d. If this session also
-      has **no** deferred OneDev replies or resolves to post in step 6, stop
-      and tell the user there are no new commits to push. Otherwise continue
-      without pushing.
-
-   d. When `<commits-to-push>` is non-empty, push the source branch:
-      ```bash
-      git push <remote> <source-branch>
-      ```
-
-5. **Report the update.** Surface `<commits-to-push>` (when non-empty) and
-   the PR reference/URL from step 1 to the user. When you pushed, the existing
-   pull request now includes the new commits; do **not** run `tod pr create`.
-
-6. **Post deferred follow-up on OneDev.** If this session has replies or
-   resolves that depend on pushed code, post them **now** — only after step 4d
-   succeeded when there was a push, or immediately when `<commits-to-push>` was
-   empty but those fixes are already on the server.
-
-   Before each state-changing `tod` command, show the exact planned action and
-   obtain explicit user consent. Match the channel:
+   For each action in `<saved-pr-actions>`, use the command that matches where
+   the discussion lives:
+   - New line-anchored finding → `tod pr add-code-comment <pr-reference> "<comment>" --file <path> --from-line <line> [--to-line <line>]`
    - General PR feedback → `tod pr add-comment <pr-reference> "<reply>"`
    - Line-anchored thread → `tod code-comment add-reply <comment-id> "<reply>"`
-   - Concern addressed in code → `tod code-comment resolve <comment-id> --note "<why>"` when appropriate
-   - Issue-side discussion → `tod issue add-comment <issue-ref> "<reply>"` when the thread lives on the issue
+   - Outstanding concern addressed in code → `tod code-comment resolve <comment-id> --note "<why>"` when appropriate
+   - Concern stated addressed but not actually addressed in code → `tod code-comment unresolve <comment-id> --note "<why>"` when appropriate
+   - Reviewer outcome → `tod pr approve <pr-reference>` or
+     `tod pr request-changes <pr-reference>` when the saved action is a
+     pending-reviewer state change; include `--comment "<comment>"` when the
+     saved outcome has review text
+   - Merge outcome → `tod pr merge <pr-reference>`; include
+     `--commit-message "<commit-message>"` when saved
 
-   If there are no deferred writes for this session, skip this step. If a push
-   was required but step 4d did not run or failed, do **not** post deferred
-   replies.
+7. **Restore the previous branch and clean up the current branch if applicable.**
+   ```bash
+   git rev-parse --abbrev-ref @{-1} 2>/dev/null
+   ```
+   Save successful output as `<previous-branch>`. If the command fails or returns
+   an empty value, stop.
 
-7. **Return to the previous branch and remove the local source branch.** Only
-   after steps 4–6 complete successfully:
-
-   a. Determine whether a previous branch exists:
-      ```bash
-      git rev-parse --abbrev-ref @{-1} 2>/dev/null
-      ```
-      Save non-empty output as `<previous-branch>`. If the command fails or
-      produces empty output, skip the rest of this step — leave the checkout
-      on `<source-branch>`.
-
-   b. If `<previous-branch>` equals `<source-branch>`, skip the rest of this
-      step — there is nowhere else to switch to.
-
-   c. Switch back and delete the local source branch. The remote branch on
-      `<remote>` stays for the open pull request:
-      ```bash
-      git checkout <previous-branch>
-      git branch -D <source-branch>
-      ```
-
-   Tell the user the checkout is now on `<previous-branch>` and the local
-   `<source-branch>` was removed.
+   - If `<current-branch>` was not recorded in step 2:
+     ```bash
+     git checkout <previous-branch>
+     ```
+   - If `<current-branch>` differs from `<previous-branch>`:
+     ```bash
+     git checkout <previous-branch>
+     git branch -d <current-branch>
+     ```
+   - If `<current-branch>` equals `<previous-branch>`, do nothing.

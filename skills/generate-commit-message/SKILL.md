@@ -1,6 +1,6 @@
 ---
 name: generate-commit-message
-description: Compose a Git commit message that satisfies applicable OneDev branch and pull request requirements. Use when the user asks to draft or generate a commit message.
+description: Compose a Git commit message that satisfies applicable OneDev branch and pull request requirements. Use when the user asks to draft or generate a commit message. Do not use when running work-on-pull-request, submit-issue-work, or submit-pull-request-work — those workflows compose commit messages themselves.
 ---
 
 # Generate a OneDev commit message
@@ -31,7 +31,7 @@ requirement.
 
    In pull request context, also get the PR requirement:
       ```bash
-      tod pr get-commit-message-requirement --target-project=<target project> --target-branch=<target branch> --source-project=<source project> --source-branch=<source branch>
+      tod pr get-commit-message-requirement --target-project <target-project> --target-branch <target-branch> 
       ```
    For an existing PR, use values from its detail. For a planned PR, use the
    values or omissions planned for `tod pr create`.

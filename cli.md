@@ -35,14 +35,14 @@ Reference formats accepted by `<ref>`/`<target ref>`/`<source ref>` arguments:
 | `tod issue list` | Query issues. Flags: `--project`, `--query`, `--offset`, `--count`. |
 | `tod issue get <ref>` | Detail information of a issue except comments. |
 | `tod issue get-comments <ref>` | List comments on an issue. |
-| `tod issue create <title>` | Create a new issue. Flags: `--description`, `--project`, `--field key=value` (repeatable), `--iteration`, `--own-estimated-time`, `--confidential`. |
-| `tod issue edit <ref>` | Edit an existing issue. Flags: `--title`, `--description`, `--field key=value` (repeatable), `--iteration`, `--own-estimated-time`, `--confidential`. |
+| `tod issue create <title>` | Create a new issue. Flags: `--description`, `--project`, `--field key=value` (repeatable), `--iteration` (repeatable), `--own-estimated-time`, `--confidential`. |
+| `tod issue edit <ref>` | Edit an existing issue. Flags: `--title`, `--description`, `--field key=value` (repeatable), `--iteration` (repeatable), `--own-estimated-time`, `--confidential`. |
 | `tod issue change-state <ref> <state>` | Change state. Flags: `--comment`, `--field key=value` (repeatable). |
 | `tod issue link <source ref> <link-name> <target ref>` | Add `<target ref>` as `<link-name>` of `<source ref>` (run `tod issue get-valid-links` for valid link names). |
 | `tod issue add-comment <ref> <content>` | Add a comment. |
-| `tod issue log-work <ref> <hours>` | Record time spent. Flag: `--comment`. |
-| `tod issue create-branch <ref>` | Create a branch on the server for the specified issue. |
-| `tod issue current-reference` | Print the issue reference (`#<n>`) inferred from the current branch (matched against `[<prefix>/]issue-<n>[-<suffix>]`). Prints nothing when the current project cannot be inferred or the branch does not match. |
+| `tod issue log-work <ref> <hours>` | Record time spent (`<hours>` must be a positive integer). Flag: `--comment`. |
+| `tod issue checkout <ref>` | Check out the issue branch into the working directory and set up remote tracking. |
+| `tod issue current-reference` | Print the issue number inferred from the current branch (matched against `[<prefix>/]issue-<n>[-<suffix>]`). Fails if no issue number can be inferred. |
 | `tod issue get-query-description` | Print the OneDev issue query DSL description (syntax reference for `--query` of `issue list`). |
 | `tod issue get-valid-fields` | Print valid issue fields and their allowed values (use before passing `--field` to `create`/`edit`/`change-state`). |
 | `tod issue get-valid-links` | Print valid issue link names (use as the `<link-name>` argument to `issue link`). |
@@ -68,6 +68,7 @@ Reference formats accepted by `<ref>`/`<target ref>`/`<source ref>` arguments:
 | `tod pr add-comment <ref> <content>` | Add a comment. |
 | `tod pr add-code-comment <ref> <content>` | Add a code comment to a line range visible on the right side of the PR patch. Flags: `--file` (required), `--from-line` (required, 1-based), `--to-line` (defaults to `--from-line`). |
 | `tod pr checkout <ref>` | Check out the pull request into the working directory. |
+| `tod pr current-reference` | Print the number of the single open pull request whose source branch is the current git branch. Fails if zero or multiple pull requests match. |
 | `tod pr get-query-description` | Print the OneDev pull request query DSL description (syntax reference for `--query` of `pr list`). |
 
 ## `tod code-comment`
@@ -124,5 +125,5 @@ These commands run even when the config file is missing or invalid.
 | `tod get-unix-timestamp <description>` | Convert a natural-language description (e.g. `today`, `next month`, `2025-01-01 12:00:00`) to a Unix timestamp in milliseconds. |
 | `tod remote` | Print the git remote that points at the inferred OneDev project. |
 | `tod get-valid-labels` | Print valid label names for this OneDev server (use with `--label` in `tod pr create`). |
-| `tod get-commit-message-requirement [branch]` | Print the commit message requirement for a branch in current project (inferred from the working directory). Branch defaults to the current git branch. Prints nothing when the branch has no commit message requirement configured. |
+| `tod get-commit-message-requirement [--branch <branch>]` | Print the commit message requirement for a branch in current project (inferred from the working directory). Branch defaults to the current git branch. Prints nothing when the branch has no commit message requirement configured. |
 | `tod download <resource-url> <output-file>` | Download a resource (image, file, etc.) referenced in markdown. The resource URL is the original URL from the markdown without modification. Relative URLs are resolved against `server-url`; authentication uses `access-token`. |

@@ -95,28 +95,26 @@ The list is fetched from the OneDev server endpoint
 }
 
 var getCommitMessageRequirementCmd = &cobra.Command{
-	Use:   "get-commit-message-requirement [branch]",
+	Use:   "get-commit-message-requirement",
 	Short: "Print commit message requirement",
 	Long: `Print commit message requirement for a branch.
 The project is inferred from the current git repository's OneDev project.
 Branch defaults to the current git branch when omitted.`,
-	Args: cobra.MaximumNArgs(1),
+	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		project, err := currentProjectFor(cmd)
 		if err != nil {
 			return err
 		}
 
-		branch := ""
-		if len(args) > 0 {
-			branch = args[0]
-		} else {
+		branch, _ := cmd.Flags().GetString("branch")
+		if branch == "" {
 			branch, err = currentBranch(workingDirOf(cmd))
 			if err != nil {
 				return err
 			}
 			if branch == "" {
-				return fmt.Errorf("branch is required: could not detect current branch (detached HEAD)")
+				return fmt.Errorf("--branch is required: could not detect current branch (detached HEAD)")
 			}
 		}
 
@@ -190,5 +188,6 @@ func initMiscCommands() {
 	getLoginNameCmd.Flags().String("user", "", "User name (defaults to the current user)")
 
 	remoteCmd.Flags().String("working-dir", "", "Working directory used to infer the OneDev project (defaults to current directory)")
+	getCommitMessageRequirementCmd.Flags().String("branch", "", "Branch to get commit message requirement for (defaults to current git branch)")
 	getCommitMessageRequirementCmd.Flags().String("working-dir", "", "Working directory used to infer the OneDev project (defaults to current directory)")
 }

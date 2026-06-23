@@ -14,7 +14,8 @@ AI agents via shipped skill files.
   problem reports.
 - **Run CI/CD jobs against local changes, branches, or tags** with real-time
   log streaming (`tod build run --local`, `--branch`, or `--tag`).
-- **Check out pull requests** locally (`tod pr checkout`).
+- **Check out issues and pull requests** locally (`tod issue checkout`,
+  `tod pr checkout`).
 - **Check and migrate `.onedev-buildspec.yml`** to the latest version
   (`tod build check-spec`).
 - **Agent skills** under [`skills/`](skills/) that teach Claude Code, Cursor,
@@ -125,6 +126,9 @@ tod build run --branch main ci
 # Check out pull request PROJ-123 into the current working directory
 tod pr checkout PROJ-123
 
+# Check out issue PROJ-456 into the current working directory
+tod issue checkout PROJ-456
+
 # Query open issues assigned to you
 tod issue list --query 'assignee is me and state is "Open"'
 
@@ -138,19 +142,17 @@ See [cli.md](cli.md) for the full command reference.
 
 ## Agent skills
 
-TOD ships eight tool-agnostic `SKILL.md` files under [`skills/`](skills/) that
+TOD ships seven tool-agnostic `SKILL.md` files under [`skills/`](skills/) that
 teach AI agents how to drive common OneDev workflows through the CLI:
 
 - `using-tod` — perform general OneDev queries and actions
 - `edit-build-spec` — author and validate `.onedev-buildspec.yml`
-- `review-pull-request` — review a pull request and act on the findings
 - `generate-commit-message` — compose a message that satisfies OneDev
   requirements
 - `work-on-issue` — check out and implement issue work
 - `submit-issue-work` — commit and push issue work, then update or create its
   pull request
-- `work-on-pull-request` — check out a pull request and implement follow-up
-  work
+- `work-on-pull-request` — review a pull request or implement follow-up work
 - `submit-pull-request-work` — commit and push work for an existing pull
   request
 

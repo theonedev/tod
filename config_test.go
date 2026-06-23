@@ -39,6 +39,16 @@ func TestNormalizeServerURL(t *testing.T) {
 			input:   "server:6610",
 			wantErr: true,
 		},
+		{
+			name:    "missing host",
+			input:   "http://",
+			wantErr: true,
+		},
+		{
+			name:    "missing port",
+			input:   "http://localhost:",
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {

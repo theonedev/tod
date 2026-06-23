@@ -135,6 +135,18 @@ func getPullRequestDetail(reference, currentProject string) (map[string]interfac
 	return pr, nil
 }
 
+func getIssueDetail(reference, currentProject string) (map[string]interface{}, error) {
+	data, err := getEntityData("get-issue", reference, currentProject)
+	if err != nil {
+		return nil, err
+	}
+	var issue map[string]interface{}
+	if err := json.Unmarshal(data, &issue); err != nil {
+		return nil, fmt.Errorf("failed to parse issue response: %v", err)
+	}
+	return issue, nil
+}
+
 func getPullRequestPatchInfo(reference, currentProject string) (map[string]interface{}, error) {
 	data, err := apiGetBytes("get-pull-request-patch-info", url.Values{
 		"currentProject": {currentProject},

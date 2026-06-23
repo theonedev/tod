@@ -31,6 +31,31 @@ func currentProjectFor(cmd *cobra.Command) (string, error) {
 	return project, nil
 }
 
+// currentReferenceError suppresses usage for runtime derivation failures while
+// preserving usage output for argument validation errors handled before RunE.
+func currentReferenceError(cmd *cobra.Command, err error) error {
+	cmd.SilenceUsage = true
+	return err
+}
+
+func suppressUsageForRunErrors(command *cobra.Command) {
+	if command.RunE != nil {
+		runE := command.RunE
+		command.RunE = func(cmd *cobra.Command, args []string) error {
+			err := runE(cmd, args)
+			if err != nil {
+				cmd.SilenceUsage = true
+				cmd.SilenceErrors = true
+			}
+			return err
+		}
+	}
+
+	for _, child := range command.Commands() {
+		suppressUsageForRunErrors(child)
+	}
+}
+
 // emit writes a raw response body to stdout, appending a trailing newline only
 // if the server response did not already include one.
 func emit(body []byte) {

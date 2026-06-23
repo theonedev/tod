@@ -163,6 +163,12 @@ func normalizeServerURL(value string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("invalid server url: %w", err)
 	}
+	if parsed.Host == "" {
+		return "", fmt.Errorf("invalid server url (must include a host): %s", value)
+	}
+	if strings.HasSuffix(parsed.Host, ":") {
+		return "", fmt.Errorf("invalid server url (must include a port after colon): %s", value)
+	}
 	if path := strings.TrimRight(parsed.Path, "/"); path != "" {
 		return "", fmt.Errorf("invalid server url (must not contain a path): %s", value)
 	}

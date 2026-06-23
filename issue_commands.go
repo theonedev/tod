@@ -1,11 +1,9 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/url"
 	"regexp"
-	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -305,8 +303,8 @@ var issueGetValidLinksCmd = &cobra.Command{
 	Use:   "get-valid-links",
 	Short: "Get valid issue link names",
 	Long: `Get valid issue link names for this OneDev server. Use this to
-discover which link names are accepted by --link-name when running
-'tod issue link'.
+discover which link names are accepted as the <link-name> argument when
+running 'tod issue link'.
 
 The description is fetched from the OneDev server endpoint
 /~api/tod/get-valid-issue-links.`,
@@ -322,67 +320,46 @@ The description is fetched from the OneDev server endpoint
 }
 
 var issueCurrentReferenceCmd = &cobra.Command{
-	Use:   "current-reference",
-	Short: "Print the issue reference inferred from the current branch",
-	Long: `Print the issue reference inferred from the current git branch in the
+	Use:           "current-reference",
+	Short:         "Print the issue number inferred from the current branch",
+	SilenceErrors: true,
+	Long: `Print the issue number inferred from the current git branch in the
 working directory.
 
-A current issue reference exists when the OneDev project can be inferred
-from the working directory and the current branch matches a pattern of
+A current issue number exists when the current branch matches a pattern of
 the form '[<optional-prefix>/]issue-<number>[-<optional-suffix>]'. In that
-case the issue reference is printed; otherwise nothing is printed (and the
-command exits successfully).`,
+case the number is printed. If no issue number can be inferred, the command
+prints an error and exits non-zero.`,
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		wd := workingDirOf(cmd)
-		_, project, err := inferProject(wd)
-		if err != nil {
-			return nil
-		}
 		branch, err := currentBranch(wd)
-		if err != nil || branch == "" {
-			return nil
+		if err != nil {
+			return currentReferenceError(cmd, err)
+		}
+		if branch == "" {
+			return currentReferenceError(cmd, fmt.Errorf("could not detect current branch (detached HEAD)"))
 		}
 		matches := issueBranchPattern.FindStringSubmatch(branch)
 		if len(matches) < 2 {
-			return nil
+			return currentReferenceError(cmd, fmt.Errorf("could not infer issue number from current branch %q", branch))
 		}
-		body, err := apiGetBytes("get-project", url.Values{"project": {project}})
-		if err != nil {
-			return err
-		}
-		var info map[string]interface{}
-		if err := json.Unmarshal(body, &info); err != nil {
-			return fmt.Errorf("failed to parse project response: %v", err)
-		}
-		key, _ := info["key"].(string)
-		key = strings.TrimSpace(key)
-		if key == "" {
-			fmt.Println("#" + matches[1])
-		} else {
-			fmt.Println(key + "-" + matches[1])
-		}
+		fmt.Println(matches[1])
 		return nil
 	},
 }
 
-var issueCreateBranchCmd = &cobra.Command{
-	Use:   "create-branch <issue-reference>",
-	Short: "Create a branch on the server for the specified issue. Noop if the branch already exists",
+var issueCheckoutCmd = &cobra.Command{
+	Use:   "checkout <issue-reference>",
+	Short: "Checkout an issue branch into the working directory",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		currentProject, err := currentProjectFor(cmd)
-		if err != nil {
-			return err
+		wd := workingDirOf(cmd)
+		logger := cliLogger("[checkout] ")
+		if err := checkoutIssue(wd, args[0], logger); err != nil {
+			return fmt.Errorf("failed to checkout issue: %v", err)
 		}
-		body, err := apiPostBytes("create-issue-branch", url.Values{
-			"currentProject": {currentProject},
-			"reference":      {args[0]},
-		})
-		if err != nil {
-			return err
-		}
-		emit(body)
+		logger.Printf("Checked out issue %s successfully", args[0])
 		return nil
 	},
 }
@@ -454,7 +431,7 @@ func initIssueCommands() {
 		issueLinkCmd,
 		issueAddCommentCmd,
 		issueLogWorkCmd,
-		issueCreateBranchCmd,
+		issueCheckoutCmd,
 		issueCurrentReferenceCmd,
 		issueGetQueryDescriptionCmd,
 		issueGetValidFieldsCmd,

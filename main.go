@@ -110,6 +110,8 @@ func init() {
 		checkVersionCmd,
 		versionCmd,
 	)
+
+	suppressUsageForRunErrors(rootCmd)
 }
 
 func main() {

@@ -115,6 +115,23 @@ func promptValue(reader *bufio.Reader, prompt string) (string, error) {
 	return strings.TrimSpace(line), nil
 }
 
+func promptConfigProperty(reader *bufio.Reader, prompt, propertyName, currentValue string) (string, error) {
+	for {
+		value, err := promptValue(reader, prompt)
+		if err != nil {
+			return "", err
+		}
+		if value == "" {
+			value = currentValue
+		}
+		normalizedValue, err := normalizeConfigProperty(propertyName, value)
+		if err == nil {
+			return normalizedValue, nil
+		}
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+	}
+}
+
 func setFullConfig() error {
 	targetPath, err := findConfigFile()
 	if err != nil {
@@ -133,19 +150,13 @@ func setFullConfig() error {
 	reader := bufio.NewReader(os.Stdin)
 
 	var prompt string
+	var value string
 	if serverUrl != "" {
 		prompt = fmt.Sprintf("OneDev server URL [%s]: ", serverUrl)
 	} else {
 		prompt = "OneDev server URL (e.g. https://onedev.example.com): "
 	}
-	value, err := promptValue(reader, prompt)
-	if err != nil {
-		return err
-	}
-	if value != "" {
-		serverUrl = value
-	}
-	serverUrl, err = normalizeConfigProperty(serverUrlKey, serverUrl)
+	serverUrl, err = promptConfigProperty(reader, prompt, serverUrlKey, serverUrl)
 	if err != nil {
 		return err
 	}
@@ -172,14 +183,7 @@ func setFullConfig() error {
 	} else {
 		prompt = "Trust certs file (optional, press Enter to skip): "
 	}
-	value, err = promptValue(reader, prompt)
-	if err != nil {
-		return err
-	}
-	if value != "" {
-		trustCertsFile = value
-	}
-	trustCertsFile, err = normalizeConfigProperty(trustCertsFileKey, trustCertsFile)
+	trustCertsFile, err = promptConfigProperty(reader, prompt, trustCertsFileKey, trustCertsFile)
 	if err != nil {
 		return err
 	}

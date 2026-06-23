@@ -234,6 +234,138 @@ func hasUncommittedChanges(workingDir string) (bool, error) {
 	return len(strings.TrimSpace(string(output))) > 0, nil
 }
 
+func checkoutFetchedBranch(workingDir string, remote string, branch string, commitHash string, logger *log.Logger) error {
+	localBranch := branch
+
+	checkBranchCmd := exec.Command("git", "rev-parse", "--verify", "--quiet", localBranch)
+	checkBranchCmd.Dir = workingDir
+	_, err := checkBranchCmd.CombinedOutput()
+	logger.Printf("Running command: git rev-parse --verify --quiet %s\n", localBranch)
+
+	if err == nil {
+		checkoutCmd := exec.Command("git", "checkout", localBranch)
+		checkoutCmd.Dir = workingDir
+		stdoutStderr, err := checkoutCmd.CombinedOutput()
+		logger.Printf("Running command: git checkout %s\n", localBranch)
+		logger.Printf("Command output:\n%s", string(stdoutStderr))
+		if err != nil {
+			return fmt.Errorf("git checkout failed: %v", err)
+		}
+		mergeCmd := exec.Command("git", "merge", "--ff-only", commitHash)
+		mergeCmd.Dir = workingDir
+		stdoutStderr, err = mergeCmd.CombinedOutput()
+		logger.Printf("Running command: git merge --ff-only %s\n", commitHash)
+		logger.Printf("Command output:\n%s", string(stdoutStderr))
+		if err != nil {
+			return fmt.Errorf("git merge --ff-only failed: %v", err)
+		}
+	} else {
+		checkoutCmd := exec.Command("git", "checkout", "-b", localBranch, commitHash)
+		checkoutCmd.Dir = workingDir
+		stdoutStderr, err := checkoutCmd.CombinedOutput()
+		logger.Printf("Running command: git checkout -b %s %s\n", localBranch, commitHash)
+		logger.Printf("Command output:\n%s", string(stdoutStderr))
+		if err != nil {
+			return fmt.Errorf("git checkout -b failed: %v", err)
+		}
+	}
+
+	updateRemoteTrackRefCmd := exec.Command("git", "update-ref", fmt.Sprintf("refs/remotes/%s/%s", remote, branch), commitHash)
+	updateRemoteTrackRefCmd.Dir = workingDir
+	stdoutStderr, err := updateRemoteTrackRefCmd.CombinedOutput()
+	logger.Printf("Running command: git update-ref %s %s\n", fmt.Sprintf("refs/remotes/%s/%s", remote, branch), commitHash)
+	logger.Printf("Command output:\n%s", string(stdoutStderr))
+	if err != nil {
+		return fmt.Errorf("git update-ref failed: %v", err)
+	}
+
+	upstreamCmd := exec.Command("git", "rev-parse", "--abbrev-ref", localBranch+"@{upstream}")
+	upstreamCmd.Dir = workingDir
+	output, err := upstreamCmd.Output()
+	expectedUpstream := fmt.Sprintf("%s/%s", remote, branch)
+
+	if err != nil || strings.TrimSpace(string(output)) != expectedUpstream {
+		setUpstreamCmd := exec.Command("git", "branch", "--set-upstream-to", expectedUpstream, localBranch)
+		setUpstreamCmd.Dir = workingDir
+		stdoutStderr, err := setUpstreamCmd.CombinedOutput()
+		logger.Printf("Running command: git branch --set-upstream-to %s %s\n", expectedUpstream, localBranch)
+		logger.Printf("Command output:\n%s", string(stdoutStderr))
+		if err != nil {
+			return fmt.Errorf("git branch --set-upstream-to failed: %v", err)
+		}
+	}
+
+	return nil
+}
+
+func checkoutIssue(workingDir string, issueReference string, logger *log.Logger) error {
+	remote, project, err := inferProject(workingDir)
+	if err != nil {
+		return err
+	}
+
+	issue, err := getIssueDetail(issueReference, project)
+	if err != nil {
+		return err
+	}
+	issueProject, _ := issue["Project"].(string)
+	if issueProject == "" {
+		return fmt.Errorf("issue detail response does not include Project")
+	}
+	if issueProject != project {
+		return fmt.Errorf("issue %s belongs to project %s, but current project is %s", issueReference, issueProject, project)
+	}
+
+	body, err := apiPostBytes("ensure-issue-branch", url.Values{
+		"currentProject": {project},
+		"reference":      {issueReference},
+	})
+	if err != nil {
+		return err
+	}
+
+	branch := strings.TrimSpace(string(body))
+	if branch == "" {
+		return fmt.Errorf("ensure-issue-branch returned empty branch name")
+	}
+
+	projectUrl := config.ServerUrl + "/" + project
+	fetchCmd, cleanup, err := newTrustedGitCommand(workingDir, "-c", "http.extraHeader=Authorization: Bearer "+config.AccessToken, "fetch", projectUrl, branch)
+	if err != nil {
+		return fmt.Errorf("failed to prepare git fetch: %v", err)
+	}
+	defer cleanup()
+	stdoutStderr, err := fetchCmd.CombinedOutput()
+	logger.Printf("Running command: git fetch %s %s\n", projectUrl, branch)
+	logger.Printf("Command output:\n%s", string(stdoutStderr))
+	if err != nil {
+		return fmt.Errorf("git fetch failed: %v", err)
+	}
+
+	revParseCmd := exec.Command("git", "rev-parse", "FETCH_HEAD")
+	revParseCmd.Dir = workingDir
+	output, err := revParseCmd.Output()
+	logger.Printf("Running command: git rev-parse FETCH_HEAD\n")
+	if err != nil {
+		return fmt.Errorf("git rev-parse FETCH_HEAD failed: %v", err)
+	}
+	headCommitHash := strings.TrimSpace(string(output))
+	if headCommitHash == "" {
+		return fmt.Errorf("git rev-parse FETCH_HEAD returned empty commit hash")
+	}
+
+	hasChanges, err := hasUncommittedChanges(workingDir)
+	if err != nil {
+		return fmt.Errorf("failed to check for uncommitted changes: %v", err)
+	}
+
+	if hasChanges {
+		return fmt.Errorf("you have uncommitted changes in your working directory. Please commit or stash your changes first")
+	}
+
+	return checkoutFetchedBranch(workingDir, remote, branch, headCommitHash, logger)
+}
+
 func checkoutPullRequest(workingDir string, pullRequestReference string, logger *log.Logger) error {
 	remote, project, err := inferProject(workingDir)
 	if err != nil {
@@ -272,8 +404,11 @@ func checkoutPullRequest(workingDir string, pullRequestReference string, logger 
 		sourceProject = sp
 	}
 	sourceBranch, _ := pullRequest["sourceBranch"].(string)
-	number, _ := pullRequest["number"].(float64)
 	headCommitHash, _ := pullRequest["headCommitHash"].(string)
+
+	if project != sourceProject && project != targetProject {
+		return fmt.Errorf("pull request %s has source project %s and target project %s, but current project is %s", pullRequestReference, sourceProject, targetProject, project)
+	}
 
 	projectUrl := config.ServerUrl + "/" + targetProject
 
@@ -289,15 +424,6 @@ func checkoutPullRequest(workingDir string, pullRequestReference string, logger 
 		return fmt.Errorf("git fetch failed: %v", err)
 	}
 
-	var localBranch string
-	needsUpstream := false
-	if open && project == sourceProject {
-		localBranch = sourceBranch
-		needsUpstream = true
-	} else {
-		localBranch = fmt.Sprintf("pr-%d", int(number))
-	}
-
 	hasChanges, err := hasUncommittedChanges(workingDir)
 	if err != nil {
 		return fmt.Errorf("failed to check for uncommitted changes: %v", err)
@@ -307,66 +433,17 @@ func checkoutPullRequest(workingDir string, pullRequestReference string, logger 
 		return fmt.Errorf("you have uncommitted changes in your working directory. Please commit or stash your changes first")
 	}
 
-	checkBranchCmd := exec.Command("git", "rev-parse", "--verify", "--quiet", localBranch)
-	checkBranchCmd.Dir = workingDir
-	_, err = checkBranchCmd.CombinedOutput()
-	logger.Printf("Running command: git rev-parse --verify --quiet %s\n", localBranch)
-
-	if err == nil {
-		checkoutCmd := exec.Command("git", "checkout", localBranch)
-		checkoutCmd.Dir = workingDir
-		stdoutStderr, err := checkoutCmd.CombinedOutput()
-		logger.Printf("Running command: git checkout %s\n", localBranch)
-		logger.Printf("Command output:\n%s", string(stdoutStderr))
-		if err != nil {
-			return fmt.Errorf("git checkout failed: %v", err)
-		}
-		mergeCmd := exec.Command("git", "merge", "--ff-only", headCommitHash)
-		mergeCmd.Dir = workingDir
-		stdoutStderr, err = mergeCmd.CombinedOutput()
-		logger.Printf("Running command: git merge --ff-only %s\n", headCommitHash)
-		logger.Printf("Command output:\n%s", string(stdoutStderr))
-		if err != nil {
-			return fmt.Errorf("git merge --ff-only failed: %v", err)
-		}
-	} else {
-		checkoutCmd := exec.Command("git", "checkout", "-b", localBranch, headCommitHash)
-		checkoutCmd.Dir = workingDir
-		stdoutStderr, err := checkoutCmd.CombinedOutput()
-		logger.Printf("Running command: git checkout -b %s %s\n", localBranch, headCommitHash)
-		logger.Printf("Command output:\n%s", string(stdoutStderr))
-		if err != nil {
-			return fmt.Errorf("git checkout -b failed: %v", err)
-		}
+	if open && project == sourceProject {
+		return checkoutFetchedBranch(workingDir, remote, sourceBranch, headCommitHash, logger)
 	}
 
-	if needsUpstream {
-		updateRemoteTrackRefCmd := exec.Command("git", "update-ref", fmt.Sprintf("refs/remotes/%s/%s", remote, sourceBranch), headCommitHash)
-		updateRemoteTrackRefCmd.Dir = workingDir
-		stdoutStderr, err = updateRemoteTrackRefCmd.CombinedOutput()
-		logger.Printf("Running command: git update-ref %s %s\n", fmt.Sprintf("refs/remotes/%s/%s", remote, sourceBranch), headCommitHash)
-		logger.Printf("Command output:\n%s", string(stdoutStderr))
-		if err == nil {
-			upstreamCmd := exec.Command("git", "rev-parse", "--abbrev-ref", localBranch+"@{upstream}")
-			upstreamCmd.Dir = workingDir
-			output, err := upstreamCmd.Output()
-			expectedUpstream := fmt.Sprintf("%s/%s", remote, sourceBranch)
-
-			if err != nil || strings.TrimSpace(string(output)) != expectedUpstream {
-				setUpstreamCmd := exec.Command("git", "branch", "--set-upstream-to", expectedUpstream, localBranch)
-				setUpstreamCmd.Dir = workingDir
-				stdoutStderr, err := setUpstreamCmd.CombinedOutput()
-				logger.Printf("Running command: git branch --set-upstream-to %s %s\n", expectedUpstream, localBranch)
-				logger.Printf("Command output:\n%s", string(stdoutStderr))
-				if err != nil {
-					return fmt.Errorf("git branch --set-upstream-to failed: %v", err)
-				} else {
-					return nil
-				}
-			}
-		} else {
-			return fmt.Errorf("git update-ref failed: %v", err)
-		}
+	checkoutCmd := exec.Command("git", "checkout", headCommitHash)
+	checkoutCmd.Dir = workingDir
+	stdoutStderr, err = checkoutCmd.CombinedOutput()
+	logger.Printf("Running command: git checkout %s\n", headCommitHash)
+	logger.Printf("Command output:\n%s", string(stdoutStderr))
+	if err != nil {
+		return fmt.Errorf("git checkout failed: %v", err)
 	}
 
 	return nil
