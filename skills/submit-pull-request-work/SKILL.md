@@ -36,6 +36,14 @@ output, failed precondition, or declined confirmation, stop immediately,
 report the command and error, and wait for the user. Do not continue, retry
 silently, amend, or force-push.
 
+## If not submitting
+
+If you decide not to run submission for any reason, make sure to create a PR
+comment explaining why the work was not submitted:
+```bash
+tod pr add-comment <pr-reference> "<reason>"
+```
+
 ## Workflow
 
 Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or

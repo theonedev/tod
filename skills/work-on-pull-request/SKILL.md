@@ -50,6 +50,8 @@ from that source.
   tod pr get-commit-message-requirement --target-project <target-project> --target-branch <target-branch>
   tod issue list --query 'fixed in pull request "<pr-reference>"'
   ```
+  If `<fixed-issues>` was already saved while determining the work
+  specification, reuse it instead of running the fixed-issue query again.
   Compose the message from the PR title, description, and fixed issues,
   satisfy every non-empty requirement, and save the full message in
   `<saved-pr-actions>`.
@@ -87,18 +89,23 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
    uncommitted changes.
 
 3. **Determine the work specification.** The work may come from the user's prompt directly,
-    from someone's feedback on the PR, or from the PR itself (title and description).
+    from someone's feedback on the PR, from the PR itself (title and
+    description), or from the descriptions and comments of issues fixed by the PR.
 
    Even when the prompt is the primary specification, do not proceed from the
-   prompt alone. The PR title, description, associated comments, and code comments are important
-   context, and can be retrieved as below:
+   prompt alone. The PR title, description, associated comments, code comments,
+   and fixed issue context are important context, and can be retrieved as below:
 
    | Context source | How to inspect |
    |----------------|----------------|
+   | Fixed issues | `tod issue list --query 'fixed in pull request "<pr-reference>"'` — save the output as `<fixed-issues>`. For each returned issue, inspect `tod issue get <issue-reference>` and `tod issue get-comments <issue-reference>`; note the issue title, description, and comments. |
    | PR metadata, title, and description | `tod pr get <pr-reference>` — note `<source-project>`, `<source-branch>`, `<target-project>`, `<target-branch>`, `<merge-strategy>`, `<head-commit>`, `<status>`, title, description, linked issues, submitter, reviewers, assignees, and current review status. |
    | PR comments | `tod pr get-comments <pr-reference>` |
    | Line-anchored code comments | `tod pr get-code-comments <pr-reference>` — note `id`, file, line range, resolution state, and replies. |
-   
+
+   Reuse `<fixed-issues>` later if squash-merge commit message composition
+   needs the same fixed-issue query result.
+
    Then proceed to get your own login name:
    ```bash
    tod get-login-name
@@ -125,7 +132,7 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
    the checked-out working copy.
 
    **Inspect embedded resources.** Download every linked image or file from
-   the PR description and discussion:
+   the PR description, PR discussion, and fixed issue descriptions/comments:
 
    - Find image and file links (`![alt](url)` and `[label](url)`) in every
      text source you read above.

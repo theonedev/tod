@@ -33,6 +33,14 @@ output, failed precondition, or declined confirmation, stop immediately,
 report the command and error, and wait for the user. Do not continue, retry
 silently, amend, or force-push.
 
+## If not submitting
+
+If you decide not to run submission for any reason, make sure to create an
+issue comment explaining why the work was not submitted:
+```bash
+tod issue add-comment <issue-reference> "<reason>"
+```
+
 ## Workflow
 
 Given an optional `<issue-reference>` (e.g. `123`, `#123`, `myproject#123`,
