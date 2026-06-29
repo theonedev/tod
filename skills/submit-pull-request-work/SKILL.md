@@ -120,8 +120,8 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
    - Concern stated addressed but not actually addressed in code -> `tod code-comment unresolve <comment-id> --note "<why>"` when appropriate
    - Reviewer outcome -> `tod pr approve <pr-reference>` or
      `tod pr request-changes <pr-reference>` when the saved action is a
-     pending-reviewer state change; include `--comment "<comment>"` when the
-     saved outcome has review text
+     pending-reviewer state change; include `--summary "<summary>"` when the
+     saved outcome has summary text
    - Merge outcome -> `tod pr merge <pr-reference>`; include
      `--commit-message "<commit-message>"` when saved
 

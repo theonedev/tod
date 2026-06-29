@@ -300,8 +300,8 @@ var prApproveCmd = &cobra.Command{
 	Short: "Approve a pull request as a pending reviewer",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		comment, _ := cmd.Flags().GetString("comment")
-		return runPullRequestOperation(cmd, "approve-pull-request", args[0], comment)
+		summary, _ := cmd.Flags().GetString("summary")
+		return runPullRequestOperation(cmd, "approve-pull-request", args[0], summary)
 	},
 }
 
@@ -310,8 +310,8 @@ var prRequestChangesCmd = &cobra.Command{
 	Short: "Request changes on a pull request as a pending reviewer",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		comment, _ := cmd.Flags().GetString("comment")
-		return runPullRequestOperation(cmd, "request-changes-on-pull-request", args[0], comment)
+		summary, _ := cmd.Flags().GetString("summary")
+		return runPullRequestOperation(cmd, "request-changes-on-pull-request", args[0], summary)
 	},
 }
 
@@ -616,8 +616,8 @@ func initPullRequestCommands() {
 	prEditCmd.Flags().Bool("auto-merge", false, "Whether or not to enable auto-merge")
 	prEditCmd.Flags().String("auto-merge-commit-message", "", "Preset commit message for auto merge")
 
-	prApproveCmd.Flags().String("comment", "", "Optional Markdown review note")
-	prRequestChangesCmd.Flags().String("comment", "", "Optional Markdown review note")
+	prApproveCmd.Flags().String("summary", "", "Optional Markdown review summary")
+	prRequestChangesCmd.Flags().String("summary", "", "Optional Markdown review summary")
 	prMergeCmd.Flags().String("commit-message", "", "Optional merge commit message (must satisfy server-side validation if provided)")
 	prDiscardCmd.Flags().String("comment", "", "Optional Markdown comment explaining the discard")
 

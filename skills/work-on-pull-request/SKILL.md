@@ -266,7 +266,7 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
    - General PR feedback -- comment text
    - Line-anchored thread -- `comment-id`, reply text
    - Resolve or unresolve -- `comment-id`, note text
-   - Reviewer outcome -- approve or request-changes, with comment text when
+   - Reviewer outcome -- approve or request-changes, with summary text when
      applicable
    - Merge outcome -- whether it needs `--commit-message`, and the full message
      when applicable

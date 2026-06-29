@@ -61,8 +61,8 @@ Reference formats accepted by `<ref>`/`<target ref>`/`<source ref>` arguments:
 | `tod pr get-title-and-description-requirement` | Get pull request title and description requirement. Flags: `--source-branch` (defaults to current git branch), `--target-branch`, `--source-project`, `--target-project`, `--merge-strategy`. |
 | `tod pr get-commit-message-requirement` | Get pull request commit message requirement. Flags: `--source-branch` (defaults to current git branch), `--target-branch`, `--source-project`, `--target-project`. |
 | `tod pr edit <ref>` | Edit a pull request. Flags: `--title`, `--description`, `--assignee`, `--add-reviewer`, `--remove-reviewer`, `--label`, `--merge-strategy`, `--auto-merge`, `--auto-merge-commit-message`. |
-| `tod pr approve <ref>` | Approve a pull request as a pending reviewer. Flag: `--comment` (Markdown review note). |
-| `tod pr request-changes <ref>` | Request changes on a pull request as a pending reviewer. Flag: `--comment` (Markdown review note). |
+| `tod pr approve <ref>` | Approve a pull request as a pending reviewer. Flag: `--summary` (Markdown review summary). |
+| `tod pr request-changes <ref>` | Request changes on a pull request as a pending reviewer. Flag: `--summary` (Markdown review summary). |
 | `tod pr merge <ref>` | Merge a pull request. Flag: `--commit-message`. |
 | `tod pr discard <ref>` | Discard (close without merging) a pull request. Flag: `--comment` (Markdown). |
 | `tod pr add-comment <ref> <content>` | Add a Markdown comment. |
