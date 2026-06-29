@@ -147,7 +147,8 @@ or `PROJ-123`):
    (see **Session handoff**). If a comment mentions a pull request, use the
    form `pr #<pr number>`. When someone should be mentioned in comments or
    notes, mention each user only once across all drafted comments and notes
-   for this submission — not in every draft.
+   for this submission — not in every draft. Draft all issue comment text in
+   Markdown, as `tod issue add-comment` posts Markdown text.
 
    Leave the working copy on the issue branch with all work ready for
    `submit-issue-work`.

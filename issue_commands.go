@@ -236,7 +236,7 @@ Run 'tod issue get-valid-links' for valid link names.`,
 
 var issueAddCommentCmd = &cobra.Command{
 	Use:   "add-comment <issue-reference> <content>",
-	Short: "Add a comment to an issue",
+	Short: "Add a Markdown comment to an issue",
 	Args:  cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		content := args[1]
@@ -416,10 +416,10 @@ func initIssueCommands() {
 	issueEditCmd.Flags().Float64("own-estimated-time", 0, "Estimated time in hours for this issue only (not including linked issues)")
 	issueEditCmd.Flags().Bool("confidential", false, "Whether the issue is confidential")
 
-	issueChangeStateCmd.Flags().String("comment", "", "Optional comment for the state change")
+	issueChangeStateCmd.Flags().String("comment", "", "Optional Markdown comment for the state change")
 	issueChangeStateCmd.Flags().StringArray("field", nil, "Additional state-specific field in form key=value (repeatable; run 'tod issue get-valid-fields' for valid field names and values)")
 
-	issueLogWorkCmd.Flags().String("comment", "", "Optional comment for the work log entry")
+	issueLogWorkCmd.Flags().String("comment", "", "Optional Markdown comment for the work log entry")
 
 	issueCmd.AddCommand(
 		issueListCmd,

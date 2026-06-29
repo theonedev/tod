@@ -15,7 +15,7 @@ var codeCommentCmd = &cobra.Command{
 
 var codeCommentAddReplyCmd = &cobra.Command{
 	Use:   "add-reply <comment-id> <content>",
-	Short: "Add a reply to a code comment",
+	Short: "Add a Markdown reply to a code comment",
 	Args:  cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		commentId, err := parseCommentId(args[0])
@@ -83,8 +83,8 @@ func parseCommentId(raw string) (string, error) {
 }
 
 func initCodeCommentCommands() {
-	codeCommentResolveCmd.Flags().String("note", "", "Optional note explaining the resolution")
-	codeCommentUnresolveCmd.Flags().String("note", "", "Optional note explaining why the comment is unresolved")
+	codeCommentResolveCmd.Flags().String("note", "", "Optional Markdown note explaining the resolution")
+	codeCommentUnresolveCmd.Flags().String("note", "", "Optional Markdown note explaining why the comment is unresolved")
 
 	codeCommentCmd.AddCommand(
 		codeCommentAddReplyCmd,

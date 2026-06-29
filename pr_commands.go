@@ -337,7 +337,7 @@ var prDiscardCmd = &cobra.Command{
 
 var prAddCommentCmd = &cobra.Command{
 	Use:   "add-comment <pr-reference> <content>",
-	Short: "Add a comment to a pull request",
+	Short: "Add a Markdown comment to a pull request",
 	Args:  cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		content := args[1]
@@ -360,8 +360,8 @@ var prAddCommentCmd = &cobra.Command{
 
 var prAddCodeCommentCmd = &cobra.Command{
 	Use:   "add-code-comment <pr-reference> <content>",
-	Short: "Add a code comment to pull request patch",
-	Long: `Add a code comment to a line range of a file in the pull request patch. 
+	Short: "Add a Markdown code comment to pull request patch",
+	Long: `Add a Markdown code comment to a line range of a file in the pull request patch.
 The line range must be visible in right side (added lines or equal lines inside context) of the pull request patch.`,
 	Args: cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -616,10 +616,10 @@ func initPullRequestCommands() {
 	prEditCmd.Flags().Bool("auto-merge", false, "Whether or not to enable auto-merge")
 	prEditCmd.Flags().String("auto-merge-commit-message", "", "Preset commit message for auto merge")
 
-	prApproveCmd.Flags().String("comment", "", "Optional review comment")
-	prRequestChangesCmd.Flags().String("comment", "", "Optional review comment")
+	prApproveCmd.Flags().String("comment", "", "Optional Markdown review note")
+	prRequestChangesCmd.Flags().String("comment", "", "Optional Markdown review note")
 	prMergeCmd.Flags().String("commit-message", "", "Optional merge commit message (must satisfy server-side validation if provided)")
-	prDiscardCmd.Flags().String("comment", "", "Optional comment explaining the discard")
+	prDiscardCmd.Flags().String("comment", "", "Optional Markdown comment explaining the discard")
 
 	prAddCodeCommentCmd.Flags().String("file", "", "Path of the file to comment on (required)")
 	prAddCodeCommentCmd.Flags().Int("from-line", 0, "Start line number of the comment range, 1-based (required)")

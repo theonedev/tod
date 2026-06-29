@@ -271,6 +271,9 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
    - Merge outcome — whether it needs `--commit-message`, and the full message
      when applicable
 
+   Draft all comment, reply, note, and review text in Markdown, as the
+   corresponding `tod` commands post Markdown text.
+
    When someone should be mentioned in comments or notes, mention each user
    only once across all drafted comments and notes for this submission — not
    in every draft.

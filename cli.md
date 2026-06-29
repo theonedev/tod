@@ -37,10 +37,10 @@ Reference formats accepted by `<ref>`/`<target ref>`/`<source ref>` arguments:
 | `tod issue get-comments <ref>` | List comments on an issue. |
 | `tod issue create <title>` | Create a new issue. Flags: `--description`, `--project`, `--field key=value` (repeatable), `--iteration` (repeatable), `--own-estimated-time`, `--confidential`. |
 | `tod issue edit <ref>` | Edit an existing issue. Flags: `--title`, `--description`, `--field key=value` (repeatable), `--iteration` (repeatable), `--own-estimated-time`, `--confidential`. |
-| `tod issue change-state <ref> <state>` | Change state. Flags: `--comment`, `--field key=value` (repeatable). |
+| `tod issue change-state <ref> <state>` | Change state. Flags: `--comment` (Markdown), `--field key=value` (repeatable). |
 | `tod issue link <source ref> <link-name> <target ref>` | Add `<target ref>` as `<link-name>` of `<source ref>` (run `tod issue get-valid-links` for valid link names). |
-| `tod issue add-comment <ref> <content>` | Add a comment. |
-| `tod issue log-work <ref> <hours>` | Record time spent (`<hours>` must be a positive integer). Flag: `--comment`. |
+| `tod issue add-comment <ref> <content>` | Add a Markdown comment. |
+| `tod issue log-work <ref> <hours>` | Record time spent (`<hours>` must be a positive integer). Flag: `--comment` (Markdown). |
 | `tod issue checkout <ref>` | Check out the issue branch into the working directory and set up remote tracking. |
 | `tod issue current-reference` | Print the issue number inferred from the current branch (matched against `[<prefix>/]issue-<n>[-<suffix>]`). Fails if no issue number can be inferred. |
 | `tod issue get-query-description` | Print the OneDev issue query DSL description (syntax reference for `--query` of `issue list`). |
@@ -61,12 +61,12 @@ Reference formats accepted by `<ref>`/`<target ref>`/`<source ref>` arguments:
 | `tod pr get-title-and-description-requirement` | Get pull request title and description requirement. Flags: `--source-branch` (defaults to current git branch), `--target-branch`, `--source-project`, `--target-project`, `--merge-strategy`. |
 | `tod pr get-commit-message-requirement` | Get pull request commit message requirement. Flags: `--source-branch` (defaults to current git branch), `--target-branch`, `--source-project`, `--target-project`. |
 | `tod pr edit <ref>` | Edit a pull request. Flags: `--title`, `--description`, `--assignee`, `--add-reviewer`, `--remove-reviewer`, `--label`, `--merge-strategy`, `--auto-merge`, `--auto-merge-commit-message`. |
-| `tod pr approve <ref>` | Approve a pull request as a pending reviewer. Flag: `--comment`. |
-| `tod pr request-changes <ref>` | Request changes on a pull request as a pending reviewer. Flag: `--comment`. |
+| `tod pr approve <ref>` | Approve a pull request as a pending reviewer. Flag: `--comment` (Markdown review note). |
+| `tod pr request-changes <ref>` | Request changes on a pull request as a pending reviewer. Flag: `--comment` (Markdown review note). |
 | `tod pr merge <ref>` | Merge a pull request. Flag: `--commit-message`. |
-| `tod pr discard <ref>` | Discard (close without merging) a pull request. Flag: `--comment`. |
-| `tod pr add-comment <ref> <content>` | Add a comment. |
-| `tod pr add-code-comment <ref> <content>` | Add a code comment to a line range visible on the right side of the PR patch. Flags: `--file` (required), `--from-line` (required, 1-based), `--to-line` (defaults to `--from-line`). |
+| `tod pr discard <ref>` | Discard (close without merging) a pull request. Flag: `--comment` (Markdown). |
+| `tod pr add-comment <ref> <content>` | Add a Markdown comment. |
+| `tod pr add-code-comment <ref> <content>` | Add a Markdown code comment to a line range visible on the right side of the PR patch. Flags: `--file` (required), `--from-line` (required, 1-based), `--to-line` (defaults to `--from-line`). |
 | `tod pr checkout <ref>` | Check out the pull request into the working directory. |
 | `tod pr current-reference` | Print the number of the single open pull request whose source branch is the current git branch. Fails if zero or multiple pull requests match. |
 | `tod pr get-query-description` | Print the OneDev pull request query DSL description (syntax reference for `--query` of `pr list`). |
@@ -78,9 +78,9 @@ Code comment IDs are returned by `tod pr get-code-comments <pr-reference>` (the
 
 | Command | Description |
 |---------|-------------|
-| `tod code-comment add-reply <comment-id> <content>` | Add a reply to a code comment. |
-| `tod code-comment resolve <comment-id>` | Mark a code comment as resolved. Flag: `--note`. |
-| `tod code-comment unresolve <comment-id>` | Mark a code comment as unresolved. Flag: `--note`. |
+| `tod code-comment add-reply <comment-id> <content>` | Add a Markdown reply to a code comment. |
+| `tod code-comment resolve <comment-id>` | Mark a code comment as resolved. Flag: `--note` (Markdown). |
+| `tod code-comment unresolve <comment-id>` | Mark a code comment as unresolved. Flag: `--note` (Markdown). |
 
 ## `tod build`
 
