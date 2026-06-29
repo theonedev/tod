@@ -271,6 +271,10 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
    - Merge outcome — whether it needs `--commit-message`, and the full message
      when applicable
 
+   When someone should be mentioned in comments or notes, mention each user
+   only once across all drafted comments and notes for this submission — not
+   in every draft.
+
    When code was changed, leave the working copy on the PR source branch with
    the new local commits. For review-only or response-only work, leave the
    checkout as prepared for inspection. In all cases, keep work ready for

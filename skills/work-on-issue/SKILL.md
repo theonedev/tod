@@ -145,7 +145,9 @@ or `PROJ-123`):
 
    Save the exact text of each drafted comment in `<saved-issue-comments>`
    (see **Session handoff**). If a comment mentions a pull request, use the
-   form `pr #<pr number>`.
+   form `pr #<pr number>`. When someone should be mentioned in comments or
+   notes, mention each user only once across all drafted comments and notes
+   for this submission — not in every draft.
 
    Leave the working copy on the issue branch with all work ready for
    `submit-issue-work`.
