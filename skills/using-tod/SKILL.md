@@ -16,21 +16,21 @@ Use the command and consent rules below for general OneDev interactions.
 
 Commands are grouped by resource:
 
-- `tod issue` — `list`, `get`, `get-comments`, `create`, `edit`, `change-state`,
+- `tod issue` -- `list`, `get`, `get-comments`, `create`, `edit`, `change-state`,
   `link`, `add-comment`, `log-work`, `checkout`,
   `current-reference`,
   `get-query-description`, `get-valid-fields`, `get-valid-links`
-- `tod pr` — `list`, `get`, `get-comments`, `get-code-comments`, `get-builds`, `get-patch`,
+- `tod pr` -- `list`, `get`, `get-comments`, `get-code-comments`, `get-builds`, `get-patch`,
   `create`, `get-title-and-description-requirement`,
   `get-commit-message-requirement`, `edit`, `approve`, `request-changes`, `merge`,
   `discard`, `add-comment`, `add-code-comment`, `checkout`, `get-query-description`
-- `tod code-comment` — `add-reply`, `resolve`, `unresolve` (operates on the
+- `tod code-comment` -- `add-reply`, `resolve`, `unresolve` (operates on the
   `id` returned by `tod pr get-code-comments`)
-- `tod build` — `list`, `get`, `get-log`, `get-code-problems`,
+- `tod build` -- `list`, `get`, `get-log`, `get-code-problems`,
   `get-changes-since-success`, `run` (with `--branch`, `--tag`, or `--local`),
   `get-spec-schema`, `check-spec`, `get-query-description`
-- `tod config` — `set`, `get`, `path`
-- `tod project` — `current`, `get`
+- `tod config` -- `set`, `get`, `path`
+- `tod project` -- `current`, `get`
 - `tod get-login-name`, `tod get-unix-timestamp`, `tod remote`,
   `tod get-valid-labels`,
   `tod get-commit-message-requirement`, `tod download`
@@ -60,7 +60,7 @@ reference.
 
 Issue and pull request text often links to images or files in
 descriptions and comments. When using `work-on-issue` or
-`work-on-pull-request`, **always** download and inspect those links — do not
+`work-on-pull-request`, **always** download and inspect those links -- do not
 rely on link or alt text alone.
 
 For each `![...](url)` or `[...](url)`, save with the URL exactly as

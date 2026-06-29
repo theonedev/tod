@@ -24,7 +24,7 @@ This workflow pairs with `submit-pull-request-work`. Hand off work within the
 
 When you draft PR comments, code-comment replies, resolve/unresolve actions,
 approve/request-changes outcomes, or merge actions, treat each one as **saved
-for later submission** — not merely presentation text. Keep the exact wording
+for later submission** -- not merely presentation text. Keep the exact wording
 and parameters (file, line range, `comment-id`, commit message, etc.) you
 intend to apply. A later `submit-pull-request-work` run in this session must be
 able to retrieve `<saved-pr-actions>` and apply them in its step 6.
@@ -98,10 +98,10 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
 
    | Context source | How to inspect |
    |----------------|----------------|
-   | Fixed issues | `tod issue list --query 'fixed in pull request "<pr-reference>"'` — save the output as `<fixed-issues>`. For each returned issue, inspect `tod issue get <issue-reference>` and `tod issue get-comments <issue-reference>`; note the issue title, description, and comments. |
-   | PR metadata, title, and description | `tod pr get <pr-reference>` — note `<source-project>`, `<source-branch>`, `<target-project>`, `<target-branch>`, `<merge-strategy>`, `<head-commit>`, `<status>`, title, description, linked issues, submitter, reviewers, assignees, and current review status. |
+   | Fixed issues | `tod issue list --query 'fixed in pull request "<pr-reference>"'` -- save the output as `<fixed-issues>`. For each returned issue, inspect `tod issue get <issue-reference>` and `tod issue get-comments <issue-reference>`; note the issue title, description, and comments. |
+   | PR metadata, title, and description | `tod pr get <pr-reference>` -- note `<source-project>`, `<source-branch>`, `<target-project>`, `<target-branch>`, `<merge-strategy>`, `<head-commit>`, `<status>`, title, description, linked issues, submitter, reviewers, assignees, and current review status. |
    | PR comments | `tod pr get-comments <pr-reference>` |
-   | Line-anchored code comments | `tod pr get-code-comments <pr-reference>` — note `id`, file, line range, resolution state, and replies. |
+   | Line-anchored code comments | `tod pr get-code-comments <pr-reference>` -- note `id`, file, line range, resolution state, and replies. |
 
    Reuse `<fixed-issues>` later if squash-merge commit message composition
    needs the same fixed-issue query result.
@@ -262,20 +262,20 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
    Save each planned action in `<saved-pr-actions>` (see **Session handoff**).
    Preserve action type and parameters needed by `submit-pull-request-work`
    step 6, for example:
-   - New line-anchored finding — file, line range, comment text
-   - General PR feedback — comment text
-   - Line-anchored thread — `comment-id`, reply text
-   - Resolve or unresolve — `comment-id`, note text
-   - Reviewer outcome — approve or request-changes, with comment text when
+   - New line-anchored finding -- file, line range, comment text
+   - General PR feedback -- comment text
+   - Line-anchored thread -- `comment-id`, reply text
+   - Resolve or unresolve -- `comment-id`, note text
+   - Reviewer outcome -- approve or request-changes, with comment text when
      applicable
-   - Merge outcome — whether it needs `--commit-message`, and the full message
+   - Merge outcome -- whether it needs `--commit-message`, and the full message
      when applicable
 
    Draft all comment, reply, note, and review text in Markdown, as the
    corresponding `tod` commands post Markdown text.
 
    When someone should be mentioned in comments or notes, mention each user
-   only once across all drafted comments and notes for this submission — not
+   only once across all drafted comments and notes for this submission -- not
    in every draft.
 
    When code was changed, leave the working copy on the PR source branch with

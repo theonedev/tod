@@ -18,13 +18,13 @@ workflow does not create a pull request.
 This workflow pairs with `work-on-pull-request`. At the start, recover
 `<saved-pr-actions>` from the **same chat session**:
 
-1. **From a prior `work-on-pull-request` run** — use the exact drafted actions
+1. **From a prior `work-on-pull-request` run** -- use the exact drafted actions
    presented or amended earlier in this session, including comment text and
    parameters (`comment-id`, file, line range, approve/request-changes, merge,
    commit message, etc.).
-2. **From the user's submit prompt** — if the user supplies or revises actions
+2. **From the user's submit prompt** -- if the user supplies or revises actions
    when asking to submit, treat that as `<saved-pr-actions>`.
-3. **Otherwise** — `<saved-pr-actions>` is empty.
+3. **Otherwise** -- `<saved-pr-actions>` is empty.
 
 `<saved-pr-actions>` is session state, not a file on disk and not discussion
 already on OneDev. Step 6 applies these deferred drafts.
@@ -106,23 +106,23 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
    **Session handoff**, whether or not this workflow submitted code. If code
    submission started and then failed, do **not** apply saved actions.
 
-   - If `<saved-pr-actions>` is non-empty, apply every action — do not skip
+   - If `<saved-pr-actions>` is non-empty, apply every action -- do not skip
      because similar text already appears elsewhere on the PR.
    - If `<saved-pr-actions>` is empty and no code was submitted, report that
      there is nothing to submit.
 
    For each action in `<saved-pr-actions>`, use the command that matches where
    the discussion lives:
-   - New line-anchored finding → `tod pr add-code-comment <pr-reference> "<comment>" --file <path> --from-line <line> [--to-line <line>]`
-   - General PR feedback → `tod pr add-comment <pr-reference> "<reply>"`
-   - Line-anchored thread → `tod code-comment add-reply <comment-id> "<reply>"`
-   - Outstanding concern addressed in code → `tod code-comment resolve <comment-id> --note "<why>"` when appropriate
-   - Concern stated addressed but not actually addressed in code → `tod code-comment unresolve <comment-id> --note "<why>"` when appropriate
-   - Reviewer outcome → `tod pr approve <pr-reference>` or
+   - New line-anchored finding -> `tod pr add-code-comment <pr-reference> "<comment>" --file <path> --from-line <line> [--to-line <line>]`
+   - General PR feedback -> `tod pr add-comment <pr-reference> "<reply>"`
+   - Line-anchored thread -> `tod code-comment add-reply <comment-id> "<reply>"`
+   - Outstanding concern addressed in code -> `tod code-comment resolve <comment-id> --note "<why>"` when appropriate
+   - Concern stated addressed but not actually addressed in code -> `tod code-comment unresolve <comment-id> --note "<why>"` when appropriate
+   - Reviewer outcome -> `tod pr approve <pr-reference>` or
      `tod pr request-changes <pr-reference>` when the saved action is a
      pending-reviewer state change; include `--comment "<comment>"` when the
      saved outcome has review text
-   - Merge outcome → `tod pr merge <pr-reference>`; include
+   - Merge outcome -> `tod pr merge <pr-reference>`; include
      `--commit-message "<commit-message>"` when saved
 
 7. **Restore the previous branch and clean up the current branch if applicable.**

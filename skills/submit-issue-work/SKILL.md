@@ -17,11 +17,11 @@ Submit code changes and/or saved comments for an issue.
 This workflow pairs with `work-on-issue`. At the start, recover
 `<saved-issue-comments>` from the **same chat session**:
 
-1. **From a prior `work-on-issue` run** — use the exact drafted comment text
+1. **From a prior `work-on-issue` run** -- use the exact drafted comment text
    presented or amended earlier in this session.
-2. **From the user's submit prompt** — if the user supplies or revises comment
+2. **From the user's submit prompt** -- if the user supplies or revises comment
    text when asking to submit, treat that as `<saved-issue-comments>`.
-3. **Otherwise** — `<saved-issue-comments>` is empty.
+3. **Otherwise** -- `<saved-issue-comments>` is empty.
 
 `<saved-issue-comments>` is session state, not a file on disk and not comments
 already on OneDev. Step 7 posts these deferred drafts.
@@ -148,7 +148,7 @@ or `PROJ-123`):
    **Session handoff**, whether or not this workflow submitted code. If code
    submission started and then failed, do not post saved comments.
 
-   - If `<saved-issue-comments>` is non-empty, post every comment — do not
+   - If `<saved-issue-comments>` is non-empty, post every comment -- do not
      skip because a PR description already covers the same ground.
    - If `<saved-issue-comments>` is empty and no code was submitted, report
      that there is nothing to submit.
