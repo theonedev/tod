@@ -173,7 +173,7 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
      message using **Commit message composition**.
    - Save a merge action for later submission: `tod pr merge <pr-reference>`
      when no commit message is needed, or `tod pr merge <pr-reference>
-     --commit-message "<commit-message>"` for squash merges.
+     --commit-message '<commit-message>'` for squash merges.
 
    If the work is to resolve merge conflicts:
 
@@ -254,7 +254,7 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
    **Commit message composition**, then after user confirmation run:
    ```bash
    git add -A
-   git commit -m "<subject>" -m "<body>"
+   git commit -m '<subject>' -m '<body>'
    git status --porcelain
    ```
    The final status must be clean.

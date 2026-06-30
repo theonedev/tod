@@ -38,8 +38,17 @@ silently, amend, or force-push.
 If you decide not to run submission for any reason, make sure to create an
 issue comment explaining why the work was not submitted:
 ```bash
-tod issue add-comment <issue-reference> "<reason>"
+tod issue add-comment <issue-reference> '<reason>'
 ```
+
+## Shell quoting for authored text
+
+When passing authored text such as Markdown comments, commit messages, PR
+titles, or PR descriptions to a shell command, quote it so the shell preserves
+it literally. Prefer a single-quoted argument, and escape any literal single
+quote inside the text as `'\''`. Do not wrap text containing backticks in double
+quotes, as the shell will treat backticks as command substitution before the
+command receives the text.
 
 ## Workflow
 
@@ -112,7 +121,7 @@ or `PROJ-123`):
    requirements and ask the user to confirm the full message before running:
    ```bash
    git add -A
-   git commit -m "<subject>" -m "<body>"
+   git commit -m '<subject>' -m '<body>'
    git status --porcelain
    ```
    The final status must be clean.
@@ -136,7 +145,7 @@ or `PROJ-123`):
      Compose a concise title and description from the captured commits,
      validate them, and obtain confirmation before:
      ```bash
-     tod pr create "<title>" --description "<description>" --target-project <target-project> --target-branch <target-branch>
+     tod pr create '<title>' --description '<description>' --target-project <target-project> --target-branch <target-branch>
      ```
      Pass the resolved target project and target branch values and report the
      returned PR reference and URL.
@@ -155,7 +164,7 @@ or `PROJ-123`):
 
    For each comment in `<saved-issue-comments>`, run:
    ```bash
-   tod issue add-comment <issue-reference> "<comment>"
+   tod issue add-comment <issue-reference> '<comment>'
    ```
 
 8. **Restore the previous branch and clean up the current branch if applicable.**

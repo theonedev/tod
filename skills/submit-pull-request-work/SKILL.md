@@ -41,8 +41,17 @@ silently, amend, or force-push.
 If you decide not to run submission for any reason, make sure to create a PR
 comment explaining why the work was not submitted:
 ```bash
-tod pr add-comment <pr-reference> "<reason>"
+tod pr add-comment <pr-reference> '<reason>'
 ```
+
+## Shell quoting for authored text
+
+When passing authored text such as Markdown comments, review notes, summaries,
+or commit messages to `tod` from a shell command, quote it so the shell
+preserves it literally. Prefer a single-quoted argument, and escape any literal
+single quote inside the text as `'\''`. Do not wrap text containing backticks in
+double quotes, as the shell will treat backticks as command substitution before
+`tod` receives the text.
 
 ## Workflow
 
@@ -113,17 +122,17 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
 
    For each action in `<saved-pr-actions>`, use the command that matches where
    the discussion lives:
-   - New line-anchored finding -> `tod pr add-code-comment <pr-reference> "<comment>" --file <path> --from-line <line> [--to-line <line>]`
-   - General PR feedback -> `tod pr add-comment <pr-reference> "<reply>"`
-   - Line-anchored thread -> `tod code-comment add-reply <comment-id> "<reply>"`
-   - Outstanding concern addressed in code -> `tod code-comment resolve <comment-id> --note "<why>"` when appropriate
-   - Concern stated addressed but not actually addressed in code -> `tod code-comment unresolve <comment-id> --note "<why>"` when appropriate
+   - New line-anchored finding -> `tod pr add-code-comment <pr-reference> '<comment>' --file <path> --from-line <line> [--to-line <line>]`
+   - General PR feedback -> `tod pr add-comment <pr-reference> '<reply>'`
+   - Line-anchored thread -> `tod code-comment add-reply <comment-id> '<reply>'`
+   - Outstanding concern addressed in code -> `tod code-comment resolve <comment-id> --note '<why>'` when appropriate
+   - Concern stated addressed but not actually addressed in code -> `tod code-comment unresolve <comment-id> --note '<why>'` when appropriate
    - Reviewer outcome -> `tod pr approve <pr-reference>` or
      `tod pr request-changes <pr-reference>` when the saved action is a
-     pending-reviewer state change; include `--summary "<summary>"` when the
+     pending-reviewer state change; include `--summary '<summary>'` when the
      saved outcome has summary text
    - Merge outcome -> `tod pr merge <pr-reference>`; include
-     `--commit-message "<commit-message>"` when saved
+     `--commit-message '<commit-message>'` when saved
 
 7. **Restore the previous branch and clean up the current branch if applicable.**
    ```bash
