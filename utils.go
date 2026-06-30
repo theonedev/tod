@@ -520,7 +520,7 @@ func checkVersion(config *Config) (VersionInfo, error) {
 			return VersionInfo{}, fmt.Errorf("failed to parse minimum required tod version %q: %v", versionInfo.MinRequiredTodVersion, err)
 		}
 		if todSemVer.LessThan(minTodSemVer) {
-			return VersionInfo{}, fmt.Errorf("this server requires tod version >= %s (current: %s), please download a newer tod from https://code.onedev.io/onedev/tod/~builds?query=%%22Job%%22+is+%%22Release%%22+and+successful", versionInfo.MinRequiredTodVersion, version)
+			return VersionInfo{}, fmt.Errorf("this server requires tod version >= %s (current: %s), please upgrade tod following instructions in https://code.onedev.io/onedev/tod/~files/main/readme.md#installation", versionInfo.MinRequiredTodVersion, version)
 		}
 	}
 
