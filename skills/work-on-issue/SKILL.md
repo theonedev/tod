@@ -113,7 +113,9 @@ or `PROJ-123`):
    - Read the build detail and log content carefully to identify the failure.
    - If the log contains a statement like
      `Dependency build is required to be successful but failed: <dependency-build-reference>`,
-     get the dependency build detail. If its commit hash is the same as the
+     get the dependency build detail. If the dependency build is cancelled, do
+     not investigate or fix it; draft an issue comment explaining that the
+     relevant dependency build was cancelled. If its commit hash is the same as the
      current build, investigate or fix the dependency build failure instead;
      repeat this process for same-commit dependency build failures. If the
      dependency build's commit hash differs from the current build, conclude
