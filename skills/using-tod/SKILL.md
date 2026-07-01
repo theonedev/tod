@@ -17,7 +17,7 @@ Use the command and consent rules below for general OneDev interactions.
 Commands are grouped by resource:
 
 - `tod issue` -- `list`, `get`, `get-comments`, `create`, `edit`, `change-state`,
-  `link`, `add-comment`, `log-work`, `checkout`,
+  `link`, `add-comment`, `log-work`, `create-branch`, `checkout`,
   `current-reference`,
   `get-query-description`, `get-valid-fields`, `get-valid-links`
 - `tod pr` -- `list`, `get`, `get-comments`, `get-code-comments`, `get-builds`, `get-patch`,
@@ -77,5 +77,5 @@ Then inspect images and read other files as needed.
 Ask the user to confirm before running any command that changes OneDev
 state: `create`, `edit`, `change-state`, `link`, `add-comment`,
 `add-code-comment`, `add-reply`, `resolve`, `unresolve`, `log-work`,
-`checkout`, `approve`, `request-changes`, `merge`, `discard`, `run` etc. Various
+`create-branch`, `checkout`, `approve`, `request-changes`, `merge`, `discard`, `run` etc. Various
 list/get commands do not need consent.

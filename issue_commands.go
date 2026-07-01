@@ -349,6 +349,27 @@ prints an error and exits non-zero.`,
 	},
 }
 
+var issueCreateBranchCmd = &cobra.Command{
+	Use:   "create-branch <issue-reference>",
+	Short: "Create the issue branch on the server if it does not exist",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		currentProject, err := currentProjectFor(cmd)
+		if err != nil {
+			return err
+		}
+		body, err := apiPostBytes("ensure-issue-branch", url.Values{
+			"currentProject": {currentProject},
+			"reference":      {args[0]},
+		})
+		if err != nil {
+			return err
+		}
+		emit(body)
+		return nil
+	},
+}
+
 var issueCheckoutCmd = &cobra.Command{
 	Use:   "checkout <issue-reference>",
 	Short: "Checkout an issue branch into the working directory",
@@ -431,6 +452,7 @@ func initIssueCommands() {
 		issueLinkCmd,
 		issueAddCommentCmd,
 		issueLogWorkCmd,
+		issueCreateBranchCmd,
 		issueCheckoutCmd,
 		issueCurrentReferenceCmd,
 		issueGetQueryDescriptionCmd,

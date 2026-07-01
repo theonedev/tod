@@ -41,6 +41,7 @@ Reference formats accepted by `<ref>`/`<target ref>`/`<source ref>` arguments:
 | `tod issue link <source ref> <link-name> <target ref>` | Add `<target ref>` as `<link-name>` of `<source ref>` (run `tod issue get-valid-links` for valid link names). |
 | `tod issue add-comment <ref> <content>` | Add a Markdown comment. |
 | `tod issue log-work <ref> <hours>` | Record time spent (`<hours>` must be a positive integer). Flag: `--comment` (Markdown). |
+| `tod issue create-branch <ref>` | Create the issue branch on the server if it does not exist, and print the branch name. |
 | `tod issue checkout <ref>` | Check out the issue branch into the working directory and set up remote tracking. |
 | `tod issue current-reference` | Print the issue number inferred from the current branch (matched against `[<prefix>/]issue-<n>[-<suffix>]`). Fails if no issue number can be inferred. |
 | `tod issue get-query-description` | Print the OneDev issue query DSL description (syntax reference for `--query` of `issue list`). |
