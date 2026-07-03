@@ -43,8 +43,8 @@ from that source.
   tod get-commit-message-requirement
   tod pr get-commit-message-requirement --target-project <target-project> --target-branch <target-branch>
   ```
-  Inspect the diff, satisfy every non-empty requirement, and ask the user to
-  confirm the full message before running `git commit`.
+  Inspect the diff, compose a message satisfying every non-empty requirement,
+  and run `git commit`.
 - For squash-merge actions, read:
   ```bash
   tod pr get-commit-message-requirement --target-project <target-project> --target-branch <target-branch>
@@ -58,10 +58,17 @@ from that source.
 
 ## Stop on error
 
-Run the workflow sequentially. On any command failure, missing required
-output, failed precondition, or declined confirmation, stop immediately,
-report the command and error, and wait for the user. Do not continue, repair
-state beyond the current step, or retry silently.
+Run the workflow sequentially. On any unrecoverable command failure, missing
+required output, or failed precondition, report the command and error and
+stop. Do not continue the workflow.
+
+## Interactive questions
+
+If the user prompt indicates the current user is an AI user, do not ask the
+current user for direction in this workflow. When you would otherwise ask a
+question, draft a concise PR comment explaining the blocker or needed decision,
+save it as a general PR feedback action in `<saved-pr-actions>`, and stop.
+Otherwise, ask the current user when an interactive decision is required.
 
 ## Workflow
 
@@ -82,11 +89,13 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
 
    Check out the PR:
    ```bash
-   tod pr checkout <pr-reference>
+   tod pr checkout --for-write <pr-reference>
    ```
-   The command validates that the current project is either the PR source
-   project or target project, and fails if the working directory has
-   uncommitted changes.
+   The command switches to the PR source project and request branch. If it
+   reports that write code permission is required, draft a PR comment
+   reporting that limitation and skip the remaining steps. If it fails
+   because the working directory has uncommitted changes, report that the
+   dirty working directory prevents checkout and stop.
 
 3. **Determine the work specification.** The work may come from the user's prompt directly,
     from someone's feedback on the PR, from the PR itself (title and
@@ -187,8 +196,12 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
      `<merge-strategy>`, but do not commit or push. For example, use
      `git merge --no-commit <target-head>` for merge-commit strategies and
      `git merge --squash <target-head>` for `SQUASH_SOURCE_BRANCH_COMMITS`.
-     If the strategy is `REBASE_SOURCE_BRANCH_COMMITS`, stop and ask for user
-     direction before rewriting commits.
+     If the strategy is `REBASE_SOURCE_BRANCH_COMMITS` and the user prompt
+     indicates the current user is an AI user, draft a PR comment explaining
+     that rebase-based conflict resolution needs explicit direction before
+     rewriting commits, save it as a general PR feedback action in
+     `<saved-pr-actions>`, and stop. Otherwise, ask for user direction before
+     rewriting commits, then stop.
    - If there are conflicts, resolve them in the current checkout. Then run:
      ```bash
      git status --porcelain
@@ -251,7 +264,7 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
    git status --porcelain
    ```
    If the output is non-empty, compose the local commit message using
-   **Commit message composition**, then after user confirmation run:
+   **Commit message composition**, then run:
    ```bash
    git add -A
    git commit -m '<subject>' -m '<body>'

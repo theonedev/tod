@@ -7,9 +7,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const version = "4.0.0"
+const version = "4.1.0"
 
-const minRequiredServerVersion = "16.0.0"
+const minRequiredServerVersion = "16.0.2"
 
 var config *Config
 
@@ -63,8 +63,9 @@ var checkoutPullRequestCmd = &cobra.Command{
 	Hidden: true,
 	Args:   cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		forWrite, _ := cmd.Flags().GetBool("for-write")
 		logger := cliLogger("[checkout] ")
-		if err := checkoutPullRequest(workingDirOf(cmd), args[0], logger); err != nil {
+		if err := checkoutPullRequest(workingDirOf(cmd), args[0], forWrite, logger); err != nil {
 			return fmt.Errorf("failed to checkout pull request: %v", err)
 		}
 		logger.Printf("Checked out pull request %s successfully", args[0])
@@ -80,6 +81,7 @@ func init() {
 	runJobCmd.Flags().String("working-dir", "", "Specify working directory to run job against (defaults to current directory)")
 
 	checkoutPullRequestCmd.Flags().String("working-dir", "", "Specify working directory to checkout pull request against (defaults to current directory)")
+	checkoutPullRequestCmd.Flags().Bool("for-write", false, "Test whether the user has write permission to the pull request source branch")
 
 	initIssueCommands()
 	initPullRequestCommands()

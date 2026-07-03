@@ -28,15 +28,26 @@ already on OneDev. Step 7 posts these deferred drafts.
 
 ## Stop on error
 
-Run the workflow sequentially. On any command failure, missing required
-output, failed precondition, or declined confirmation, stop immediately,
-report the command and error, and wait for the user. Do not continue, retry
-silently, amend, or force-push.
+Run the workflow sequentially. On any unrecoverable command failure, missing
+required output, or failed precondition, report the command and error and
+stop. Do not continue the workflow.
 
 ## If not submitting
 
-If you decide not to run submission for any reason, make sure to create an
-issue comment explaining why the work was not submitted:
+If you decide not to run submission for any reason, explain why the work was
+not submitted. If the user prompt indicates the current user is an AI user,
+post the explanation as an issue comment:
+```bash
+tod issue add-comment <issue-reference> '<reason>'
+```
+Otherwise, report the explanation to the current user and stop.
+
+## Interactive questions
+
+If the user prompt indicates the current user is an AI user, do not ask the
+current user for direction in this workflow. When you would otherwise ask a
+question, post a concise issue comment explaining the blocker or needed
+decision, then stop:
 ```bash
 tod issue add-comment <issue-reference> '<reason>'
 ```
@@ -103,28 +114,18 @@ or `PROJ-123`):
      required target value is still missing, report that work is not submitted
      because that value is missing, and stop. Otherwise record the planned PR
      target values.
-   - **Multiple matches:** Ask the user which PR to use, then stop.
+   - **Multiple matches:** If the user prompt indicates the current user is an
+     AI user, post an issue comment explaining that multiple open PRs include
+     the issue and submission needs one PR to be selected, then stop.
+     Otherwise, ask the user which PR to use, then stop.
 
-5. **Commit code changes when the working copy is dirty.**
+5. **Verify the working copy is clean.**
    ```bash
    git status --porcelain
    ```
-   If the output is empty, skip this step. Otherwise inspect the diff and
-   compose the message here (do not use the `generate-commit-message` skill)
-   from:
-   ```bash
-   tod get-commit-message-requirement
-   tod pr get-commit-message-requirement --target-project <target-project> --target-branch <target-branch>
-   ```
-   Pass the existing
-   or planned PR target values from step 4. Satisfy all non-empty
-   requirements and ask the user to confirm the full message before running:
-   ```bash
-   git add -A
-   git commit -m '<subject>' -m '<body>'
-   git status --porcelain
-   ```
-   The final status must be clean.
+   If the output is non-empty, report that code submission expects committed
+   work on `<issue-branch>` and stop. Do not stage, commit, amend, or discard
+   changes in this workflow.
 
 6. **Push outstanding commits and create a PR when needed.**
    ```bash
@@ -143,7 +144,7 @@ or `PROJ-123`):
      tod pr get-title-and-description-requirement --target-project <target-project> --target-branch <target-branch>
      ```
      Compose a concise title and description from the captured commits,
-     validate them, and obtain confirmation before:
+     validate them, then run:
      ```bash
      tod pr create '<title>' --description '<description>' --target-project <target-project> --target-branch <target-branch>
      ```

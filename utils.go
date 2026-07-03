@@ -298,13 +298,61 @@ func checkoutFetchedBranch(workingDir string, remote string, branch string, comm
 	return nil
 }
 
-func checkoutIssue(workingDir string, issueReference string, logger *log.Logger) error {
+func remoteURLForProject(remoteURL string, project string) (string, error) {
+	protocolIndex := strings.Index(remoteURL, "://")
+	if protocolIndex == -1 {
+		return "", fmt.Errorf("unsupported URL format")
+	}
+
+	pathStart := strings.Index(remoteURL[protocolIndex+3:], "/")
+	if pathStart == -1 {
+		return "", fmt.Errorf("invalid URL format")
+	}
+	pathStart += protocolIndex + 3
+
+	suffix := ""
+	if strings.HasSuffix(remoteURL, ".git") {
+		suffix = ".git"
+	}
+	return remoteURL[:pathStart+1] + project + suffix, nil
+}
+
+func switchRemoteProject(workingDir string, remote string, project string, logger *log.Logger) error {
+	getURLCmd := exec.Command("git", "remote", "get-url", remote)
+	getURLCmd.Dir = workingDir
+	output, err := getURLCmd.Output()
+	logger.Printf("Running command: git remote get-url %s\n", remote)
+	if err != nil {
+		return fmt.Errorf("git remote get-url failed: %v", err)
+	}
+
+	currentURL := strings.TrimSpace(string(output))
+	newURL, err := remoteURLForProject(currentURL, project)
+	if err != nil {
+		return fmt.Errorf("failed to build remote URL for project %s: %v", project, err)
+	}
+	if newURL == currentURL {
+		return nil
+	}
+
+	setURLCmd := exec.Command("git", "remote", "set-url", remote, newURL)
+	setURLCmd.Dir = workingDir
+	stdoutStderr, err := setURLCmd.CombinedOutput()
+	logger.Printf("Running command: git remote set-url %s %s\n", remote, newURL)
+	logger.Printf("Command output:\n%s", string(stdoutStderr))
+	if err != nil {
+		return fmt.Errorf("git remote set-url failed: %v", err)
+	}
+	return nil
+}
+
+func checkoutIssue(workingDir string, issueReference string, forWrite bool, logger *log.Logger) error {
 	remote, project, err := inferProject(workingDir)
 	if err != nil {
 		return err
 	}
 
-	issue, err := getIssueDetail(issueReference, project)
+	issue, err := getIssueDetailForCheckout(issueReference, project, forWrite)
 	if err != nil {
 		return err
 	}
@@ -366,32 +414,15 @@ func checkoutIssue(workingDir string, issueReference string, logger *log.Logger)
 	return checkoutFetchedBranch(workingDir, remote, branch, headCommitHash, logger)
 }
 
-func checkoutPullRequest(workingDir string, pullRequestReference string, logger *log.Logger) error {
+func checkoutPullRequest(workingDir string, pullRequestReference string, forWrite bool, logger *log.Logger) error {
 	remote, project, err := inferProject(workingDir)
 	if err != nil {
 		return err
 	}
 
-	urlQuery := url.Values{
-		"currentProject": {project},
-		"reference":      {pullRequestReference},
-	}
-
-	apiURL := config.ServerUrl + "/~api/tod/get-pull-request?" + urlQuery.Encode()
-
-	req, err := http.NewRequest("GET", apiURL, nil)
+	pullRequest, err := getPullRequestDetailForCheckout(pullRequestReference, project, forWrite)
 	if err != nil {
-		return fmt.Errorf("failed to create request: %v", err)
-	}
-
-	body, err := makeAPICall(req)
-	if err != nil {
-		return fmt.Errorf("failed to make API call: %v", err)
-	}
-
-	var pullRequest map[string]interface{}
-	if err := json.Unmarshal(body, &pullRequest); err != nil {
-		return fmt.Errorf("failed to parse JSON response: %v", err)
+		return err
 	}
 
 	state, _ := pullRequest["status"].(string)
@@ -410,7 +441,35 @@ func checkoutPullRequest(workingDir string, pullRequestReference string, logger 
 		return fmt.Errorf("pull request %s has source project %s and target project %s, but current project is %s", pullRequestReference, sourceProject, targetProject, project)
 	}
 
-	projectUrl := config.ServerUrl + "/" + targetProject
+	hasChanges, err := hasUncommittedChanges(workingDir)
+	if err != nil {
+		return fmt.Errorf("failed to check for uncommitted changes: %v", err)
+	}
+
+	if hasChanges {
+		return fmt.Errorf("you have uncommitted changes in your working directory. Please commit or stash your changes first")
+	}
+
+	if forWrite {
+		if sourceProject == "" {
+			return fmt.Errorf("pull request %s does not include source project", pullRequestReference)
+		}
+		if sourceBranch == "" {
+			return fmt.Errorf("pull request %s does not include source branch", pullRequestReference)
+		}
+		if project != sourceProject {
+			if err := switchRemoteProject(workingDir, remote, sourceProject, logger); err != nil {
+				return err
+			}
+			project = sourceProject
+		}
+	}
+
+	projectToFetch := targetProject
+	if forWrite {
+		projectToFetch = sourceProject
+	}
+	projectUrl := config.ServerUrl + "/" + projectToFetch
 
 	fetchCmd, cleanup, err := newTrustedGitCommand(workingDir, "-c", "http.extraHeader=Authorization: Bearer "+config.AccessToken, "fetch", projectUrl, headCommitHash)
 	if err != nil {
@@ -424,16 +483,7 @@ func checkoutPullRequest(workingDir string, pullRequestReference string, logger 
 		return fmt.Errorf("git fetch failed: %v", err)
 	}
 
-	hasChanges, err := hasUncommittedChanges(workingDir)
-	if err != nil {
-		return fmt.Errorf("failed to check for uncommitted changes: %v", err)
-	}
-
-	if hasChanges {
-		return fmt.Errorf("you have uncommitted changes in your working directory. Please commit or stash your changes first")
-	}
-
-	if open && project == sourceProject {
+	if forWrite || (open && project == sourceProject) {
 		return checkoutFetchedBranch(workingDir, remote, sourceBranch, headCommitHash, logger)
 	}
 

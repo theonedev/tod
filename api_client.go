@@ -135,8 +135,43 @@ func getPullRequestDetail(reference, currentProject string) (map[string]interfac
 	return pr, nil
 }
 
+func getPullRequestDetailForCheckout(reference, currentProject string, forWrite bool) (map[string]interface{}, error) {
+	query := url.Values{
+		"currentProject": {currentProject},
+		"reference":      {reference},
+	}
+	if forWrite {
+		query.Set("forWrite", "true")
+	}
+	data, err := apiGetBytes("get-pull-request", query)
+	if err != nil {
+		return nil, err
+	}
+	var pr map[string]interface{}
+	if err := json.Unmarshal(data, &pr); err != nil {
+		return nil, fmt.Errorf("failed to parse pull request response: %v", err)
+	}
+	return pr, nil
+}
+
 func getIssueDetail(reference, currentProject string) (map[string]interface{}, error) {
 	data, err := getEntityData("get-issue", reference, currentProject)
+	if err != nil {
+		return nil, err
+	}
+	var issue map[string]interface{}
+	if err := json.Unmarshal(data, &issue); err != nil {
+		return nil, fmt.Errorf("failed to parse issue response: %v", err)
+	}
+	return issue, nil
+}
+
+func getIssueDetailForCheckout(reference, currentProject string, forWrite bool) (map[string]interface{}, error) {
+	data, err := apiGetBytes("get-issue", url.Values{
+		"currentProject": {currentProject},
+		"forWrite":       {fmt.Sprintf("%t", forWrite)},
+		"reference":      {reference},
+	})
 	if err != nil {
 		return nil, err
 	}

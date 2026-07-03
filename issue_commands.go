@@ -376,8 +376,9 @@ var issueCheckoutCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		wd := workingDirOf(cmd)
+		forWrite, _ := cmd.Flags().GetBool("for-write")
 		logger := cliLogger("[checkout] ")
-		if err := checkoutIssue(wd, args[0], logger); err != nil {
+		if err := checkoutIssue(wd, args[0], forWrite, logger); err != nil {
 			return fmt.Errorf("failed to checkout issue: %v", err)
 		}
 		logger.Printf("Checked out issue %s successfully", args[0])
@@ -441,6 +442,7 @@ func initIssueCommands() {
 	issueChangeStateCmd.Flags().StringArray("field", nil, "Additional state-specific field in form key=value (repeatable; run 'tod issue get-valid-fields' for valid field names and values)")
 
 	issueLogWorkCmd.Flags().String("comment", "", "Optional Markdown comment for the work log entry")
+	issueCheckoutCmd.Flags().Bool("for-write", false, "Test whether the user has write permission to the issue branch")
 
 	issueCmd.AddCommand(
 		issueListCmd,

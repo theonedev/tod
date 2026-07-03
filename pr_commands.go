@@ -566,8 +566,9 @@ var prCheckoutCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		wd := workingDirOf(cmd)
+		forWrite, _ := cmd.Flags().GetBool("for-write")
 		logger := cliLogger("[checkout] ")
-		if err := checkoutPullRequest(wd, args[0], logger); err != nil {
+		if err := checkoutPullRequest(wd, args[0], forWrite, logger); err != nil {
 			return fmt.Errorf("failed to checkout pull request: %v", err)
 		}
 		logger.Printf("Checked out pull request %s successfully", args[0])
@@ -584,6 +585,7 @@ func initPullRequestCommands() {
 	prListCmd.Flags().Int("count", DefaultQueryCount, fmt.Sprintf("number of pull requests to return (optional, defaults to %d, max %d)", DefaultQueryCount, MaxQueryCount))
 
 	prGetPatchCmd.Flags().Bool("for-code-review", false, "If set, return only changes relevant for code review")
+	prCheckoutCmd.Flags().Bool("for-write", false, "Test whether the user has write permission to the pull request source branch")
 
 	prCreateCmd.Flags().String("source-branch", "", "Source branch (defaults to the current git branch)")
 	prCreateCmd.Flags().String("target-branch", "", "Target branch (defaults to the target project's default branch)")

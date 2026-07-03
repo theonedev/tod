@@ -42,7 +42,7 @@ Reference formats accepted by `<ref>`/`<target ref>`/`<source ref>` arguments:
 | `tod issue add-comment <ref> <content>` | Add a Markdown comment. |
 | `tod issue log-work <ref> <hours>` | Record time spent (`<hours>` must be a positive integer). Flag: `--comment` (Markdown). |
 | `tod issue create-branch <ref>` | Create the issue branch on the server if it does not exist, and print the branch name. |
-| `tod issue checkout <ref>` | Check out the issue branch into the working directory and set up remote tracking. |
+| `tod issue checkout <ref>` | Check out the issue branch into the working directory and set up remote tracking. Flag: `--for-write`. |
 | `tod issue current-reference` | Print the issue number inferred from the current branch (matched against `[<prefix>/]issue-<n>[-<suffix>]`). Fails if no issue number can be inferred. |
 | `tod issue get-query-description` | Print the OneDev issue query DSL description (syntax reference for `--query` of `issue list`). |
 | `tod issue get-valid-fields` | Print valid issue fields and their allowed values (use before passing `--field` to `create`/`edit`/`change-state`). |
@@ -68,7 +68,7 @@ Reference formats accepted by `<ref>`/`<target ref>`/`<source ref>` arguments:
 | `tod pr discard <ref>` | Discard (close without merging) a pull request. Flag: `--comment` (Markdown). |
 | `tod pr add-comment <ref> <content>` | Add a Markdown comment. |
 | `tod pr add-code-comment <ref> <content>` | Add a Markdown code comment to a line range visible on the right side of the PR patch. Flags: `--file` (required), `--from-line` (required, 1-based), `--to-line` (defaults to `--from-line`). |
-| `tod pr checkout <ref>` | Check out the pull request into the working directory. |
+| `tod pr checkout <ref>` | Check out the pull request into the working directory. Flag: `--for-write`. |
 | `tod pr current-reference` | Print the number of the single open pull request whose source branch is the current git branch. Fails if zero or multiple pull requests match. |
 | `tod pr get-query-description` | Print the OneDev pull request query DSL description (syntax reference for `--query` of `pr list`). |
 

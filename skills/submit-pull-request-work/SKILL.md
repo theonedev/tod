@@ -31,15 +31,26 @@ already on OneDev. Step 6 applies these deferred drafts.
 
 ## Stop on error
 
-Run the workflow sequentially. On any command failure, missing required
-output, failed precondition, or declined confirmation, stop immediately,
-report the command and error, and wait for the user. Do not continue, retry
-silently, amend, or force-push.
+Run the workflow sequentially. On any unrecoverable command failure, missing
+required output, or failed precondition, report the command and error and
+stop. Do not continue the workflow.
 
 ## If not submitting
 
-If you decide not to run submission for any reason, make sure to create a PR
-comment explaining why the work was not submitted:
+If you decide not to run submission for any reason, explain why the work was
+not submitted. If the user prompt indicates the current user is an AI user,
+post the explanation as a PR comment:
+```bash
+tod pr add-comment <pr-reference> '<reason>'
+```
+Otherwise, report the explanation to the current user and stop.
+
+## Interactive questions
+
+If the user prompt indicates the current user is an AI user, do not ask the
+current user for direction in this workflow. When you would otherwise ask a
+question, post a concise PR comment explaining the blocker or needed decision,
+then stop:
 ```bash
 tod pr add-comment <pr-reference> '<reason>'
 ```

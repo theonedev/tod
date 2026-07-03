@@ -37,3 +37,27 @@ func TestCheckVersionReportsNonJSONResponse(t *testing.T) {
 		}
 	}
 }
+
+func TestRemoteURLForProjectPreservesHTTPRemoteShape(t *testing.T) {
+	got, err := remoteURLForProject("https://example.com/old/project.git", "new/project")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := "https://example.com/new/project.git"
+	if got != want {
+		t.Fatalf("unexpected remote URL: got %q, want %q", got, want)
+	}
+}
+
+func TestRemoteURLForProjectPreservesSSHRemoteShape(t *testing.T) {
+	got, err := remoteURLForProject("ssh://git@example.com/old/project", "new/project")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := "ssh://git@example.com/new/project"
+	if got != want {
+		t.Fatalf("unexpected remote URL: got %q, want %q", got, want)
+	}
+}

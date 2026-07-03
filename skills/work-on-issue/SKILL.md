@@ -31,10 +31,17 @@ Do not write comment drafts to OneDev in this workflow.
 
 ## Stop on error
 
-Run the workflow sequentially. On any command failure, missing required
-output, or failed precondition, stop immediately, report the command and
-error, and wait for the user. Do not continue, repair state beyond the
-current step, or retry silently.
+Run the workflow sequentially. On any unrecoverable command failure, missing
+required output, or failed precondition, report the command and error and
+stop. Do not continue the workflow.
+
+## Interactive questions
+
+If the user prompt indicates the current user is an AI user, do not ask the
+current user for direction in this workflow. When you would otherwise ask a
+question, draft a concise issue comment explaining the blocker or needed
+decision, save it in `<saved-issue-comments>`, and stop. Otherwise, ask the
+current user when an interactive decision is required.
 
 ## Workflow
 
@@ -56,12 +63,14 @@ or `PROJ-123`):
 
    Check out the issue branch locally:
    ```bash
-   tod issue checkout <issue-reference>
+   tod issue checkout --for-write <issue-reference>
    ```
    The command creates the issue branch on the server when necessary,
    switches the local checkout to it, and sets up remote tracking. If it
-   fails because the working directory has uncommitted changes, stop and ask
-   the user to commit or stash them before re-running the skill.
+   reports that write code permission is required, draft an issue comment
+   reporting that limitation and skip the remaining steps. If it fails
+   because the working directory has uncommitted changes, report that the
+   dirty working directory prevents checkout and stop.
 
 3. **Determine the work specification.** The work may come from the user's prompt directly,
    from someone's feedback on the issue, or from the issue itself (title and description).
