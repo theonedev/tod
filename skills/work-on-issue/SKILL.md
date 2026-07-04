@@ -5,7 +5,7 @@ description: Implement work for a OneDev issue. Use when the user asks to start,
 
 # Work on a OneDev issue
 
-Set up the issue branch, read the relevant context, and implement the work.
+Read relevant context, prepare work environment, and implement the work.
 
 ## Prerequisites
 

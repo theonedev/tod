@@ -119,14 +119,27 @@ or `PROJ-123`):
      the issue and submission needs one PR to be selected, then stop.
      Otherwise, ask the user which PR to use, then stop.
 
-5. **Verify the working copy is clean.**
+5. **Commit code changes when the working copy is dirty.**
    ```bash
    git status --porcelain
    ```
-   If the output is non-empty, report that code submission expects committed
-   work on `<issue-branch>` and stop. Do not stage, commit, amend, or discard
-   changes in this workflow.
-
+   If the output is empty, skip this step. Otherwise inspect the diff and
+   compose the message here (do not use the `generate-commit-message` skill)
+   from:
+   ```bash
+   tod get-commit-message-requirement
+   tod pr get-commit-message-requirement --target-project <target-project> --target-branch <target-branch>
+   ```
+   Pass the existing
+   or planned PR target values from step 4. Satisfy all non-empty
+   requirements and ask the user to confirm the full message before running:
+   ```bash
+   git add -A
+   git commit -m '<subject>' -m '<body>'
+   git status --porcelain
+   ```
+   The final status must be clean.
+   
 6. **Push outstanding commits and create a PR when needed.**
    ```bash
    git log --reverse --pretty=format:'%h %s%n%b%n---' <remote>/<issue-branch>..HEAD
