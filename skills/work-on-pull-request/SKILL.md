@@ -98,12 +98,12 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
    dirty working directory prevents checkout and stop.
 
 3. **Determine the work specification.** The work may come from the user's prompt directly,
-    from someone's feedback on the PR, from the PR itself (title and
-    description), or from the descriptions and comments of issues fixed by the PR.
+    from someone's feedback on the PR, from the descriptions and comments of issues fixed 
+    by the PR, or from the PR itself (title and description).
 
    Even when the prompt is the primary specification, do not proceed from the
-   prompt alone. The PR title, description, associated comments, code comments,
-   and fixed issue context are important context, and can be retrieved as below:
+   prompt alone. The fixed issue context, PR title, description, associated comments, 
+   and code comments are important context, and can be retrieved as below:
 
    | Context source | How to inspect |
    |----------------|----------------|
@@ -127,19 +127,6 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
    When the work is to investigate or fix a failed build, treat the relevant
    `<build-reference>` as required context for assessment.
 
-   Read the current patch to understand what the PR already changes relative
-   to its target:
-   ```bash
-   tod pr get-patch <pr-reference>
-   ```
-   When the prompt asks only to review or respond, use the review-scoped patch
-   instead:
-   ```bash
-   tod pr get-patch <pr-reference> --for-code-review
-   ```
-   When the patch alone is insufficient, inspect the corresponding files in
-   the checked-out working copy.
-
    **Inspect embedded resources.** Download every linked image or file from
    the PR description, PR discussion, and fixed issue descriptions/comments:
 
@@ -156,7 +143,15 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
 
    If the work is to review the PR, form the review following below procedure:
 
-   - Read/search file contents as needed in the checked-out PR head.
+   - Read the review-scoped patch:
+     ```bash
+     tod pr get-patch <pr-reference> --for-code-review
+     ```
+   - If the patch does not provide enough context, read the relevant files in
+     the checked-out working copy.
+   - When the prompt does not provide a more specific change specification,
+     treat the fixed issues as the primary specification for what the PR
+     should accomplish.
    - For a general review, check correctness, edge cases, security, style,
      and test coverage.
    - Prefer line-anchored code comments for findings on the right side of the
