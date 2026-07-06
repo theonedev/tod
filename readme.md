@@ -142,11 +142,13 @@ See [cli.md](cli.md) for the full command reference.
 
 ## Agent skills
 
-TOD ships seven tool-agnostic `SKILL.md` files under [`skills/`](skills/) that
+TOD ships eight tool-agnostic `SKILL.md` files under [`skills/`](skills/) that
 teach AI agents how to drive common OneDev workflows through the CLI:
 
 - `using-tod` — perform general OneDev queries and actions
 - `edit-build-spec` — author and validate `.onedev-buildspec.yml`
+- `fix-failed-build` — fix a failed build from a prompt-provided build
+  reference
 - `generate-commit-message` — compose a message that satisfies OneDev
   requirements
 - `work-on-issue` — check out and implement issue work

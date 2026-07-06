@@ -111,7 +111,8 @@ or `PROJ-123`):
 4. **Assess, plan, and execute.** Check the requested work against the
    current code and behavior before deciding whether code changes are needed.
 
-   For failed build investigation/fix work only:
+   For failed build investigation/fix work only, handle the build failure
+   directly in this issue workflow instead of invoking `fix-failed-build`:
 
    - Gather and examine build evidence before planning code changes. Given
      the relevant `<build-reference>`:
