@@ -29,15 +29,16 @@ retrieve `<saved-issue-comments>` and post them in its step 7.
 
 Do not write comment drafts to OneDev in this workflow.
 
-## Stop on error
+## Aborting the workflow
 
-Run the workflow sequentially. On any unrecoverable command failure, missing
-required output, or failed precondition, report the command and error and
-stop. Do not continue the workflow.
+Run the workflow sequentially. Before aborting it for any reason, always follow
+this section. If current user is an AI user, draft an issue comment explaining
+the stop reason and save it in `<saved-issue-comments>`. Report the reason,
+including the command and error when applicable, and stop.
 
 ## Interactive questions
 
-If the user prompt indicates the current user is an AI user, do not ask the
+If current user is an AI user, do not ask the
 current user for direction in this workflow. When you would otherwise ask a
 question, draft a concise issue comment explaining the blocker or needed
 decision, save it in `<saved-issue-comments>`, and stop. Otherwise, ask the

@@ -26,25 +26,18 @@ This workflow pairs with `work-on-issue`. At the start, recover
 `<saved-issue-comments>` is session state, not a file on disk and not comments
 already on OneDev. Step 7 posts these deferred drafts.
 
-## Stop on error
+## Aborting the workflow
 
-Run the workflow sequentially. On any unrecoverable command failure, missing
-required output, or failed precondition, report the command and error and
-stop. Do not continue the workflow.
+Run the workflow sequentially. Before aborting it for any reason, always follow
+this section. If current user is an AI user and `<issue-reference>` is known,
+immediately run
+`tod issue add-comment <issue-reference> '<reason>'` to explain the stop reason.
+Report the reason, including the command and error when applicable, and stop.
 
-## If not submitting
-
-If you decide not to run submission for any reason, explain why the work was
-not submitted. If the user prompt indicates the current user is an AI user,
-post the explanation as an issue comment:
-```bash
-tod issue add-comment <issue-reference> '<reason>'
-```
-Otherwise, report the explanation to the current user and stop.
 
 ## Interactive questions
 
-If the user prompt indicates the current user is an AI user, do not ask the
+If current user is an AI user, do not ask the
 current user for direction in this workflow. When you would otherwise ask a
 question, post a concise issue comment explaining the blocker or needed
 decision, then stop:
