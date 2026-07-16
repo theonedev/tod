@@ -408,7 +408,6 @@ var prGetTitleAndDescriptionRequirementCmd = &cobra.Command{
 		targetBranch, _ := cmd.Flags().GetString("target-branch")
 		sourceProject, _ := cmd.Flags().GetString("source-project")
 		targetProject, _ := cmd.Flags().GetString("target-project")
-		mergeStrategy, _ := cmd.Flags().GetString("merge-strategy")
 
 		if sourceBranch == "" {
 			branch, err := currentBranch(workingDirOf(cmd))
@@ -432,7 +431,6 @@ var prGetTitleAndDescriptionRequirementCmd = &cobra.Command{
 			"currentProject": {currentProject},
 			"sourceBranch":   {sourceBranch},
 			"targetBranch":   {targetBranch},
-			"mergeStrategy":  {mergeStrategy},
 		}
 
 		body, err := apiGetBytes("get-pull-request-title-and-description-requirement", query)
@@ -601,7 +599,6 @@ func initPullRequestCommands() {
 	prGetTitleAndDescriptionRequirementCmd.Flags().String("target-branch", "", "Target branch (defaults to the target project's default branch)")
 	prGetTitleAndDescriptionRequirementCmd.Flags().String("source-project", "", "Source project (defaults to current project)")
 	prGetTitleAndDescriptionRequirementCmd.Flags().String("target-project", "", "Target project (defaults to current project, or forked from project for forks)")
-	prGetTitleAndDescriptionRequirementCmd.Flags().String("merge-strategy", "", "CREATE_MERGE_COMMIT | CREATE_MERGE_COMMIT_IF_NECESSARY | SQUASH_SOURCE_BRANCH_COMMITS | REBASE_SOURCE_BRANCH_COMMITS. Leave empty to use the project's default merge strategy")
 
 	prGetCommitMessageRequirementCmd.Flags().String("source-branch", "", "Source branch (defaults to the current git branch)")
 	prGetCommitMessageRequirementCmd.Flags().String("target-branch", "", "Target branch (defaults to the target project's default branch)")

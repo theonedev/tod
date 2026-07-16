@@ -59,7 +59,7 @@ Reference formats accepted by `<ref>`/`<target ref>`/`<source ref>` arguments:
 | `tod pr get-builds <ref>` | List builds of a pull request. |
 | `tod pr get-patch <ref>` | Patch. Flag: `--for-code-review`. |
 | `tod pr create <title>` | Create a pull request. Flags: `--source-branch` (defaults to current git branch), `--target-branch`, `--description`, `--source-project`, `--target-project`, `--assignee`, `--reviewer`, `--label`, `--merge-strategy`. |
-| `tod pr get-title-and-description-requirement` | Get pull request title and description requirement. Flags: `--source-branch` (defaults to current git branch), `--target-branch`, `--source-project`, `--target-project`, `--merge-strategy`. |
+| `tod pr get-title-and-description-requirement` | Get pull request title and description requirement. Flags: `--source-branch` (defaults to current git branch), `--target-branch`, `--source-project`, `--target-project`. |
 | `tod pr get-commit-message-requirement` | Get pull request commit message requirement. Flags: `--source-branch` (defaults to current git branch), `--target-branch`, `--source-project`, `--target-project`. |
 | `tod pr edit <ref>` | Edit a pull request. Flags: `--title`, `--description`, `--assignee`, `--add-reviewer`, `--remove-reviewer`, `--label`, `--merge-strategy`, `--auto-merge`, `--auto-merge-commit-message`. |
 | `tod pr approve <ref>` | Approve a pull request as a pending reviewer. Flag: `--summary` (Markdown review summary). |
