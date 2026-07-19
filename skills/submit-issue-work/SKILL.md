@@ -143,7 +143,7 @@ or `PROJ-123`):
    git push <remote> <issue-branch>
    ```
 
-   - For an existing PR, the push updated it. Report its reference and URL.
+   - For an existing PR, the push updated it.
    - If no PR was found in step 4, read the new PR requirements using the same
      planned flags:
      ```bash
@@ -154,11 +154,17 @@ or `PROJ-123`):
      ```bash
      tod pr create '<title>' --description '<description>' --target-project <target-project> --target-branch <target-branch>
      ```
-     Pass the resolved target project and target branch values and report the
+     Pass the resolved target project and target branch values. Save the
      returned PR reference and URL.
 
-     Note that if you want to mention the pull request in comment, make sure
-     to use form `pr #<pr number>`.
+   After the existing PR is updated or the new PR is created:
+
+   - If the current user is an AI user, add an issue comment mentioning that
+     PR. Reference it using the exact form `pr #<pr number>`:
+     ```bash
+     tod issue add-comment <issue-reference> '<comment mentioning pr>'
+     ```
+   - Otherwise, report the PR reference and URL to the current user.
 
 7. **Apply deferred OneDev changes.** Post `<saved-issue-comments>` from
    **Session handoff**, whether or not this workflow submitted code. If code
