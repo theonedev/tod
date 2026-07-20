@@ -92,7 +92,8 @@ or `PROJ-123`):
 
    Match your login name against the issue submitter, roles indicated in user prompt 
    if there are any, and author of each issue comment to understand your role, position, 
-   and previous involvements in the context.
+   and previous involvements in the context. When an issue or comment has `onBehalfOf`, 
+   treat it as created on behalf of that user.
 
    When the work is to investigate a build failure or fix a failed build,
    treat the relevant `<build-reference>` as required context for assessment.
