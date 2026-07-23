@@ -159,16 +159,15 @@ or `PROJ-123`):
 
    After the existing PR is updated or the new PR is created:
 
-   - If the current user is an AI user, add an issue comment mentioning that
-     PR. Reference it using the exact form `pr #<pr number>`:
-     ```bash
-     tod issue add-comment <issue-reference> '<comment mentioning pr>'
-     ```
+   - If the current user is an AI user, draft a concise PR mention using the
+     exact form `pr #<pr number>`. If `<saved-issue-comments>` contains exactly
+     one comment, combine the PR mention with it. Otherwise, append the PR
+     mention to `<saved-issue-comments>` as a separate comment.
    - Otherwise, report the PR reference and URL to the current user.
 
-7. **Apply deferred OneDev changes.** Post `<saved-issue-comments>` from
-   **Session handoff**, whether or not this workflow submitted code. If code
-   submission started and then failed, do not post saved comments.
+7. **Apply deferred OneDev changes.** Post `<saved-issue-comments>`, whether or
+   not this workflow submitted code. If code submission started and then
+   failed, do not post saved comments.
 
    - If `<saved-issue-comments>` is non-empty, post every comment -- do not
      skip because a PR description already covers the same ground.
