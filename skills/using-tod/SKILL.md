@@ -30,7 +30,7 @@ Commands are grouped by resource:
   `get-changes-since-success`, `run` (with `--branch`, `--tag`, or `--local`),
   `get-spec-schema`, `check-spec`, `get-query-description`
 - `tod config` -- `set`, `get`, `path`
-- `tod project` -- `current`, `get`
+- `tod project` -- `list`, `current`, `get`, `get-query-description`
 - `tod get-login-name`, `tod get-unix-timestamp`, `tod remote`,
   `tod get-valid-labels`,
   `tod get-commit-message-requirement`, `tod download`

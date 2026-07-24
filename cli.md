@@ -101,8 +101,10 @@ Code comment IDs are returned by `tod pr get-code-comments <pr-reference>` (the
 
 | Command | Description |
 |---------|-------------|
+| `tod project list` | Query accessible projects. Flags: `--query`, `--offset`, `--count`. |
 | `tod project current` | Print the OneDev project inferred from the working directory. |
 | `tod project get <project-path>` | Print info of the specified project. |
+| `tod project get-query-description` | Print the OneDev project query DSL description (syntax reference for `--query` of `project list`). |
 
 ## `tod config`
 
