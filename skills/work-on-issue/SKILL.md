@@ -158,11 +158,13 @@ or `PROJ-123`):
    not post comments in this workflow.
 
    Save the exact text of each drafted comment in `<saved-issue-comments>`
-   (see **Session handoff**). If a comment mentions a pull request, use the
-   form `pr #<pr number>`. When someone should be mentioned in comments or
-   notes, mention each user only once across all drafted comments and notes
-   for this submission -- not in every draft. Draft all issue comment text in
-   Markdown, as `tod issue add-comment` posts Markdown text.
+   (see **Session handoff**). Draft all issue comment text in Markdown, as
+   `tod issue add-comment` posts Markdown text. Write entity references as
+   `<type> <reference>`, where type is `issue`, `pr` (or `pull request`), or
+   `build`. Use `#123` in the same project, `path/to/project#123` across
+   projects, or `PROJ-123` when the project has a key. A bare `#123` always
+   means an issue; never use it for a PR or build. These forms differ from
+   `tod` command arguments.
 
    Leave the working copy on the issue branch with all work ready for
    `submit-issue-work`.

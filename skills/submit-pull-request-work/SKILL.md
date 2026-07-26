@@ -57,6 +57,14 @@ single quote inside the text as `'\''`. Do not wrap text containing backticks in
 double quotes, as the shell will treat backticks as command substitution before
 `tod` receives the text.
 
+## Markdown entity references
+
+In authored OneDev Markdown, write `<type> <reference>`, where type is
+`issue`, `pr` (or `pull request`), or `build`. Use `#123` in the same project,
+`path/to/project#123` across projects, or `PROJ-123` when the project has a
+key. A bare `#123` always means an issue; never use it for a PR or build.
+These forms differ from `tod` command arguments.
+
 ## Workflow
 
 Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or

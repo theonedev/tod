@@ -43,7 +43,10 @@ returns found code problems for a build with or higher than the specified
 severity. `<severity-level>` must be one of `CRITICAL`, `HIGH`, `MEDIUM`, or
 `LOW`.
 
-## Reference formats
+## CLI reference formats
+
+The following forms are for `tod` command arguments. The command selects the
+entity type; these forms are not the syntax to copy into authored Markdown.
 
 Commands that take a `<ref>/<source ref>/<target ref>` argument accept:
 
@@ -55,6 +58,16 @@ reference, run `tod issue current-reference` first. It prints `<n>` when the
 current branch matches `[<prefix>/]issue-<n>[-<suffix>]`; otherwise it prints
 an error and exits non-zero. On failure, ask the user for an explicit
 reference.
+
+## Markdown entity references
+
+Write `<type> <reference>`, where type is `issue`, `pr` (or `pull request`),
+or `build`. Use `#123` in the same project, `path/to/project#123` across
+projects, or `PROJ-123` when the project has a key. For example: `issue #123`,
+`pr path/to/project#123`, and `build PROJ-123`.
+
+A bare `#123` always means an issue; never use it for a pull request or build.
+These Markdown forms differ from the CLI forms above.
 
 ## Markdown attachments in issues and PRs
 

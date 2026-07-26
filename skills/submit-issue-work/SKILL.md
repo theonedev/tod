@@ -54,6 +54,14 @@ quote inside the text as `'\''`. Do not wrap text containing backticks in double
 quotes, as the shell will treat backticks as command substitution before the
 command receives the text.
 
+## Markdown entity references
+
+In authored OneDev Markdown, write `<type> <reference>`, where type is
+`issue`, `pr` (or `pull request`), or `build`. Use `#123` in the same project,
+`path/to/project#123` across projects, or `PROJ-123` when the project has a
+key. A bare `#123` always means an issue; never use it for a PR or build.
+These forms differ from `tod` command arguments.
+
 ## Workflow
 
 Given an optional `<issue-reference>` (e.g. `123`, `#123`, `myproject#123`,
@@ -160,9 +168,9 @@ or `PROJ-123`):
    After the existing PR is updated or the new PR is created:
 
    - If the current user is an AI user, draft a concise PR mention using the
-     exact form `pr #<pr number>`. If `<saved-issue-comments>` contains exactly
-     one comment, combine the PR mention with it. Otherwise, append the PR
-     mention to `<saved-issue-comments>` as a separate comment.
+     forms above. If `<saved-issue-comments>` contains exactly one comment,
+     combine the PR mention with it. Otherwise, append the PR mention to
+     `<saved-issue-comments>` as a separate comment.
    - Otherwise, report the PR reference and URL to the current user.
 
 7. **Apply deferred OneDev changes.** Post `<saved-issue-comments>`, whether or
