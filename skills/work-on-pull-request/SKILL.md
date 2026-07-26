@@ -288,10 +288,6 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
    means an issue; never use it for a PR or build. These forms differ from
    `tod` command arguments.
 
-   When someone should be mentioned in comments or notes, mention each user
-   only once across all drafted comments and notes for this submission -- not
-   in every draft.
-
    When code was changed, leave the working copy on the PR source branch with
    the new local commits. For review-only or response-only work, leave the
    checkout as prepared for inspection. In all cases, keep work ready for

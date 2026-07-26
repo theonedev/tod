@@ -166,9 +166,5 @@ or `PROJ-123`):
    means an issue; never use it for a PR or build. These forms differ from
    `tod` command arguments.
 
-   When someone should be mentioned in comments or notes, mention each user
-   only once across all drafted comments and notes for this submission -- not
-   in every draft.
-
    Leave the working copy on the issue branch with all work ready for
    `submit-issue-work`.
