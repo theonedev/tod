@@ -57,10 +57,19 @@ single quote inside the text as `'\''`. Do not wrap text containing backticks in
 double quotes, as the shell will treat backticks as command substitution before
 `tod` receives the text.
 
-For any authored OneDev Markdown, follow the **Markdown entity references**
-section of `using-tod`. In particular, use `issue #N`, `pr #N` (or `pull
-request #N`), and `build #N` for same-project references; bare `#N` means an
-issue. Include the project path or key in cross-project references.
+## Markdown entity references
+
+For any authored OneDev Markdown, use these forms:
+
+| Entity | Same project | Cross-project path | Cross-project key |
+|--------|--------------|--------------------|-------------------|
+| Issue | `issue #123` | `issue path/to/project#123` | `issue PROJ-123` |
+| Pull request | `pr #123` or `pull request #123` | `pr path/to/project#123` or `pull request path/to/project#123` | `pr PROJ-123` or `pull request PROJ-123` |
+| Build | `build #123` | `build path/to/project#123` | `build PROJ-123` |
+
+A bare `#123` always means an issue. Never use it for a pull request or build.
+These Markdown forms are distinct from references accepted as `tod` command
+arguments.
 
 ## Workflow
 
