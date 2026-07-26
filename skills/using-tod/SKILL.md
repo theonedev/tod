@@ -61,18 +61,13 @@ reference.
 
 ## Markdown entity references
 
-In OneDev Markdown, include the entity type when referring to an issue, pull
-request, or build:
+Write `<type> <reference>`, where type is `issue`, `pr` (or `pull request`),
+or `build`. Use `#123` in the same project, `path/to/project#123` across
+projects, or `PROJ-123` when the project has a key. For example: `issue #123`,
+`pr path/to/project#123`, and `build PROJ-123`.
 
-| Entity | Same project | Cross-project path | Cross-project key |
-|--------|--------------|--------------------|-------------------|
-| Issue | `issue #123` | `issue path/to/project#123` | `issue PROJ-123` |
-| Pull request | `pr #123` or `pull request #123` | `pr path/to/project#123` or `pull request path/to/project#123` | `pr PROJ-123` or `pull request PROJ-123` |
-| Build | `build #123` | `build path/to/project#123` | `build PROJ-123` |
-
-A bare `#123` is always an issue reference. Never use a bare `#<number>` when
-you mean a pull request or build. Keep these Markdown forms distinct from the
-shorter references accepted as `tod` command arguments.
+A bare `#123` always means an issue; never use it for a pull request or build.
+These Markdown forms differ from the CLI forms above.
 
 ## Markdown attachments in issues and PRs
 

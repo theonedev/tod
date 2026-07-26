@@ -59,17 +59,11 @@ double quotes, as the shell will treat backticks as command substitution before
 
 ## Markdown entity references
 
-For any authored OneDev Markdown, use these forms:
-
-| Entity | Same project | Cross-project path | Cross-project key |
-|--------|--------------|--------------------|-------------------|
-| Issue | `issue #123` | `issue path/to/project#123` | `issue PROJ-123` |
-| Pull request | `pr #123` or `pull request #123` | `pr path/to/project#123` or `pull request path/to/project#123` | `pr PROJ-123` or `pull request PROJ-123` |
-| Build | `build #123` | `build path/to/project#123` | `build PROJ-123` |
-
-A bare `#123` always means an issue. Never use it for a pull request or build.
-These Markdown forms are distinct from references accepted as `tod` command
-arguments.
+In authored OneDev Markdown, write `<type> <reference>`, where type is
+`issue`, `pr` (or `pull request`), or `build`. Use `#123` in the same project,
+`path/to/project#123` across projects, or `PROJ-123` when the project has a
+key. A bare `#123` always means an issue; never use it for a PR or build.
+These forms differ from `tod` command arguments.
 
 ## Workflow
 

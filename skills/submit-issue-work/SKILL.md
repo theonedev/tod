@@ -56,17 +56,11 @@ command receives the text.
 
 ## Markdown entity references
 
-For any authored OneDev Markdown, use these forms:
-
-| Entity | Same project | Cross-project path | Cross-project key |
-|--------|--------------|--------------------|-------------------|
-| Issue | `issue #123` | `issue path/to/project#123` | `issue PROJ-123` |
-| Pull request | `pr #123` or `pull request #123` | `pr path/to/project#123` or `pull request path/to/project#123` | `pr PROJ-123` or `pull request PROJ-123` |
-| Build | `build #123` | `build path/to/project#123` | `build PROJ-123` |
-
-A bare `#123` always means an issue. Never use it for a pull request or build.
-These Markdown forms are distinct from references accepted as `tod` command
-arguments.
+In authored OneDev Markdown, write `<type> <reference>`, where type is
+`issue`, `pr` (or `pull request`), or `build`. Use `#123` in the same project,
+`path/to/project#123` across projects, or `PROJ-123` when the project has a
+key. A bare `#123` always means an issue; never use it for a PR or build.
+These forms differ from `tod` command arguments.
 
 ## Workflow
 
@@ -174,10 +168,9 @@ or `PROJ-123`):
    After the existing PR is updated or the new PR is created:
 
    - If the current user is an AI user, draft a concise PR mention using the
-     exact same-project form `pr #<pr number>` (or the cross-project path/key
-     form documented above when needed). If `<saved-issue-comments>` contains exactly
-     one comment, combine the PR mention with it. Otherwise, append the PR
-     mention to `<saved-issue-comments>` as a separate comment.
+     forms above. If `<saved-issue-comments>` contains exactly one comment,
+     combine the PR mention with it. Otherwise, append the PR mention to
+     `<saved-issue-comments>` as a separate comment.
    - Otherwise, report the PR reference and URL to the current user.
 
 7. **Apply deferred OneDev changes.** Post `<saved-issue-comments>`, whether or

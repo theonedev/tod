@@ -159,17 +159,12 @@ or `PROJ-123`):
 
    Save the exact text of each drafted comment in `<saved-issue-comments>`
    (see **Session handoff**). Draft all issue comment text in Markdown, as
-   `tod issue add-comment` posts Markdown text. Use these entity references:
-
-   | Entity | Same project | Cross-project path | Cross-project key |
-   |--------|--------------|--------------------|-------------------|
-   | Issue | `issue #123` | `issue path/to/project#123` | `issue PROJ-123` |
-   | Pull request | `pr #123` or `pull request #123` | `pr path/to/project#123` or `pull request path/to/project#123` | `pr PROJ-123` or `pull request PROJ-123` |
-   | Build | `build #123` | `build path/to/project#123` | `build PROJ-123` |
-
-   A bare `#123` always means an issue. Never use it for a pull request or
-   build. These Markdown forms are distinct from references accepted as `tod`
-   command arguments.
+   `tod issue add-comment` posts Markdown text. Write entity references as
+   `<type> <reference>`, where type is `issue`, `pr` (or `pull request`), or
+   `build`. Use `#123` in the same project, `path/to/project#123` across
+   projects, or `PROJ-123` when the project has a key. A bare `#123` always
+   means an issue; never use it for a PR or build. These forms differ from
+   `tod` command arguments.
 
    When someone should be mentioned in comments or notes, mention each user
    only once across all drafted comments and notes for this submission -- not
