@@ -281,7 +281,11 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
      when applicable
 
    Draft all comment, reply, note, and review text in Markdown, as the
-   corresponding `tod` commands post Markdown text.
+   corresponding `tod` commands post Markdown text. Follow the **Markdown
+   entity references** section of `using-tod`: use `issue #N`, `pr #N` (or
+   `pull request #N`), and `build #N` for same-project references, and include
+   the project path or key for cross-project references. Bare `#N` means an
+   issue, so never use it for a pull request or build.
 
    When someone should be mentioned in comments or notes, mention each user
    only once across all drafted comments and notes for this submission -- not

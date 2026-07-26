@@ -43,7 +43,10 @@ returns found code problems for a build with or higher than the specified
 severity. `<severity-level>` must be one of `CRITICAL`, `HIGH`, `MEDIUM`, or
 `LOW`.
 
-## Reference formats
+## CLI reference formats
+
+The following forms are for `tod` command arguments. The command selects the
+entity type; these forms are not the syntax to copy into authored Markdown.
 
 Commands that take a `<ref>/<source ref>/<target ref>` argument accept:
 
@@ -55,6 +58,21 @@ reference, run `tod issue current-reference` first. It prints `<n>` when the
 current branch matches `[<prefix>/]issue-<n>[-<suffix>]`; otherwise it prints
 an error and exits non-zero. On failure, ask the user for an explicit
 reference.
+
+## Markdown entity references
+
+In OneDev Markdown, include the entity type when referring to an issue, pull
+request, or build:
+
+| Entity | Same project | Cross-project path | Cross-project key |
+|--------|--------------|--------------------|-------------------|
+| Issue | `issue #123` | `issue path/to/project#123` | `issue PROJ-123` |
+| Pull request | `pr #123` or `pull request #123` | `pr path/to/project#123` or `pull request path/to/project#123` | `pr PROJ-123` or `pull request PROJ-123` |
+| Build | `build #123` | `build path/to/project#123` | `build PROJ-123` |
+
+A bare `#123` is always an issue reference. Never use a bare `#<number>` when
+you mean a pull request or build. Keep these Markdown forms distinct from the
+shorter references accepted as `tod` command arguments.
 
 ## Markdown attachments in issues and PRs
 
