@@ -125,8 +125,18 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
    code comment, and reply to understand your role, position, and previous involvements in
    the context.
 
-   When the work is to investigate or fix a failed build, treat the relevant
-   `<build-reference>` as required context for assessment.
+   When the work is to investigate or fix failed builds, determine
+   `<build-references>` before assessment:
+
+   - If the user specified a `<build-reference>`, use only that reference.
+   - Otherwise, list the PR builds:
+     ```bash
+     tod pr get-builds <pr-reference>
+     ```
+     Select every build whose status is `FAILED` and save their references as
+     `<build-references>`. Investigate or fix all of them. If no build has
+     failed, report that no failed PR builds were found and do not invent
+     further build work.
 
    **Inspect embedded resources.** Download every linked image or file from
    the PR description, PR discussion, and fixed issue descriptions/comments:
@@ -205,9 +215,12 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
      Confirm the output has no unmerged entries such as `UU`, `AA`, `DD`, `AU`,
      `UA`, `DU`, or `UD`.
 
-   If the work is to investigate or fix a failed build for a specified
-   `<build-reference>`:
+   If the work is to investigate or fix failed builds, process every selected
+   `<build-reference>` in `<build-references>`:
 
+   - Investigate every selected build and record its outcome. A single code
+     change may fix multiple builds, but do not skip a build without
+     confirming that its failure has the same cause.
    - Gather and examine build evidence before planning code changes:
      ```bash
      tod build get <build-reference>
