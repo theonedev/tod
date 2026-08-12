@@ -294,12 +294,13 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
      when applicable
 
    Draft all comment, reply, note, and review text in Markdown, as the
-   corresponding `tod` commands post Markdown text. Write entity references
-   as `<type> <reference>`, where type is `issue`, `pr` (or `pull request`),
-   or `build`. Use `#123` in the same project, `path/to/project#123` across
-   projects, or `PROJ-123` when the project has a key. A bare `#123` always
-   means an issue; never use it for a PR or build. These forms differ from
-   `tod` command arguments.
+   corresponding `tod` commands post Markdown text. Write an entity reference
+   as `<type> <reference>`, such as `PR #42`,
+   `issue acme/web#123`, or `build ACMEWEB-7`. With no type the reference means an
+   issue. `<reference>` is `#123` for an entity in the current project,
+   `path/to/project#123` for one in another project, or `PROJECTKEY-123`, which
+   works from any project as long as the project has a key defined. These forms
+   differ from `tod` command arguments.
 
    When code was changed, leave the working copy on the PR source branch with
    the new local commits. For review-only or response-only work, leave the

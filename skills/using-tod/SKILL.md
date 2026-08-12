@@ -45,29 +45,24 @@ severity. `<severity-level>` must be one of `CRITICAL`, `HIGH`, `MEDIUM`, or
 
 ## CLI reference formats
 
-The following forms are for `tod` command arguments. The command selects the
-entity type; these forms are not the syntax to copy into authored Markdown.
+Commands that take a `<ref>/<source ref>/<target ref>` argument accept
+`<n>`, `#<n>`, `<project-path>#<n>`, or `<project-key>-<n>` (e.g. `123`, `#123`,
+`myproject#123`, `PROJ-123`). The subcommand (`issue`, `pr`, or `build`)
+determines the entity type; these forms are not the syntax for authored
+Markdown (see below).
 
-Commands that take a `<ref>/<source ref>/<target ref>` argument accept:
+To resolve "the current issue" or "the current pull request" without a
+reference, run `tod issue current-reference` or `tod pr current-reference`.
+Each prints `<n>` on success; otherwise ask the user for an explicit reference.
 
-- Issues / pull requests / builds: `<n>`, `#<n>`, `<project>#<n>`, or
-  `<project-key>-<n>` (e.g. `123`, `#123`, `myproject#123`, `PROJ-123`).
+## Markdown references for issue, pull request, or build
 
-When the user wants to act on "the current issue" without naming a
-reference, run `tod issue current-reference` first. It prints `<n>` when the
-current branch matches `[<prefix>/]issue-<n>[-<suffix>]`; otherwise it prints
-an error and exits non-zero. On failure, ask the user for an explicit
-reference.
-
-## Markdown entity references
-
-Write `<type> <reference>`, where type is `issue`, `pr` (or `pull request`),
-or `build`. Use `#123` in the same project, `path/to/project#123` across
-projects, or `PROJ-123` when the project has a key. For example: `issue #123`,
-`pr path/to/project#123`, and `build PROJ-123`.
-
-A bare `#123` always means an issue; never use it for a pull request or build.
-These Markdown forms differ from the CLI forms above.
+In authored OneDev Markdown, write an entity reference as `<type> <reference>`,
+such as `PR #42`, `issue acme/web#123`, or `build ACMEWEB-7`. With no type the
+reference means an issue. `<reference>` is `#123` for an entity in the current
+project, `path/to/project#123` for one in another project, or `PROJECTKEY-123`,
+which works from any project as long as the project has a key defined. These
+forms differ from `tod` command arguments.
 
 ## Markdown attachments in issues and PRs
 

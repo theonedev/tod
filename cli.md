@@ -22,11 +22,10 @@ Top-level groups:
 - [`tod config`](#tod-config)
 - [misc: `get-login-name`, `get-unix-timestamp`, `remote`, `get-valid-labels`, `get-commit-message-requirement`, `download`](#miscellaneous)
 
-Reference formats accepted by `<ref>`/`<target ref>`/`<source ref>` arguments:
-
-- Issues: `<n>`, `#<n>`, `<project>#<n>`, or `<project-key>-<n>`
-- Pull requests: same syntax as issues
-- Builds: same syntax as issues
+Commands that take a `<ref>`/`<source ref>`/`<target ref>` argument accept
+`<n>`, `#<n>`, `<project>#<n>`, or `<project-key>-<n>` (e.g. `123`, `#123`,
+`myproject#123`, `PROJ-123`). The subcommand (`issue`, `pr`, or `build`)
+determines the entity type.
 
 ## `tod issue`
 
