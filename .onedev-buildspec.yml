@@ -1,4 +1,4 @@
-version: 47
+version: 53
 jobs:
 - name: Release
   steps:
@@ -16,7 +16,8 @@ jobs:
     runInContainer: true
     image: ubuntu
     interpreter:
-      type: DefaultInterpreter
+      type: PosixInterpreter
+      shell: sh
       commands: |
         cat main.go|grep 'const version' | cut -d'"' -f 2 > buildVersion
     runAs: 0:0
@@ -46,9 +47,10 @@ jobs:
   - type: CommandStep
     name: publish GH release
     runInContainer: true
-    image: '@property:buildEnvironment@'
+    image: '@property:buildenv@'
     interpreter:
-      type: DefaultInterpreter
+      type: PosixInterpreter
+      shell: sh
       commands: |
         set -e
         set -o pipefail
@@ -84,10 +86,11 @@ jobs:
     useTTY: false
     condition: SUCCESSFUL
     optional: false
-  jobExecutor: internal
   retryCondition: never
   maxRetries: 3
   retryDelay: 30
+  includeUpstreamWhenRebuild: false
+  includeDownstreamWhenRebuild: false
   timeout: 3600
 - name: Sync with GitHub
   steps:
@@ -104,7 +107,8 @@ jobs:
     runInContainer: true
     image: alpine/git:1.0.7
     interpreter:
-      type: DefaultInterpreter
+      type: PosixInterpreter
+      shell: sh
       commands: |
         git config --global --unset http.extraHeader
         git push -f https://robinshine:@secrets:github-token@@@github.com/theonedev/tod HEAD:main
@@ -120,6 +124,8 @@ jobs:
   retryCondition: never
   maxRetries: 3
   retryDelay: 30
+  includeUpstreamWhenRebuild: false
+  includeDownstreamWhenRebuild: false
   timeout: 3600
 stepTemplates:
 - name: build binaries
@@ -129,7 +135,8 @@ stepTemplates:
     runInContainer: true
     image: golang:1.22.1
     interpreter:
-      type: DefaultInterpreter
+      type: PosixInterpreter
+      shell: sh
       commands: |
         GOOS=windows GOARCH=amd64 go build -o windows-amd64/tod.exe
         sha256sum windows-amd64/tod.exe | awk '{ print $1 }' > windows-amd64/tod.exe.sha256
