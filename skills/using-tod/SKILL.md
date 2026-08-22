@@ -26,7 +26,7 @@ Commands are grouped by resource:
   `discard`, `add-comment`, `add-code-comment`, `checkout`, `get-query-description`
 - `tod code-comment` -- `add-reply`, `resolve`, `unresolve` (operates on the
   `id` returned by `tod pr get-code-comments`)
-- `tod build` -- `list`, `get`, `get-log`, `get-code-problems`,
+- `tod build` -- `list`, `get`, `get-log`, `get-code-problems`, `get-unit-test-report`,
   `get-changes-since-success`, `run` (with `--branch`, `--tag`, or `--local`),
   `get-spec-schema`, `check-spec`, `get-query-description`
 - `tod config` -- `set`, `get`, `path`
@@ -42,6 +42,10 @@ Commands write the raw OneDev server response to stdout. Run
 returns found code problems for a build with or higher than the specified
 severity. `<severity-level>` must be one of `CRITICAL`, `HIGH`, `MEDIUM`, or
 `LOW`.
+
+`tod build get-unit-test-report <build-reference> <report-name>` returns unit
+test report data. Pass `--artifact <path>` to download a report artifact
+instead.
 
 ## CLI reference formats
 

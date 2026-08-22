@@ -119,6 +119,41 @@ MEDIUM, or LOW.`,
 	},
 }
 
+var buildGetUnitTestReportCmd = &cobra.Command{
+	Use:   "get-unit-test-report <build-reference> <report-name>",
+	Short: "Get a unit test report or one of its artifacts from a build",
+	Long: `Get a unit test report from a build.
+
+When --artifact is specified, the requested report artifact is downloaded
+instead of returning the report data.`,
+	Args: cobra.ExactArgs(2),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		currentProject, err := currentProjectFor(cmd)
+		if err != nil {
+			return err
+		}
+		artifact, _ := cmd.Flags().GetString("artifact")
+		body, err := getBuildUnitTestReport(args[0], currentProject, args[1], artifact)
+		if err != nil {
+			return err
+		}
+		emit(body)
+		return nil
+	},
+}
+
+func getBuildUnitTestReport(reference, currentProject, reportName, artifact string) ([]byte, error) {
+	query := url.Values{
+		"currentProject": {currentProject},
+		"reference":      {reference},
+		"reportName":     {reportName},
+	}
+	if artifact != "" {
+		query.Set("artifactPath", artifact)
+	}
+	return apiGetBytes("get-build-unit-test-report", query)
+}
+
 var buildGetChangesSinceSuccessCmd = &cobra.Command{
 	Use:   "get-changes-since-success <build-reference>",
 	Short: "Get file changes since the previous successful similar build",
@@ -711,12 +746,14 @@ func initBuildCommands() {
 	buildRunCmd.Flags().String("tag", "", "Tag to run the job against (one of --branch, --tag, or --local is required)")
 	buildRunCmd.Flags().Bool("local", false, "Run the job against local changes without committing/pushing (one of --branch, --tag, or --local is required)")
 	buildRunCmd.Flags().StringArrayP("param", "p", nil, "Job parameter in form key=value (repeatable)")
+	buildGetUnitTestReportCmd.Flags().String("artifact", "", "Unit test report artifact path to download instead of report data")
 
 	buildCmd.AddCommand(
 		buildListCmd,
 		buildGetCmd,
 		buildGetLogCmd,
 		buildGetCodeProblemsCmd,
+		buildGetUnitTestReportCmd,
 		buildGetChangesSinceSuccessCmd,
 		buildRunCmd,
 		buildGetSpecSchemaCmd,

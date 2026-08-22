@@ -68,13 +68,19 @@ Given a required `<build-reference>` from the user prompt (e.g. `123`, `#123`,
      build's commit hash differs from the current build, conclude that the
      current build failure is caused by this dependency build.
    - If the log contains a statement like
-     `<report-name>: found problems with severity <severity-level> or higher`,
+     `[<report-name>]: found problems with severity <severity-level> or higher`,
      fetch the referenced problems report:
      ```bash
      tod build get-code-problems <build-reference> <report-name> <severity-level>
      ```
      Problems may point to workspace files, 1-based line ranges, or
      non-workspace artifacts used by the project.
+   - If the log contains `[<report-name>]: <count> not passed test cases`,
+     inspect the report and any relevant artifacts it references:
+     ```bash
+     tod build get-unit-test-report <build-reference> <report-name>
+     tod build get-unit-test-report <build-reference> <report-name> --artifact <artifact-path> > <output-file>
+     ```
    - Inspect referenced workspace files as necessary. Inspect
      `.onedev-buildspec.yml` when job configuration may be involved, and
      run below command to get its schema if you need to modify it:
