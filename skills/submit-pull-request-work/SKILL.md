@@ -21,13 +21,13 @@ This workflow pairs with `work-on-pull-request`. At the start, recover
 1. **From a prior `work-on-pull-request` run** -- use the exact drafted actions
    presented or amended earlier in this session, including comment text and
    parameters (`comment-id`, file, line range, approve/request-changes, merge,
-   commit message, etc.).
+   etc.).
 2. **From the user's submit prompt** -- if the user supplies or revises actions
    when asking to submit, treat that as `<saved-pr-actions>`.
 3. **Otherwise** -- `<saved-pr-actions>` is empty.
 
 `<saved-pr-actions>` is session state, not a file on disk and not discussion
-already on OneDev. Step 6 applies these deferred drafts.
+already on OneDev. Step 5 applies these deferred drafts.
 
 ## Aborting the workflow
 
@@ -85,8 +85,7 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
    git symbolic-ref --short HEAD 2>/dev/null
    ```
    Save successful output as `<current-branch>`. If there is no branch, apply
-   `<saved-pr-actions>` using the routing in step 6, and continue with rest
-   steps.
+   `<saved-pr-actions>` by skipping to step 5.
 
 3. **Verify the current branch.**
    ```bash
@@ -104,27 +103,51 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
    `<upstream>` equals `<remote>/<source-branch>`. If any check fails, report
    the mismatch and stop.
 
-4. **Verify the working copy is clean.**
+4. **Commit and push changes from the deepest submodules outward.**
    ```bash
    git status --porcelain
    ```
-   If the output is non-empty, report that code submission expects committed
-   work on `<source-branch>` and stop. Do not stage, commit, amend, or discard
-   changes in this workflow.
+   Inspect dirty retrieved submodules recursively and process them
+   deepest-first.
 
-5. **Push outstanding commits.**
+   For each dirty submodule, first process its descendants, then inspect its
+   final diff and verify its intended branch and upstream. Run
+   `tod get-commit-message-requirement` inside it, compose a compliant
+   message here (do not use the `generate-commit-message` skill), stage and
+   commit its changes, and verify its worktree is clean. Push the new commits
+   to its upstream.
+
+   If the push is rejected specifically because it is not a fast-forward,
+   merge the upstream branch and retry once:
    ```bash
-   git log --reverse --pretty=format:'%h %s%n%b%n---' <remote>/<source-branch>..HEAD
+   git pull --no-rebase <upstream-remote> <upstream-branch>
+   git push <upstream-remote> <upstream-branch>
    ```
-   Save the output as `<commits-to-push>`. If it is empty, skip the push and
-   continue to deferred comments or state changes. Otherwise:
+   Resolve conflicts and complete the merge commit before retrying. Do not
+   force-push. Stop if a commit fails, another push error occurs, or the retry
+   fails.
+
+   After all dirty submodules are committed and pushed, inspect the source
+   repository's final diff. If it is dirty, compose its message from:
+   ```bash
+   tod get-commit-message-requirement
+   tod pr get-commit-message-requirement --target-project <target-project> --target-branch <target-branch>
+   ```
+   Satisfy every non-empty requirement, then commit the source repository:
+   ```bash
+   git add -A
+   git commit -m '<subject>' -m '<body>'
+   git status --porcelain
+   ```
+   The final status must be clean.
+
+   Push the source repository:
    ```bash
    git push <remote> <source-branch>
    ```
-   Report the PR reference/URL from step 3. When you pushed, the existing pull
-   request now includes the new commits; do **not** run `tod pr create`.
+   Stop on failure; do not force-push.
 
-6. **Apply deferred OneDev changes.** Apply `<saved-pr-actions>` from
+5. **Apply deferred OneDev changes.** Apply `<saved-pr-actions>` from
    **Session handoff**, whether or not this workflow submitted code. If code
    submission started and then failed, do **not** apply saved actions.
 
@@ -144,10 +167,19 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
      `tod pr request-changes <pr-reference>` when the saved action is a
      pending-reviewer state change; include `--summary '<summary>'` when the
      saved outcome has summary text
-   - Merge outcome -> `tod pr merge <pr-reference>`; include
-     `--commit-message '<commit-message>'` when saved
+   - Merge outcome -> inspect `tod pr get <pr-reference>`. If its merge strategy
+     is `SQUASH_SOURCE_BRANCH_COMMITS`, read:
+     ```bash
+     tod pr get-commit-message-requirement --target-project <target-project> --target-branch <target-branch>
+     tod issue list --query 'fixed in pull request "<pr-reference>"'
+     ```
+     Compose the commit message here from the PR title, description, and fixed
+     issues; satisfy every non-empty requirement without using the
+     `generate-commit-message` skill. Then run `tod pr merge <pr-reference>
+     --commit-message '<commit-message>'`. For other merge strategies, run
+     `tod pr merge <pr-reference>`.
 
-7. **Restore the previous branch and clean up the current branch if applicable.**
+6. **Restore the previous checkout and clean up the current branch if applicable.**
    ```bash
    git rev-parse --abbrev-ref @{-1} 2>/dev/null
    ```
@@ -164,3 +196,11 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
      git branch -d <current-branch>
      ```
    - If `<current-branch>` equals `<previous-branch>`, do nothing.
+
+   After checking out `<previous-branch>`, restore every retrieved submodule
+   worktree to the commit recorded by the restored parent checkout:
+   ```bash
+   git submodule update --recursive
+   ```
+   Do not pass `--init`: submodules that have not been retrieved must remain
+   unretrieved. Verify that the parent repository working copy is clean.

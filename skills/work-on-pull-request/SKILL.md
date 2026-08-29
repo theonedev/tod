@@ -19,42 +19,19 @@ This workflow pairs with `submit-pull-request-work`. Hand off work within the
 
 | Work product | Handoff |
 |--------------|---------|
-| Code changes, including merge-conflict resolutions | Local commits on the PR source branch with a clean working copy |
+| Code changes, including merge-conflict resolutions | Uncommitted changes in the PR source repository and changed submodules |
 | PR discussion, review, and merge actions | Ordered list held in session as `<saved-pr-actions>` |
 
 When you draft PR comments, code-comment replies, resolve/unresolve actions,
 approve/request-changes outcomes, or merge actions, treat each one as **saved
 for later submission** -- not merely presentation text. Keep the exact wording
-and parameters (file, line range, `comment-id`, commit message, etc.) you
-intend to apply. A later `submit-pull-request-work` run in this session must be
-able to retrieve `<saved-pr-actions>` and apply them in its step 6.
+and parameters (file, line range, `comment-id`, etc.) you intend to apply. A
+later `submit-pull-request-work` run in this session must be able to retrieve
+`<saved-pr-actions>` and apply them in its step 5.
 
 Do not run any `tod` command that changes PR discussion, review state, or merge
-state in this workflow.
-
-## Commit message composition
-
-Compose commit messages in this workflow; do not use the
-`generate-commit-message` skill. Empty requirement output means no requirement
-from that source.
-
-- For local code-change commits, read:
-  ```bash
-  tod get-commit-message-requirement
-  tod pr get-commit-message-requirement --target-project <target-project> --target-branch <target-branch>
-  ```
-  Inspect the diff, compose a message satisfying every non-empty requirement,
-  and run `git commit`.
-- For squash-merge actions, read:
-  ```bash
-  tod pr get-commit-message-requirement --target-project <target-project> --target-branch <target-branch>
-  tod issue list --query 'fixed in pull request "<pr-reference>"'
-  ```
-  If `<fixed-issues>` was already saved while determining the work
-  specification, reuse it instead of running the fixed-issue query again.
-  Compose the message from the PR title, description, and fixed issues,
-  satisfy every non-empty requirement, and save the full message in
-  `<saved-pr-actions>`.
+state in this workflow. Do not commit or push code changes; submission handles
+both.
 
 ## Aborting the workflow
 
@@ -112,9 +89,6 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
    | PR metadata, title, and description | `tod pr get <pr-reference>` -- note `<source-project>`, `<source-branch>`, `<target-project>`, `<target-branch>`, `<merge-strategy>`, `<head-commit>`, `<status>`, title, description, linked issues, submitter, reviewers, assignees, and current review status. |
    | PR comments | `tod pr get-comments <pr-reference>` |
    | Line-anchored code comments | `tod pr get-code-comments <pr-reference>` -- note `id`, file, line range, resolution state, and replies. |
-
-   Reuse `<fixed-issues>` later if squash-merge commit message composition
-   needs the same fixed-issue query result.
 
    Then proceed to get your own login name:
    ```bash
@@ -184,11 +158,7 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
 
    If the work is to merge the PR:
 
-   - If `<merge-strategy>` is `SQUASH_SOURCE_BRANCH_COMMITS`, fetch the PR commit
-     message using **Commit message composition**.
-   - Save a merge action for later submission: `tod pr merge <pr-reference>`
-     when no commit message is needed, or `tod pr merge <pr-reference>
-     --commit-message '<commit-message>'` for squash merges.
+   - Save the merge intent in `<saved-pr-actions>`.
 
    If the work is to resolve merge conflicts:
 
@@ -267,37 +237,21 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
      change is appropriate, draft the PR comment or review action explaining
      the decision.
 
-   Do not run any `tod` command that changes PR discussion, review state, or
-   merge state during this workflow. After implementing a code change, or after
-   deciding that the right outcome is only a response or state change, draft
-   every planned PR comment, code-comment reply, resolve, unresolve, approval,
-   request-changes action, merge action, or other PR state change.
-
-   If code changes remain in the working copy, commit them locally before
-   presenting the result:
-   ```bash
-   git status --porcelain
-   ```
-   If the output is non-empty, compose the local commit message using
-   **Commit message composition**, then run:
-   ```bash
-   git add -A
-   git commit -m '<subject>' -m '<body>'
-   git status --porcelain
-   ```
-   The final status must be clean.
+   After implementing a code change, or after deciding that the right outcome
+   is only a response or state change, draft every planned PR comment,
+   code-comment reply, resolve, unresolve, approval, request-changes action,
+   merge action, or other PR state change.
 
    Save each planned action in `<saved-pr-actions>` (see **Session handoff**).
    Preserve action type and parameters needed by `submit-pull-request-work`
-   step 6, for example:
+   step 5, for example:
    - New line-anchored finding -- file, line range, comment text
    - General PR feedback -- comment text
    - Line-anchored thread -- `comment-id`, reply text
    - Resolve or unresolve -- `comment-id`, note text
    - Reviewer outcome -- approve or request-changes, with summary text when
      applicable
-   - Merge outcome -- whether it needs `--commit-message`, and the full message
-     when applicable
+   - Merge outcome -- merge intent
 
    Draft all comment, reply, note, and review text in Markdown, as the
    corresponding `tod` commands post Markdown text. Write an entity reference
@@ -308,7 +262,8 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
    works from any project as long as the project has a key defined. These forms
    differ from `tod` command arguments.
 
-   When code was changed, leave the working copy on the PR source branch with
-   the new local commits. For review-only or response-only work, leave the
-   checkout as prepared for inspection. In all cases, keep work ready for
+   When code was changed, leave it uncommitted in the PR source repository and
+   any changed submodules. Leave changed submodules on their intended branches
+   with upstreams. For review-only or response-only work, leave the checkout as
+   prepared for inspection. In all cases, keep work ready for
    `submit-pull-request-work`.
