@@ -57,10 +57,11 @@ command receives the text.
 ## Markdown references for issue, pull request, or build
 
 In authored OneDev Markdown, write an entity reference as `<type> <reference>`,
-such as `PR #42`, `issue acme/web#123`, or `build ACMEWEB-7`. With no type the 
-reference means an issue. `<reference>` is `#123` for an entity in the current 
-project, `path/to/project#123` for one in another project, or `PROJECTKEY-123`, 
-which works from any project as long as the project has a key defined. These 
+such as `PR #42`, `issue acme/web#123`, or `build ACMEWEB-7`. With no type, the
+reference means an issue. `<reference>` is `#123` for an entity in the current
+project, `path/to/project#123` for one in another project, or `PROJECTKEY-123`,
+which works from any project as long as the project has a key defined. Keep the
+type and reference separated by one space with nothing between them. These
 forms differ from `tod` command arguments.
 
 ## Workflow

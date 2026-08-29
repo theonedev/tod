@@ -255,12 +255,13 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
 
    Draft all comment, reply, note, and review text in Markdown, as the
    corresponding `tod` commands post Markdown text. Write an entity reference
-   as `<type> <reference>`, such as `PR #42`,
-   `issue acme/web#123`, or `build ACMEWEB-7`. With no type the reference means an
-   issue. `<reference>` is `#123` for an entity in the current project,
-   `path/to/project#123` for one in another project, or `PROJECTKEY-123`, which
-   works from any project as long as the project has a key defined. These forms
-   differ from `tod` command arguments.
+   as `<type> <reference>`, such as `PR #42`, `issue acme/web#123`, or
+   `build ACMEWEB-7`. With no type, the reference means an issue. `<reference>`
+   is `#123` for an entity in the current project, `path/to/project#123` for one
+   in another project, or `PROJECTKEY-123`, which works from any project as long
+   as the project has a key defined. Keep the type and reference separated by
+   one space with nothing between them. These forms differ from `tod` command
+   arguments.
 
    When code was changed, leave it uncommitted in the PR source repository and
    any changed submodules. Leave changed submodules on their intended branches

@@ -166,12 +166,13 @@ or `PROJ-123`):
    Save the exact text of each drafted comment in `<saved-issue-comments>`
    (see **Session handoff**). Draft all issue comment text in Markdown, as
    `tod issue add-comment` posts Markdown text. Write an entity reference as
-   `<type> <reference>`, such as `PR #42`,
-   `issue acme/web#123`, or `build ACMEWEB-7`. With no type the reference means an
-   issue. `<reference>` is `#123` for an entity in the current project,
-   `path/to/project#123` for one in another project, or `PROJECTKEY-123`, which
-   works from any project as long as the project has a key defined. These forms
-   differ from `tod` command arguments.
+   `<type> <reference>`, such as `PR #42`, `issue acme/web#123`, or
+   `build ACMEWEB-7`. With no type, the reference means an issue. `<reference>`
+   is `#123` for an entity in the current project, `path/to/project#123` for one
+   in another project, or `PROJECTKEY-123`, which works from any project as long
+   as the project has a key defined. Keep the type and reference separated by
+   one space with nothing between them. These forms differ from `tod` command
+   arguments.
 
    Leave the working copy on the issue branch with all work ready for
    `submit-issue-work`. When work changes a submodule, leave it on the intended
