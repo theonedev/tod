@@ -324,11 +324,14 @@ func runBuildJobCommand(cmd *cobra.Command, args []string) error {
 	if local {
 		logger := cliLogger("[run] ")
 		fmt.Println("Collecting local changes...")
-		build, err = runLocalJob(jobName, workingDirOf(cmd), params, "Submitted via tod", logger)
+		workingDir, err := localBuildWorkingDir(cmd)
 		if err != nil {
 			return err
 		}
-		fmt.Println("Sending local changes to server...")
+		build, err = runLocalJob(jobName, workingDir, params, "Submitted via tod", logger)
+		if err != nil {
+			return err
+		}
 	} else {
 		_, currentProject, err := inferProject(workingDirOf(cmd))
 		if err != nil {
@@ -453,59 +456,26 @@ func runLocalJob(jobName string, workingDir string, params map[string][]string,
 		return nil, fmt.Errorf("build spec not found: %v", err)
 	}
 
-	cmd := exec.Command("git", "add", buildSpecFile)
-	cmd.Dir = workingDir
-	logger.Printf("Running command: git add %s\n", buildSpecFile)
-	out, err := cmd.CombinedOutput()
-	logger.Printf("Command output:\n%s", string(out))
-	if err != nil {
-		return nil, fmt.Errorf("failed to add build spec file to git index: %v", err)
-	}
-
-	projectUrl := config.ServerUrl + "/" + project
-
-	cmd = exec.Command("git", "stash", "create")
-	cmd.Dir = workingDir
-
-	logger.Printf("Running command: git stash create\n")
-	out, err = cmd.CombinedOutput()
-	logger.Printf("Command output:\n%s", string(out))
-	if err != nil {
-		return nil, fmt.Errorf("failed to execute git stash create: %v", err)
-	}
-
-	runCommit := strings.TrimSpace(string(out))
-
-	if runCommit == "" {
-		cmd := exec.Command("git", "rev-parse", "HEAD")
-		cmd.Dir = workingDir
-
-		logger.Printf("Running command: git rev-parse HEAD\n")
-		out, err := cmd.CombinedOutput()
-		logger.Printf("Command output:\n%s", string(out))
-		if err != nil {
-			return nil, fmt.Errorf("failed to execute git rev-parse HEAD: %v", err)
+	runCommit, err := prepareLocalSnapshot(gitRoot, buildSpecFile, func(submoduleDir, commit string) error {
+		relativePath, relativeErr := filepath.Rel(gitRoot, submoduleDir)
+		if relativeErr != nil {
+			relativePath = submoduleDir
 		}
-
-		runCommit = strings.TrimSpace(string(out))
+		fmt.Printf("Sending local changes in submodule '%s' to server...\n", relativePath)
+		return pushLocalSnapshot(submoduleDir, commit, logger)
+	}, logger)
+	if err != nil {
+		return nil, err
 	}
 
-	cmd, cleanup, err := newTrustedGitCommand(workingDir, "-c", "http.extraHeader=Authorization: Bearer "+config.AccessToken, "push", "-f", projectUrl, runCommit+":refs/onedev/tod")
-	if err != nil {
-		return nil, fmt.Errorf("failed to prepare git push: %v", err)
-	}
-	defer cleanup()
-
-	logger.Printf("Running command: git push -f %s %s:refs/onedev/tod\n", projectUrl, runCommit)
-	stdoutStderr, err := cmd.CombinedOutput()
-	logger.Printf("Command output:\n%s", string(stdoutStderr))
-	if err != nil {
-		return nil, fmt.Errorf("failed to push local changes: %v", err)
+	fmt.Println("Sending local changes to server...")
+	if err := pushLocalSnapshotToProject(gitRoot, project, runCommit, logger); err != nil {
+		return nil, err
 	}
 
 	jobMap := map[string]interface{}{
 		"commitHash": runCommit,
-		"refName":    "refs/onedev/tod",
+		"refName":    todRef,
 		"jobName":    jobName,
 		"params":     params,
 		"reason":     reason,
@@ -529,6 +499,39 @@ func findGitRoot(workingDir string) (string, error) {
 
 	gitRoot := strings.TrimSpace(string(output))
 	return gitRoot, nil
+}
+
+// localBuildWorkingDir keeps an explicit --working-dir intact. Otherwise, a
+// local build started inside a submodule is run against the outermost
+// superproject so its build spec and submodule changes are collected together.
+func localBuildWorkingDir(cmd *cobra.Command) (string, error) {
+	workingDir := workingDirOf(cmd)
+	if cmd.Flags().Changed("working-dir") {
+		return workingDir, nil
+	}
+	return findMainGitRoot(workingDir)
+}
+
+func findMainGitRoot(workingDir string) (string, error) {
+	gitRoot, err := findGitRoot(workingDir)
+	if err != nil {
+		return "", err
+	}
+
+	for {
+		cmd := exec.Command("git", "rev-parse", "--show-superproject-working-tree")
+		cmd.Dir = gitRoot
+		output, err := cmd.Output()
+		if err != nil {
+			return "", fmt.Errorf("failed to find main git working directory from %s: %v", gitRoot, err)
+		}
+
+		superprojectRoot := strings.TrimSpace(string(output))
+		if superprojectRoot == "" {
+			return gitRoot, nil
+		}
+		gitRoot = superprojectRoot
+	}
 }
 
 func checkBuildSpec(workingDir string, logger *log.Logger) error {

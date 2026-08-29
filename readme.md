@@ -184,6 +184,14 @@ to allow all jobs. Setting authorization to allow all branches is not
 sufficient — local changes are pushed to a temporal ref that does not belong
 to any branch.
 
+When initialized submodules contain local changes, `tod build run --local`
+collects and sends their snapshots recursively before sending the parent
+repository. A submodule that needs to be sent must point to a project on the
+configured OneDev server, and the access token must have permission to push to
+that project. When the command is started anywhere inside a submodule, it uses
+the outermost superproject as its working directory by default. Pass
+`--working-dir` explicitly to run against the submodule itself.
+
 ### Performance tips
 
 1. **Large repositories** — use an appropriate clone depth in checkout steps

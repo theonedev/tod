@@ -44,6 +44,10 @@ func makeAPICall(req *http.Request) ([]byte, error) {
 }
 
 func inferProject(workingDir string) (string, string, error) {
+	return inferProjectWithRemoteValidation(workingDir, false)
+}
+
+func inferProjectWithRemoteValidation(workingDir string, requireMatchingCloneRoot bool) (string, string, error) {
 	_, err := exec.LookPath("git")
 	if err != nil {
 		return "", "", fmt.Errorf("git executable not found in system path")
@@ -105,6 +109,9 @@ func inferProject(workingDir string) (string, string, error) {
 		if remoteUrl == "" {
 			return "", "", fmt.Errorf(prefix+"remote '%s' has no URL"+suffix, remote)
 		}
+		if requireMatchingCloneRoot && !matchesConfiguredServer(remoteUrl, httpCloneRoot, sshCloneRoot) {
+			return "", "", fmt.Errorf(prefix+"remote '%s' does not point to the configured OneDev server"+suffix, remote)
+		}
 
 		project, err := extractProjectFromUrl(remoteUrl)
 		if err != nil {
@@ -127,7 +134,7 @@ func inferProject(workingDir string) (string, string, error) {
 			continue
 		}
 
-		if matchesCloneRoot(remoteUrl, httpCloneRoot, sshCloneRoot) {
+		if matchesConfiguredServer(remoteUrl, httpCloneRoot, sshCloneRoot) {
 			project, err := extractProjectFromUrl(remoteUrl)
 			if err != nil {
 				return "", "", fmt.Errorf(prefix+"failed to extract project from remote '%s': %v"+suffix, remote, err)
@@ -137,6 +144,14 @@ func inferProject(workingDir string) (string, string, error) {
 	}
 
 	return "", "", fmt.Errorf(prefix + "no remote found corresponding to a OneDev project" + suffix)
+}
+
+// matchesConfiguredServer tells whether the remote points at the OneDev server
+// the current configuration talks to, either via one of the clone roots it
+// advertises or via the configured server url itself.
+func matchesConfiguredServer(remoteUrl, httpCloneRoot, sshCloneRoot string) bool {
+	return matchesCloneRoot(remoteUrl, httpCloneRoot, sshCloneRoot) ||
+		matchesCloneRoot(remoteUrl, config.ServerUrl, "")
 }
 
 func matchesCloneRoot(remoteUrl, httpCloneRoot, sshCloneRoot string) bool {
@@ -161,23 +176,28 @@ func matchesCloneRoot(remoteUrl, httpCloneRoot, sshCloneRoot string) bool {
 }
 
 func parseUrlComponents(url string) (protocol, hostAndPort string, err error) {
-	if strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://") || strings.HasPrefix(url, "ssh://") {
-		protocolIndex := strings.Index(url, "://")
-		protocol = url[:protocolIndex+3]
-		remainingPart := url[protocolIndex+3:]
-
-		if atIndex := strings.Index(remainingPart, "@"); atIndex != -1 {
-			remainingPart = remainingPart[atIndex+1:]
-		}
-
-		pathIndex := strings.Index(remainingPart, "/")
-		if pathIndex == -1 {
-			hostAndPort = remainingPart
-		} else {
-			hostAndPort = remainingPart[:pathIndex]
-		}
+	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") && !strings.HasPrefix(url, "ssh://") {
+		return "", "", fmt.Errorf("unsupported URL format: %s", url)
 	}
 
+	protocolIndex := strings.Index(url, "://")
+	protocol = url[:protocolIndex+3]
+	remainingPart := url[protocolIndex+3:]
+
+	if atIndex := strings.Index(remainingPart, "@"); atIndex != -1 {
+		remainingPart = remainingPart[atIndex+1:]
+	}
+
+	pathIndex := strings.Index(remainingPart, "/")
+	if pathIndex == -1 {
+		hostAndPort = remainingPart
+	} else {
+		hostAndPort = remainingPart[:pathIndex]
+	}
+
+	if hostAndPort == "" {
+		return "", "", fmt.Errorf("no host found in URL: %s", url)
+	}
 	return protocol, hostAndPort, nil
 }
 
