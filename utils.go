@@ -315,6 +315,24 @@ func checkoutFetchedBranch(workingDir string, remote string, branch string, comm
 		}
 	}
 
+	return updateRetrievedSubmodules(workingDir, logger)
+}
+
+// updateRetrievedSubmodules moves the worktree of every retrieved submodule to
+// the commit recorded by the current checkout, recursively. Submodules that
+// have not been retrieved are skipped, hence no --init: retrieving them is left
+// to the user. Missing submodule commits are fetched by git from the remote of
+// the submodule itself.
+func updateRetrievedSubmodules(workingDir string, logger *log.Logger) error {
+	cmd, cleanup, err := newTrustedGitCommand(workingDir, "submodule", "update", "--recursive")
+	if err != nil {
+		return fmt.Errorf("failed to prepare git submodule update: %v", err)
+	}
+	defer cleanup()
+
+	if _, err := runGit(cmd, "git submodule update --recursive", logger); err != nil {
+		return fmt.Errorf("checkout succeeded, but retrieved submodules could not be updated: %v", err)
+	}
 	return nil
 }
 
@@ -516,7 +534,7 @@ func checkoutPullRequest(workingDir string, pullRequestReference string, forWrit
 		return fmt.Errorf("git checkout failed: %v", err)
 	}
 
-	return nil
+	return updateRetrievedSubmodules(workingDir, logger)
 }
 
 func checkResponse(resp *http.Response) error {

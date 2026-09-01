@@ -15,7 +15,7 @@ AI agents via shipped skill files.
 - **Run CI/CD jobs against local changes, branches, or tags** with real-time
   log streaming (`tod build run --local`, `--branch`, or `--tag`).
 - **Check out issues and pull requests** locally (`tod issue checkout`,
-  `tod pr checkout`).
+  `tod pr checkout`), including already retrieved submodules.
 - **Check and migrate `.onedev-buildspec.yml`** to the latest version
   (`tod build check-spec`).
 - **Agent skills** under [`skills/`](skills/) that teach Claude Code, Cursor,
@@ -137,6 +137,11 @@ tod build list --query 'not(successful)' --count 1
 tod build get <ref>
 tod build get-log <ref>
 ```
+
+Both checkout commands also move already retrieved submodules to the commits
+recorded by the checked out revision, fetching from the remote of the submodule
+when a commit is missing locally. Submodules that have not been retrieved stay
+untouched; retrieve them with `git submodule update --init <path>` when needed.
 
 See [cli.md](cli.md) for the full command reference.
 

@@ -184,6 +184,8 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
      ```
      Confirm the output has no unmerged entries such as `UU`, `AA`, `DD`, `AU`,
      `UA`, `DU`, or `UD`.
+   - Run `git submodule update --recursive` so retrieved submodules follow the
+     gitlinks advanced by the merge.
 
    If the work is to investigate or fix failed builds, process every selected
    `<build-reference>` in `<build-references>`:
