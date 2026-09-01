@@ -128,11 +128,11 @@ or `PROJ-123`):
    ```
    If the output is empty, skip this step. Otherwise process changed
    submodules deepest-first. For each one, after its changed descendants have
-   been processed, inspect its final diff and verify its intended branch and
-   upstream. If it is dirty, run `tod get-commit-message-requirement` inside
-   it, compose a compliant message here (do not use the
-   `generate-commit-message` skill), commit, push commits not yet on the
-   upstream, and verify the worktree is clean.
+   been processed, inspect its final diff and verify it is on its default
+   branch with an upstream. If it is dirty, run
+   `tod get-commit-message-requirement` inside it, compose a compliant message
+   here (do not use the `generate-commit-message` skill), commit, push commits
+   not yet on the upstream, and verify the worktree is clean.
 
    If a submodule push is rejected specifically because it is not a
    fast-forward, pull and merge its upstream branch, then retry once:

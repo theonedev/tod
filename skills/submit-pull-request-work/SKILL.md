@@ -112,7 +112,7 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
    deepest-first.
 
    For each dirty submodule, first process its descendants, then inspect its
-   final diff and verify its intended branch and upstream. Run
+   final diff and verify it is on its default branch with an upstream. Run
    `tod get-commit-message-requirement` inside it, compose a compliant
    message here (do not use the `generate-commit-message` skill), stage and
    commit its changes, and verify its worktree is clean. Push the new commits

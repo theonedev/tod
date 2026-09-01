@@ -175,6 +175,6 @@ or `PROJ-123`):
    arguments.
 
    Leave the working copy on the issue branch with all work ready for
-   `submit-issue-work`. When work changes a submodule, leave it on the intended
+   `submit-issue-work`. When work changes a submodule, leave it on its default
    branch with an upstream and keep its changes uncommitted and unpushed.
    Submission processes changed submodules before their parent repositories.

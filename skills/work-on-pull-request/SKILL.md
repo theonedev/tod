@@ -266,7 +266,7 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
    arguments.
 
    When code was changed, leave it uncommitted in the PR source repository and
-   any changed submodules. Leave changed submodules on their intended branches
+   any changed submodules. Leave changed submodules on their default branches
    with upstreams. For review-only or response-only work, leave the checkout as
    prepared for inspection. In all cases, keep work ready for
    `submit-pull-request-work`.
