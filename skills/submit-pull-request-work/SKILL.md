@@ -93,7 +93,7 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
    tod pr get <pr-reference>
    tod project current
    tod remote
-   git fetch <remote> <source-branch>
+   git fetch --no-recurse-submodules <remote> <source-branch>
    git rev-parse --abbrev-ref <current-branch>@{upstream}
    ```
    From `tod pr get`, note `<source-project>`, `<target-project>`,
@@ -121,7 +121,7 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
    If the push is rejected specifically because it is not a fast-forward,
    merge the upstream branch and retry once:
    ```bash
-   git pull --no-rebase <upstream-remote> <upstream-branch>
+   git pull --no-rebase --no-recurse-submodules <upstream-remote> <upstream-branch>
    git push <upstream-remote> <upstream-branch>
    ```
    Resolve conflicts and complete the merge commit before retrying. Do not

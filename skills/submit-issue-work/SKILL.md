@@ -90,7 +90,7 @@ or `PROJ-123`):
    tod issue get <issue-reference>
    tod project current
    tod remote
-   git fetch <remote> <issue-branch>
+   git fetch --no-recurse-submodules <remote> <issue-branch>
    git rev-parse --abbrev-ref <current-branch>@{upstream}
    ```
    Save the issue detail as `<issue>` and get `<issue-branch>` from that
@@ -137,7 +137,7 @@ or `PROJ-123`):
    If a submodule push is rejected specifically because it is not a
    fast-forward, pull and merge its upstream branch, then retry once:
    ```bash
-   git pull --no-rebase <upstream-remote> <upstream-branch>
+   git pull --no-rebase --no-recurse-submodules <upstream-remote> <upstream-branch>
    git push <upstream-remote> <upstream-branch>
    ```
    Resolve any merge conflicts, complete the merge commit, and verify the

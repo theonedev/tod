@@ -321,8 +321,10 @@ func checkoutFetchedBranch(workingDir string, remote string, branch string, comm
 // updateRetrievedSubmodules moves the worktree of every retrieved submodule to
 // the commit recorded by the current checkout, recursively. Submodules that
 // have not been retrieved are skipped, hence no --init: retrieving them is left
-// to the user. Missing submodule commits are fetched by git from the remote of
-// the submodule itself.
+// to the user. Only gitlinks of the current checkout are consulted, and missing
+// commits are fetched from the remote of the submodule itself. Fetching the
+// superproject therefore does not recurse into submodules, which would also try
+// to fetch gitlinks of arriving history commits and fail on invalid ones.
 func updateRetrievedSubmodules(workingDir string, logger *log.Logger) error {
 	cmd, cleanup, err := newTrustedGitCommand(workingDir, "submodule", "update", "--recursive")
 	if err != nil {
@@ -331,7 +333,7 @@ func updateRetrievedSubmodules(workingDir string, logger *log.Logger) error {
 	defer cleanup()
 
 	if _, err := runGit(cmd, "git submodule update --recursive", logger); err != nil {
-		return fmt.Errorf("checkout succeeded, but retrieved submodules could not be updated: %v", err)
+		return fmt.Errorf("retrieved submodules could not be updated (the branch checkout itself succeeded): %v", err)
 	}
 	return nil
 }
@@ -416,13 +418,13 @@ func checkoutIssue(workingDir string, issueReference string, forWrite bool, logg
 	}
 
 	projectUrl := config.ServerUrl + "/" + project
-	fetchCmd, cleanup, err := newTrustedGitCommand(workingDir, "-c", "http.extraHeader=Authorization: Bearer "+config.AccessToken, "fetch", projectUrl, branch)
+	fetchCmd, cleanup, err := newTrustedGitCommand(workingDir, "-c", "http.extraHeader=Authorization: Bearer "+config.AccessToken, "fetch", "--no-recurse-submodules", projectUrl, branch)
 	if err != nil {
 		return fmt.Errorf("failed to prepare git fetch: %v", err)
 	}
 	defer cleanup()
 	stdoutStderr, err := fetchCmd.CombinedOutput()
-	logger.Printf("Running command: git fetch %s %s\n", projectUrl, branch)
+	logger.Printf("Running command: git fetch --no-recurse-submodules %s %s\n", projectUrl, branch)
 	logger.Printf("Command output:\n%s", string(stdoutStderr))
 	if err != nil {
 		return fmt.Errorf("git fetch failed: %v", err)
@@ -509,13 +511,13 @@ func checkoutPullRequest(workingDir string, pullRequestReference string, forWrit
 	}
 	projectUrl := config.ServerUrl + "/" + projectToFetch
 
-	fetchCmd, cleanup, err := newTrustedGitCommand(workingDir, "-c", "http.extraHeader=Authorization: Bearer "+config.AccessToken, "fetch", projectUrl, headCommitHash)
+	fetchCmd, cleanup, err := newTrustedGitCommand(workingDir, "-c", "http.extraHeader=Authorization: Bearer "+config.AccessToken, "fetch", "--no-recurse-submodules", projectUrl, headCommitHash)
 	if err != nil {
 		return fmt.Errorf("failed to prepare git fetch: %v", err)
 	}
 	defer cleanup()
 	stdoutStderr, err := fetchCmd.CombinedOutput()
-	logger.Printf("Running command: git fetch %s %s\n", projectUrl, headCommitHash)
+	logger.Printf("Running command: git fetch --no-recurse-submodules %s %s\n", projectUrl, headCommitHash)
 	logger.Printf("Command output:\n%s", string(stdoutStderr))
 	if err != nil {
 		return fmt.Errorf("git fetch failed: %v", err)

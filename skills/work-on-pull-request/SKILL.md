@@ -164,7 +164,7 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
 
    - Fetch the target branch head of `<target-project>`:
      ```bash
-     git fetch <target-project-remote-or-url> <target-branch>
+     git fetch --no-recurse-submodules <target-project-remote-or-url> <target-branch>
      git rev-parse FETCH_HEAD
      ```
      Save `FETCH_HEAD` as `<target-head>`.
