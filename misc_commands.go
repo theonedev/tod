@@ -21,10 +21,9 @@ var checkVersionCmd = &cobra.Command{
 }
 
 var versionCmd = &cobra.Command{
-	Use:    "version",
-	Short:  "Print the tod version",
-	Hidden: true,
-	Args:   cobra.NoArgs,
+	Use:   "version",
+	Short: "Print the tod version",
+	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		fmt.Println(version)
 		return nil

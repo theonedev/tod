@@ -33,7 +33,7 @@ Commands are grouped by resource:
 - `tod project` -- `list`, `current`, `get`, `get-query-description`
 - `tod get-login-name`, `tod get-unix-timestamp`, `tod remote`,
   `tod get-valid-labels`,
-  `tod get-commit-message-requirement`, `tod download`
+  `tod get-commit-message-requirement`, `tod download`, `tod version`
 
 Commands write the raw OneDev server response to stdout. Run
 `tod <command> --help` for exact flags.

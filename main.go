@@ -104,13 +104,13 @@ func init() {
 		getValidLabelsCmd,
 		getCommitMessageRequirementCmd,
 		downloadCmd,
+		versionCmd,
 	)
 
 	rootCmd.AddCommand(
 		runJobCmd,
 		checkoutPullRequestCmd,
 		checkVersionCmd,
-		versionCmd,
 	)
 
 	suppressUsageForRunErrors(rootCmd)

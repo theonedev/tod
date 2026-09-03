@@ -20,7 +20,7 @@ Top-level groups:
 - [`tod build`](#tod-build)
 - [`tod project`](#tod-project)
 - [`tod config`](#tod-config)
-- [misc: `get-login-name`, `get-unix-timestamp`, `remote`, `get-valid-labels`, `get-commit-message-requirement`, `download`](#miscellaneous)
+- [misc: `get-login-name`, `get-unix-timestamp`, `remote`, `get-valid-labels`, `get-commit-message-requirement`, `download`, `version`](#miscellaneous)
 
 Commands that take a `<ref>`/`<source ref>`/`<target ref>` argument accept
 `<n>`, `#<n>`, `<project>#<n>`, or `<project-key>-<n>` (e.g. `123`, `#123`,
@@ -130,3 +130,4 @@ These commands run even when the config file is missing or invalid.
 | `tod get-valid-labels` | Print valid label names for this OneDev server (use with `--label` in `tod pr create`). |
 | `tod get-commit-message-requirement [--branch <branch>]` | Print the commit message requirement for a branch in current project (inferred from the working directory). Branch defaults to the current git branch. Prints nothing when the branch has no commit message requirement configured. |
 | `tod download <resource-url> <output-file>` | Download a resource (image, file, etc.) referenced in markdown. The resource URL is the original URL from the markdown without modification. Relative URLs are resolved against `server-url`; authentication uses `access-token`. |
+| `tod version` | Print the tod version. |
