@@ -88,7 +88,7 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
    | Fixed issues | `tod issue list --query 'fixed in pull request "<pr-reference>"'` -- save the output as `<fixed-issues>`. For each returned issue, inspect `tod issue get <issue-reference>` and `tod issue get-comments <issue-reference>`; note the issue title, description, and comments. |
    | PR metadata, title, and description | `tod pr get <pr-reference>` -- note `<source-project>`, `<source-branch>`, `<target-project>`, `<target-branch>`, `<merge-strategy>`, `<head-commit>`, `<status>`, title, description, linked issues, submitter, reviewers, assignees, and current review status. |
    | PR comments | `tod pr get-comments <pr-reference>` |
-   | Line-anchored code comments | `tod pr get-code-comments <pr-reference>` -- note `id`, file, line range, resolution state, and replies. |
+   | Line-anchored code comments | `tod pr get-code-comments <pr-reference>` -- note `id`, file, line range, resolution state, and replies. If the comment info includes `commit`, the comment is outdated and its line range refers to that commit, not the PR head commit. |
 
    Then proceed to get your own login name:
    ```bash
