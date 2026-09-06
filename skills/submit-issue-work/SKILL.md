@@ -111,12 +111,12 @@ or `PROJ-123`):
      tod pr get <pr-reference>
      ```
      Record the PR reference, URL, source, and target values.
-   - **No matches:** Plan to create a PR. Use user-provided target project and
-     target branch values first. For any missing target value, use the
-     corresponding default from the issue detail already read in step 3. If a
-     required target value is still missing, report that work is not submitted
-     because that value is missing, and stop. Otherwise record the planned PR
-     target values.
+   - **No matches:** If the prompt explicitly says not to create a PR, record
+     that PR creation is disabled. Otherwise plan to create one. Use
+     user-provided target project and target branch values first, then the
+     corresponding defaults from the issue detail. If a required value is
+     still missing, report that work is not submitted because that value is
+     missing, and stop. Otherwise record the planned PR target values.
    - **Multiple matches:** If the user prompt indicates the current user is an
      AI user, post an issue comment explaining that multiple open PRs include
      the issue and submission needs one PR to be selected, then stop.
@@ -153,8 +153,10 @@ or `PROJ-123`):
    tod get-commit-message-requirement
    tod pr get-commit-message-requirement --target-project <target-project> --target-branch <target-branch>
    ```
-   Pass the existing or planned PR target values from step 4, satisfy all
-   non-empty requirements, then commit the parent repository:
+   When PR creation is disabled and there is no existing PR, omit the PR
+   requirement command. Otherwise pass the existing or planned PR target
+   values from step 4. Satisfy all non-empty requirements, then commit the
+   parent repository:
    ```bash
    git add -A
    git commit -m '<subject>' -m '<body>'
@@ -162,29 +164,29 @@ or `PROJ-123`):
    ```
    The final status must be clean.
    
-6. **Push outstanding commits and create a PR when needed.**
+6. **Push outstanding commits, then create a PR when needed.**
    ```bash
    git log --reverse --pretty=format:'%h %s%n%b%n---' <remote>/<issue-branch>..HEAD
    ```
-   Save the output as `<commits-to-push>`. If it is empty, skip the push and
-   PR creation and continue to deferred comments or state changes. Otherwise:
+   Save the output as `<commits-to-push>`. If it is non-empty, push it:
    ```bash
    git push <remote> <issue-branch>
    ```
 
-   - For an existing PR, the push updated it.
-   - If no PR was found in step 4, read the new PR requirements using the same
-     planned flags:
-     ```bash
-     tod pr get-title-and-description-requirement --target-project <target-project> --target-branch <target-branch>
-     ```
-     Compose a concise title and description from the captured commits,
-     validate them, then run:
-     ```bash
-     tod pr create '<title>' --description '<description>' --target-project <target-project> --target-branch <target-branch>
-     ```
-     Pass the resolved target project and target branch values. Save the
-     returned PR reference and URL.
+   For an existing PR, any push updated it. If code was committed in step 5 or
+   `<commits-to-push>` was non-empty, and no PR was found in step 4, create the
+   planned PR unless the prompt opted out. First read the new PR requirements
+   using the same planned flags:
+   ```bash
+   tod pr get-title-and-description-requirement --target-project <target-project> --target-branch <target-branch>
+   ```
+   Compose a concise title and description from the submitted commits,
+   validate them, then run:
+   ```bash
+   tod pr create '<title>' --description '<description>' --target-project <target-project> --target-branch <target-branch>
+   ```
+   Pass the resolved target project and target branch values. Save the returned
+   PR reference and URL.
 
    After the existing PR is updated or the new PR is created:
 

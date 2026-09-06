@@ -126,7 +126,8 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
 4. **Assess, plan, and execute the work.** Check the requested work against the current
    code and behavior, plan appropriate actions, and execute it.
 
-   If the work is to review the PR, form the review following below procedure:
+   If the work is to review the PR, use the following review instructions
+   unless the prompt provides other review instructions:
 
    - Read the review-scoped patch:
      ```bash
