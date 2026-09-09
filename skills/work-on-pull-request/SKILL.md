@@ -22,6 +22,10 @@ This workflow pairs with `submit-pull-request-work`. Hand off work within the
 | Code changes, including merge-conflict resolutions | Uncommitted changes in the PR source repository and changed submodules |
 | PR discussion, review, and merge actions | Ordered list held in session as `<saved-pr-actions>` |
 
+`<saved-pr-actions>` is initially empty. Never save a text-posting action with
+empty, whitespace-only, or placeholder content. Omit blank optional notes or
+summaries without discarding the state-change action.
+
 When you draft PR comments, code-comment replies, resolve/unresolve actions,
 approve/request-changes outcomes, or merge actions, treat each one as **saved
 for later submission** -- not merely presentation text. Keep the exact wording

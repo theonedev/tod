@@ -26,6 +26,9 @@ This workflow pairs with `work-on-issue`. At the start, recover
 `<saved-issue-comments>` is session state, not a file on disk and not comments
 already on OneDev. Step 7 posts these deferred drafts.
 
+Before counting, combining, or posting comments, discard empty or
+whitespace-only entries. An empty handoff has zero entries.
+
 ## Aborting the workflow
 
 Run the workflow sequentially. Before aborting it for any reason, always follow

@@ -237,7 +237,7 @@ Run 'tod issue get-valid-links' for valid link names.`,
 var issueAddCommentCmd = &cobra.Command{
 	Use:   "add-comment <issue-reference> <content>",
 	Short: "Add a Markdown comment to an issue",
-	Args:  cobra.ExactArgs(2),
+	Args:  nonEmptyCommentArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		content := args[1]
 

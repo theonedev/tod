@@ -4,9 +4,20 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
+
+func nonEmptyCommentArgs(cmd *cobra.Command, args []string) error {
+	if err := cobra.ExactArgs(2)(cmd, args); err != nil {
+		return err
+	}
+	if strings.TrimSpace(args[1]) == "" {
+		return fmt.Errorf("<content> must not be empty")
+	}
+	return nil
+}
 
 // cliLogger returns a stderr-backed logger used by CLI subcommands so that
 // stdout remains clean for the raw API payloads the commands print.

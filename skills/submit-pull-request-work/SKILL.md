@@ -29,6 +29,10 @@ This workflow pairs with `work-on-pull-request`. At the start, recover
 `<saved-pr-actions>` is session state, not a file on disk and not discussion
 already on OneDev. Step 5 applies these deferred drafts.
 
+Before counting or applying actions, discard text-posting actions with empty or
+whitespace-only content, and omit blank optional notes or summaries. An empty
+handoff has zero actions.
+
 ## Aborting the workflow
 
 Run the workflow sequentially. Before aborting it for any reason, always follow

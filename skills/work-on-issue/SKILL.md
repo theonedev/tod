@@ -22,6 +22,9 @@ chat session** using two channels:
 | Code changes | Uncommitted changes in the issue checkout, including changed submodules |
 | Issue comments | Drafted comment text held in session as `<saved-issue-comments>` |
 
+`<saved-issue-comments>` is an ordered list, initially empty. Never save an
+empty, whitespace-only, or placeholder comment.
+
 When you draft issue comments, treat each one as **saved for later
 submission** -- not merely presentation text. Keep the exact wording you intend
 to post. A later `submit-issue-work` run in this session must be able to

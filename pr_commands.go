@@ -338,7 +338,7 @@ var prDiscardCmd = &cobra.Command{
 var prAddCommentCmd = &cobra.Command{
 	Use:   "add-comment <pr-reference> <content>",
 	Short: "Add a Markdown comment to a pull request",
-	Args:  cobra.ExactArgs(2),
+	Args:  nonEmptyCommentArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		content := args[1]
 
