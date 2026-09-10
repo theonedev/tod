@@ -61,9 +61,8 @@ or `PROJ-123`):
    Save non-empty output as `<issue-reference>`. If the output is empty, stop
    and report that the issue reference could not be derived.
 
-2. **Prepare the checkout.** Prepare the checkout to work on the issue,
-   unless the user explicitly asks not to, or wants to switch to a different
-   checkout.
+2. **Prepare the checkout.** Skip this step if the user explicitly asks not to
+   or no code change is expected.
 
    Check out the issue branch locally:
    ```bash

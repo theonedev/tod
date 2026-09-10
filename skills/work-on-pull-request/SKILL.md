@@ -66,8 +66,8 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
    Save non-empty output as `<pr-reference>`. If the output is empty, stop
    and report that the PR reference could not be derived.
 
-2. **Prepare the checkout.** Prepare the checkout to work on the PR, unless the user
-   explicitly asks not to, or wants to switch to a different checkout.
+2. **Prepare the checkout.** Skip this step if the user explicitly asks not to
+   or no code change is expected.
 
    Check out the PR:
    ```bash
