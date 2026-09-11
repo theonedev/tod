@@ -27,7 +27,7 @@ AI agents via shipped skill files.
 ### macOS, Linux, and FreeBSD
 
 ```bash
-curl -fsSL https://code.onedev.io/onedev/tod/~raw/main/install.sh | bash
+curl -fsSL 'https://code.onedev.io/onedev/tod/~raw?revision=main&file=install.sh' | bash
 ```
 
 The script detects your platform and architecture, downloads the matching
@@ -36,13 +36,13 @@ binary, and installs it to a directory on your `PATH` (overwriting an existing
 `INSTALL_DIR`:
 
 ```bash
-INSTALL_DIR=~/bin curl -fsSL https://code.onedev.io/onedev/tod/~raw/main/install.sh | bash
+curl -fsSL 'https://code.onedev.io/onedev/tod/~raw?revision=main&file=install.sh' | INSTALL_DIR="$HOME/bin" bash
 ```
 
 ### Windows
 
 ```powershell
-irm https://code.onedev.io/onedev/tod/~raw/main/install.ps1 | iex
+irm 'https://code.onedev.io/onedev/tod/~raw?revision=main&file=install.ps1' | iex
 ```
 
 The script downloads `tod.exe` for your architecture and installs it to a
@@ -50,7 +50,7 @@ directory on your `PATH` (overwriting an existing install if found). To choose
 a different location:
 
 ```powershell
-$env:INSTALL_DIR = "$HOME\bin"; irm https://code.onedev.io/onedev/tod/~raw/main/install.ps1 | iex
+$env:INSTALL_DIR = "$HOME\bin"; irm 'https://code.onedev.io/onedev/tod/~raw?revision=main&file=install.ps1' | iex
 ```
 
 ### Build from source
