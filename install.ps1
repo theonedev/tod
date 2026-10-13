@@ -1,7 +1,7 @@
 #requires -Version 5.1
 $ErrorActionPreference = 'Stop'
 
-$BaseUrl = 'https://code.onedev.io/onedev/tod/~site'
+$BaseUrl = 'https://code.onedev.io/onedev/tod/~sites/public'
 
 function Get-PlatformArch {
 	$arch = switch ($env:PROCESSOR_ARCHITECTURE) {
