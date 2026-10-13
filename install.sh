@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-readonly BASE_URL="https://code.onedev.io/onedev/tod/~site"
+readonly BASE_URL="https://code.onedev.io/onedev/tod/~sites/public"
 
 detect_platform_arch() {
 	local os arch
