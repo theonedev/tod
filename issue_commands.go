@@ -234,6 +234,33 @@ Run 'tod issue get-valid-links' for valid link names.`,
 	},
 }
 
+var issueUnlinkCmd = &cobra.Command{
+	Use:   "unlink <source-issue-reference> <link-name> <target-issue-reference>",
+	Short: "Remove <target-issue-reference> as <link-name> of <source-issue-reference>",
+	Long: `Remove <target-issue-reference> as <link-name> of <source-issue-reference>.
+
+Run 'tod issue get-valid-links' for valid link names.`,
+	Args: cobra.ExactArgs(3),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		currentProject, err := currentProjectFor(cmd)
+		if err != nil {
+			return err
+		}
+
+		body, err := apiPostBytes("unlink-issues", url.Values{
+			"currentProject":  {currentProject},
+			"sourceReference": {args[0]},
+			"linkName":        {args[1]},
+			"targetReference": {args[2]},
+		})
+		if err != nil {
+			return err
+		}
+		emit(body)
+		return nil
+	},
+}
+
 var issueAddCommentCmd = &cobra.Command{
 	Use:   "add-comment <issue-reference> <content>",
 	Short: "Add a Markdown comment to an issue",
@@ -304,7 +331,7 @@ var issueGetValidLinksCmd = &cobra.Command{
 	Short: "Get valid issue link names",
 	Long: `Get valid issue link names for this OneDev server. Use this to
 discover which link names are accepted as the <link-name> argument when
-running 'tod issue link'.
+running 'tod issue link' or 'tod issue unlink'.
 
 The description is fetched from the OneDev server endpoint
 /~api/tod/get-valid-issue-links.`,
@@ -452,6 +479,7 @@ func initIssueCommands() {
 		issueEditCmd,
 		issueChangeStateCmd,
 		issueLinkCmd,
+		issueUnlinkCmd,
 		issueAddCommentCmd,
 		issueLogWorkCmd,
 		issueCreateBranchCmd,

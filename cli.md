@@ -92,6 +92,7 @@ determines the entity type.
 | `tod issue edit <ref>` | Edit an existing issue. Flags: `--title`, `--description`, `--field key=value` (repeatable), `--iteration` (repeatable), `--own-estimated-time`, `--confidential`. |
 | `tod issue change-state <ref> <state>` | Change state. Flags: `--comment` (Markdown), `--field key=value` (repeatable). |
 | `tod issue link <source ref> <link-name> <target ref>` | Add `<target ref>` as `<link-name>` of `<source ref>` (run `tod issue get-valid-links` for valid link names). |
+| `tod issue unlink <source ref> <link-name> <target ref>` | Remove `<target ref>` as `<link-name>` of `<source ref>` (run `tod issue get-valid-links` for valid link names). Fails if the link does not exist. |
 | `tod issue add-comment <ref> <content>` | Add a Markdown comment. |
 | `tod issue log-work <ref> <hours>` | Record time spent (`<hours>` must be a positive integer). Flag: `--comment` (Markdown). |
 | `tod issue create-branch <ref>` | Create the issue branch on the server if it does not exist, and print the branch name. No checkout required; use a qualified reference without a current project. |
@@ -99,7 +100,7 @@ determines the entity type.
 | `tod issue current-reference` | Print the issue number inferred from the current branch (matched against `[<prefix>/]issue-<n>[-<suffix>]`). Fails if no issue number can be inferred. |
 | `tod issue get-query-description` | Print the OneDev issue query DSL description (syntax reference for `--query` of `issue list`). |
 | `tod issue get-valid-fields` | Print valid issue fields and their allowed values (use before passing `--field` to `create`/`edit`/`change-state`). |
-| `tod issue get-valid-links` | Print valid issue link names (use as the `<link-name>` argument to `issue link`). |
+| `tod issue get-valid-links` | Print valid issue link names (use as the `<link-name>` argument to `issue link` or `issue unlink`). |
 
 ## `tod pr`
 

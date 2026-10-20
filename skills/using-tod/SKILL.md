@@ -36,7 +36,7 @@ For API-only work, use explicit references and project flags directly;
 Commands are grouped by resource:
 
 - `tod issue` -- `list`, `get`, `get-comments`, `create`, `edit`, `change-state`,
-  `link`, `add-comment`, `log-work`, `create-branch`, `checkout`,
+  `link`, `unlink`, `add-comment`, `log-work`, `create-branch`, `checkout`,
   `current-reference`,
   `get-query-description`, `get-valid-fields`, `get-valid-links`
 - `tod pr` -- `list`, `get`, `get-comments`, `get-code-comments`, `get-builds`, `get-patch`,
@@ -114,7 +114,7 @@ Then inspect images and read other files as needed.
 ## Requesting user consent for state-changing calls
 
 Ask the user to confirm before running any command that changes OneDev
-state: `create`, `edit`, `change-state`, `link`, `add-comment`,
+state: `create`, `edit`, `change-state`, `link`, `unlink`, `add-comment`,
 `add-code-comment`, `add-reply`, `resolve`, `unresolve`, `log-work`,
 `create-branch`, `checkout`, `approve`, `request-changes`, `merge`, `discard`, `run` etc. Various
 list/get commands do not need consent.
