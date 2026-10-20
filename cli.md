@@ -81,6 +81,54 @@ Commands that take a `<ref>`/`<source ref>`/`<target ref>` argument accept
 `myproject#123`, `PROJ-123`). The subcommand (`issue`, `pr`, or `build`)
 determines the entity type.
 
+### Markdown descriptions, comments, notes, and review summaries
+
+Use `--file <path>` to read Markdown from a file, or `--file -` to read stdin.
+The command determines which content is read:
+
+| Content | Commands |
+|---------|----------|
+| Description | `issue create`, `issue edit`, `pr create`, `pr edit` |
+| Comment or reply | `issue add-comment`, `issue change-state`, `issue log-work`, `pr add-comment`, `pr add-code-comment`, `pr discard`, `code-comment add-reply` |
+| Note | `code-comment resolve`, `code-comment unresolve` |
+| Review summary | `pr approve`, `pr request-changes` |
+
+For `pr add-code-comment`, `--on-file <path>` selects the source file being
+commented on.
+
+File/stdin input replaces the inline `<content>` argument or the corresponding
+`--description`, `--comment`, `--note`, or `--summary` flag; supplying both is an
+error, even if the inline value is empty. Commands that add a comment or reply
+require nonblank content from either source. Descriptions, comments, notes, and
+summaries on other operations remain optional. An inline `-` is still literal
+text; only `--file -` reads stdin.
+
+Content is sent unchanged, including line endings, indentation, and trailing
+newlines. Relative input file paths are resolved from the process's current
+directory, independently of `--working-dir`.
+
+```bash
+tod issue create 'Support Markdown files' --file description.md
+tod issue edit TOD-17 --file - < description.md
+tod pr create 'Support Markdown files' --file description.md
+tod pr edit 42 --file description.md
+tod issue add-comment TOD-17 --file report.md
+tod pr add-comment 42 --file - < report.md
+tod issue change-state TOD-17 Closed --file resolution.md
+tod issue log-work TOD-17 2 --file work-log.md
+tod pr approve 42 --file review.md
+tod pr request-changes 42 --file review.md
+tod pr discard 42 --file reason.md
+tod pr add-code-comment 42 --on-file src/main.go --from-line 10 --file review.md
+tod code-comment add-reply 123 --file reply.md
+tod code-comment resolve 123 --file resolution.md
+tod code-comment unresolve 123 --file - <<'MARKDOWN'
+The example still expands `$HOME` and `$(command)`.
+
+Please preserve this text literally.
+MARKDOWN
+```
+
 ## `tod issue`
 
 | Command | Description |
@@ -88,19 +136,26 @@ determines the entity type.
 | `tod issue list` | Query issues. Flags: `--project`, `--query`, `--offset`, `--count`. |
 | `tod issue get <ref>` | Detail information of a issue except comments. |
 | `tod issue get-comments <ref>` | List comments on an issue. |
-| `tod issue create <title>` | Create a new issue. Flags: `--description`, `--project`, `--field key=value` (repeatable), `--iteration` (repeatable), `--own-estimated-time`, `--confidential`. |
-| `tod issue edit <ref>` | Edit an existing issue. Flags: `--title`, `--description`, `--field key=value` (repeatable), `--iteration` (repeatable), `--own-estimated-time`, `--confidential`. |
-| `tod issue change-state <ref> <state>` | Change state. Flags: `--comment` (Markdown), `--field key=value` (repeatable). |
+| `tod issue create <title>` | Create a new issue. Flags: `--description` or `--file` (use `-` for stdin), `--project`, `--field key=value` (repeatable), `--iteration` (repeatable), `--own-estimated-time`, `--confidential`. |
+| `tod issue edit <ref>` | Edit an existing issue. Flags: `--title`, `--description` or `--file` (use `-` for stdin), `--field key=value` (repeatable), `--iteration` (repeatable), `--own-estimated-time`, `--confidential`. |
+| `tod issue change-state <ref> <state>` | Change state. Flags: `--comment` (Markdown) or `--file` (use `-` for stdin), `--field key=value` (repeatable). |
 | `tod issue link <source ref> <link-name> <target ref>` | Add `<target ref>` as `<link-name>` of `<source ref>` (run `tod issue get-valid-links` for valid link names). |
 | `tod issue unlink <source ref> <link-name> <target ref>` | Remove `<target ref>` as `<link-name>` of `<source ref>` (run `tod issue get-valid-links` for valid link names). Fails if the link does not exist. |
-| `tod issue add-comment <ref> <content>` | Add a Markdown comment. |
-| `tod issue log-work <ref> <hours>` | Record time spent (`<hours>` must be a positive integer). Flag: `--comment` (Markdown). |
+| `tod issue add-comment <ref> [content]` | Add a Markdown comment inline or with `--file` (use `-` for stdin). |
+| `tod issue log-work <ref> <hours>` | Record time spent (`<hours>` must be a positive integer). Flags: `--comment` (Markdown) or `--file` (use `-` for stdin). |
 | `tod issue create-branch <ref>` | Create the issue branch on the server if it does not exist, and print the branch name. No checkout required; use a qualified reference without a current project. |
 | `tod issue checkout <ref>` | Check out the issue branch into the working directory, set up remote tracking, and update already retrieved submodules. Flag: `--for-write`. |
 | `tod issue current-reference` | Print the issue number inferred from the current branch (matched against `[<prefix>/]issue-<n>[-<suffix>]`). Fails if no issue number can be inferred. |
 | `tod issue get-query-description` | Print the OneDev issue query DSL description (syntax reference for `--query` of `issue list`). |
 | `tod issue get-valid-fields` | Print valid issue fields and their allowed values (use before passing `--field` to `create`/`edit`/`change-state`). |
 | `tod issue get-valid-links` | Print valid issue link names (use as the `<link-name>` argument to `issue link` or `issue unlink`). |
+
+When `create`, `edit`, or `change-state` rejects a choice supplied with `--field`,
+the server error includes the field name, invalid value, and valid choices. For
+example, `--field Type=Taks` might report
+`Invalid choice value "Taks" for "Type"; valid values: Bug, Task, Improvement`.
+For fields that accept multiple values, the error lists the invalid entries and
+the valid choices.
 
 ## `tod pr`
 
@@ -112,16 +167,16 @@ determines the entity type.
 | `tod pr get-code-comments <ref>` | List code comments on a pull request. |
 | `tod pr get-builds <ref>` | List builds of a pull request. |
 | `tod pr get-patch <ref>` | Patch. Flag: `--for-code-review`. |
-| `tod pr create <title>` | Create a pull request. Flags: `--source-branch` (defaults to current git branch), `--target-branch`, `--description`, `--source-project`, `--target-project`, `--assignee`, `--reviewer`, `--label`, `--merge-strategy`. |
+| `tod pr create <title>` | Create a pull request. Flags: `--source-branch` (defaults to current git branch), `--target-branch`, `--description` or `--file` (use `-` for stdin), `--source-project`, `--target-project`, `--assignee`, `--reviewer`, `--label`, `--merge-strategy`. |
 | `tod pr get-title-and-description-requirement` | Get pull request title and description requirement. Flags: `--source-branch` (defaults to current git branch), `--target-branch`, `--source-project`, `--target-project`. |
 | `tod pr get-commit-message-requirement` | Get pull request commit message requirement. Flags: `--source-branch` (defaults to current git branch), `--target-branch`, `--source-project`, `--target-project`. |
-| `tod pr edit <ref>` | Edit a pull request. Flags: `--title`, `--description`, `--assignee`, `--add-reviewer`, `--remove-reviewer`, `--label`, `--merge-strategy`, `--auto-merge`, `--auto-merge-commit-message`. |
-| `tod pr approve <ref>` | Approve a pull request as a pending reviewer. Flag: `--summary` (Markdown review summary). |
-| `tod pr request-changes <ref>` | Request changes on a pull request as a pending reviewer. Flag: `--summary` (Markdown review summary). |
+| `tod pr edit <ref>` | Edit a pull request. Flags: `--title`, `--description` or `--file` (use `-` for stdin), `--assignee`, `--add-reviewer`, `--remove-reviewer`, `--label`, `--merge-strategy`, `--auto-merge`, `--auto-merge-commit-message`. |
+| `tod pr approve <ref>` | Approve a pull request as a pending reviewer. Flags: `--summary` (Markdown review summary) or `--file` (use `-` for stdin). |
+| `tod pr request-changes <ref>` | Request changes on a pull request as a pending reviewer. Flags: `--summary` (Markdown review summary) or `--file` (use `-` for stdin). |
 | `tod pr merge <ref>` | Merge a pull request. Flag: `--commit-message`. |
-| `tod pr discard <ref>` | Discard (close without merging) a pull request. Flag: `--comment` (Markdown). |
-| `tod pr add-comment <ref> <content>` | Add a Markdown comment. |
-| `tod pr add-code-comment <ref> <content>` | Add a Markdown code comment to a line range visible on the right side of the PR patch. Flags: `--file` (required), `--from-line` (required, 1-based), `--to-line` (defaults to `--from-line`). |
+| `tod pr discard <ref>` | Discard (close without merging) a pull request. Flags: `--comment` (Markdown) or `--file` (use `-` for stdin). |
+| `tod pr add-comment <ref> [content]` | Add a Markdown comment inline or with `--file` (use `-` for stdin). |
+| `tod pr add-code-comment <ref> [content]` | Add a Markdown code comment to a line range visible on the right side of the PR patch. Flags: `--on-file` (source path, required), `--from-line` (required, 1-based), `--to-line` (defaults to `--from-line`), `--file` (Markdown input instead of inline content; use `-` for stdin). |
 | `tod pr checkout <ref>` | Check out the pull request into the working directory and update already retrieved submodules. Flag: `--for-write`. |
 | `tod pr current-reference` | Print the number of the single open pull request whose source branch is the current git branch. Fails if zero or multiple pull requests match. |
 | `tod pr get-query-description` | Print the OneDev pull request query DSL description (syntax reference for `--query` of `pr list`). |
@@ -134,9 +189,9 @@ require a repository.
 
 | Command | Description |
 |---------|-------------|
-| `tod code-comment add-reply <comment-id> <content>` | Add a Markdown reply to a code comment. |
-| `tod code-comment resolve <comment-id>` | Mark a code comment as resolved. Flag: `--note` (Markdown). |
-| `tod code-comment unresolve <comment-id>` | Mark a code comment as unresolved. Flag: `--note` (Markdown). |
+| `tod code-comment add-reply <comment-id> [content]` | Add a Markdown reply inline or with `--file` (use `-` for stdin). |
+| `tod code-comment resolve <comment-id>` | Mark a code comment as resolved. Flags: `--note` (Markdown) or `--file` (use `-` for stdin). |
+| `tod code-comment unresolve <comment-id>` | Mark a code comment as unresolved. Flags: `--note` (Markdown) or `--file` (use `-` for stdin). |
 
 ## `tod build`
 

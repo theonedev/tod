@@ -153,7 +153,10 @@ var prCreateCmd = &cobra.Command{
 		title := args[0]
 		sourceBranch, _ := cmd.Flags().GetString("source-branch")
 		targetBranch, _ := cmd.Flags().GetString("target-branch")
-		description, _ := cmd.Flags().GetString("description")
+		description, err := readMarkdownFlag(cmd, "description")
+		if err != nil {
+			return err
+		}
 		sourceProject, _ := cmd.Flags().GetString("source-project")
 		targetProject, _ := cmd.Flags().GetString("target-project")
 		assignees, _ := cmd.Flags().GetStringArray("assignee")
@@ -219,7 +222,10 @@ var prEditCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		title, _ := cmd.Flags().GetString("title")
-		description, _ := cmd.Flags().GetString("description")
+		description, err := readMarkdownFlag(cmd, "description")
+		if err != nil {
+			return err
+		}
 		assignees, _ := cmd.Flags().GetStringArray("assignee")
 		addReviewers, _ := cmd.Flags().GetStringArray("add-reviewer")
 		removeReviewers, _ := cmd.Flags().GetStringArray("remove-reviewer")
@@ -300,7 +306,10 @@ var prApproveCmd = &cobra.Command{
 	Short: "Approve a pull request as a pending reviewer",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		summary, _ := cmd.Flags().GetString("summary")
+		summary, err := readMarkdownFlag(cmd, "summary")
+		if err != nil {
+			return err
+		}
 		return runPullRequestOperation(cmd, "approve-pull-request", args[0], summary)
 	},
 }
@@ -310,7 +319,10 @@ var prRequestChangesCmd = &cobra.Command{
 	Short: "Request changes on a pull request as a pending reviewer",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		summary, _ := cmd.Flags().GetString("summary")
+		summary, err := readMarkdownFlag(cmd, "summary")
+		if err != nil {
+			return err
+		}
 		return runPullRequestOperation(cmd, "request-changes-on-pull-request", args[0], summary)
 	},
 }
@@ -330,17 +342,23 @@ var prDiscardCmd = &cobra.Command{
 	Short: "Discard (close without merging) a pull request",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		comment, _ := cmd.Flags().GetString("comment")
+		comment, err := readMarkdownFlag(cmd, "comment")
+		if err != nil {
+			return err
+		}
 		return runPullRequestOperation(cmd, "discard-pull-request", args[0], comment)
 	},
 }
 
 var prAddCommentCmd = &cobra.Command{
-	Use:   "add-comment <pr-reference> <content>",
+	Use:   "add-comment <pr-reference> [content]",
 	Short: "Add a Markdown comment to a pull request",
-	Args:  nonEmptyCommentArgs,
+	Args:  markdownContentArgs("file"),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		content := args[1]
+		content, err := readMarkdownContent(cmd, args, "file")
+		if err != nil {
+			return err
+		}
 
 		currentProject, err := currentProjectFor(cmd)
 		if err != nil {
@@ -359,25 +377,29 @@ var prAddCommentCmd = &cobra.Command{
 }
 
 var prAddCodeCommentCmd = &cobra.Command{
-	Use:   "add-code-comment <pr-reference> <content>",
+	Use:   "add-code-comment <pr-reference> [content]",
 	Short: "Add a Markdown code comment to pull request patch",
 	Long: `Add a Markdown code comment to a line range of a file in the pull request patch.
 The line range must be visible in right side (added lines or equal lines inside context) of the pull request patch.`,
-	Args: cobra.ExactArgs(2),
+	Args: markdownContentArgs("file"),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		content := args[1]
-		filePath, _ := cmd.Flags().GetString("file")
+		filePath, _ := cmd.Flags().GetString("on-file")
 		fromLine, _ := cmd.Flags().GetInt("from-line")
 		toLine, _ := cmd.Flags().GetInt("to-line")
 
 		if filePath == "" {
-			return fmt.Errorf("--file is required")
+			return fmt.Errorf("--on-file is required")
 		}
 		if fromLine <= 0 {
 			return fmt.Errorf("--from-line must be greater than 0")
 		}
 		if !cmd.Flags().Changed("to-line") {
 			toLine = fromLine
+		}
+
+		content, err := readMarkdownContent(cmd, args, "file")
+		if err != nil {
+			return err
 		}
 
 		currentProject, err := currentProjectFor(cmd)
@@ -588,6 +610,7 @@ func initPullRequestCommands() {
 	prCreateCmd.Flags().String("source-branch", "", "Source branch (defaults to the current git branch)")
 	prCreateCmd.Flags().String("target-branch", "", "Target branch (defaults to the target project's default branch)")
 	prCreateCmd.Flags().String("description", "", "Pull request description")
+	prCreateCmd.Flags().String("file", "", "Read the Markdown description from a file (use - for stdin); cannot be combined with --description")
 	prCreateCmd.Flags().String("source-project", "", "Source project (defaults to current project; required outside a checkout)")
 	prCreateCmd.Flags().String("target-project", "", "Target project (defaults to source project, or forked from project for forks)")
 	prCreateCmd.Flags().StringArray("assignee", nil, "Assignee login name (repeatable)")
@@ -607,6 +630,7 @@ func initPullRequestCommands() {
 
 	prEditCmd.Flags().String("title", "", "New pull request title")
 	prEditCmd.Flags().String("description", "", "New pull request description")
+	prEditCmd.Flags().String("file", "", "Read the Markdown description from a file (use - for stdin); cannot be combined with --description")
 	prEditCmd.Flags().StringArray("assignee", nil, "Assignee login name (repeatable)")
 	prEditCmd.Flags().StringArray("add-reviewer", nil, "Reviewer login name to add (repeatable)")
 	prEditCmd.Flags().StringArray("remove-reviewer", nil, "Reviewer login name to remove (repeatable)")
@@ -616,11 +640,16 @@ func initPullRequestCommands() {
 	prEditCmd.Flags().String("auto-merge-commit-message", "", "Preset commit message for auto merge")
 
 	prApproveCmd.Flags().String("summary", "", "Optional Markdown review summary")
+	prApproveCmd.Flags().String("file", "", "Read the Markdown review summary from a file (use - for stdin); cannot be combined with --summary")
 	prRequestChangesCmd.Flags().String("summary", "", "Optional Markdown review summary")
+	prRequestChangesCmd.Flags().String("file", "", "Read the Markdown review summary from a file (use - for stdin); cannot be combined with --summary")
 	prMergeCmd.Flags().String("commit-message", "", "Optional merge commit message (must satisfy server-side validation if provided)")
 	prDiscardCmd.Flags().String("comment", "", "Optional Markdown comment explaining the discard")
+	prDiscardCmd.Flags().String("file", "", "Read the Markdown comment from a file (use - for stdin); cannot be combined with --comment")
 
-	prAddCodeCommentCmd.Flags().String("file", "", "Path of the file to comment on (required)")
+	prAddCommentCmd.Flags().String("file", "", "Read the Markdown comment from a file (use - for stdin) instead of <content>")
+	prAddCodeCommentCmd.Flags().String("on-file", "", "Path of the file to comment on (required)")
+	prAddCodeCommentCmd.Flags().String("file", "", "Read the Markdown code comment from a file (use - for stdin) instead of <content>")
 	prAddCodeCommentCmd.Flags().Int("from-line", 0, "Start line number of the comment range, 1-based (required)")
 	prAddCodeCommentCmd.Flags().Int("to-line", 0, "End line number of the comment range, 1-based (defaults to --from-line)")
 

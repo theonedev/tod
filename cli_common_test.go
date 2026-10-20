@@ -55,16 +55,30 @@ func TestSuppressUsageForRunErrorsKeepsArgUsage(t *testing.T) {
 	}
 }
 
-func TestNonEmptyCommentArgs(t *testing.T) {
-	cmd := &cobra.Command{Use: "add-comment <reference> <content>"}
+func TestMarkdownContentArgs(t *testing.T) {
+	cmd := &cobra.Command{Use: "add-comment <reference> [content]"}
+	cmd.Flags().String("file", "", "")
+	validate := markdownContentArgs("file")
 
-	if err := nonEmptyCommentArgs(cmd, []string{"#1", "A comment"}); err != nil {
+	if err := validate(cmd, []string{"#1", "A comment"}); err != nil {
 		t.Fatalf("expected non-empty comment to be accepted: %v", err)
 	}
-	if err := nonEmptyCommentArgs(cmd, []string{"#1", " \t\n"}); err == nil || err.Error() != "<content> must not be empty" {
+	if err := validate(cmd, []string{"#1", " \t\n"}); err == nil || err.Error() != "<content> must not be empty" {
 		t.Fatalf("expected whitespace-only comment to be rejected, got %v", err)
 	}
-	if err := nonEmptyCommentArgs(cmd, []string{"#1"}); err == nil {
+	if err := validate(cmd, []string{"#1"}); err == nil {
 		t.Fatal("expected missing comment argument to be rejected")
+	}
+	if err := validate(cmd, nil); err == nil {
+		t.Fatal("expected missing reference to be rejected")
+	}
+	if err := cmd.Flags().Set("file", "-"); err != nil {
+		t.Fatal(err)
+	}
+	if err := validate(cmd, []string{"#1"}); err != nil {
+		t.Fatalf("expected file input to replace the content argument: %v", err)
+	}
+	if err := validate(cmd, []string{"#1", ""}); err == nil {
+		t.Fatal("expected even an empty inline argument to conflict with file input")
 	}
 }

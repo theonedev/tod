@@ -14,17 +14,21 @@ var codeCommentCmd = &cobra.Command{
 }
 
 var codeCommentAddReplyCmd = &cobra.Command{
-	Use:   "add-reply <comment-id> <content>",
+	Use:   "add-reply <comment-id> [content]",
 	Short: "Add a Markdown reply to a code comment",
-	Args:  cobra.ExactArgs(2),
+	Args:  markdownContentArgs("file"),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		commentId, err := parseCommentId(args[0])
 		if err != nil {
 			return err
 		}
+		content, err := readMarkdownContent(cmd, args, "file")
+		if err != nil {
+			return err
+		}
 		body, err := postText("add-code-comment-reply", url.Values{
 			"commentId": {commentId},
-		}, args[1])
+		}, content)
 		if err != nil {
 			return err
 		}
@@ -42,7 +46,10 @@ var codeCommentResolveCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		note, _ := cmd.Flags().GetString("note")
+		note, err := readMarkdownFlag(cmd, "note")
+		if err != nil {
+			return err
+		}
 		body, err := postText("resolve-code-comment", url.Values{
 			"commentId": {commentId},
 		}, note)
@@ -63,7 +70,10 @@ var codeCommentUnresolveCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		note, _ := cmd.Flags().GetString("note")
+		note, err := readMarkdownFlag(cmd, "note")
+		if err != nil {
+			return err
+		}
 		body, err := postText("unresolve-code-comment", url.Values{
 			"commentId": {commentId},
 		}, note)
@@ -83,8 +93,11 @@ func parseCommentId(raw string) (string, error) {
 }
 
 func initCodeCommentCommands() {
+	codeCommentAddReplyCmd.Flags().String("file", "", "Read the Markdown reply from a file (use - for stdin) instead of <content>")
 	codeCommentResolveCmd.Flags().String("note", "", "Optional Markdown note explaining the resolution")
+	codeCommentResolveCmd.Flags().String("file", "", "Read the Markdown note from a file (use - for stdin); cannot be combined with --note")
 	codeCommentUnresolveCmd.Flags().String("note", "", "Optional Markdown note explaining why the comment is unresolved")
+	codeCommentUnresolveCmd.Flags().String("file", "", "Read the Markdown note from a file (use - for stdin); cannot be combined with --note")
 
 	codeCommentCmd.AddCommand(
 		codeCommentAddReplyCmd,

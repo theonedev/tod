@@ -33,8 +33,8 @@ whitespace-only entries. An empty handoff has zero entries.
 
 Run the workflow sequentially. Before aborting it for any reason, always follow
 this section. If current user is an AI user and `<issue-reference>` is known,
-immediately run
-`tod issue add-comment <issue-reference> '<reason>'` to explain the stop reason.
+write the stop reason to a temporary Markdown file and immediately run
+`tod issue add-comment <issue-reference> --file <reason-file>` to explain it.
 Report the reason, including the command and error when applicable, and stop.
 
 
@@ -43,19 +43,25 @@ Report the reason, including the command and error when applicable, and stop.
 If current user is an AI user, do not ask the
 current user for direction in this workflow. When you would otherwise ask a
 question, post a concise issue comment explaining the blocker or needed
-decision, then stop:
+decision, then stop. Write the comment to `<reason-file>` and run:
 ```bash
-tod issue add-comment <issue-reference> '<reason>'
+tod issue add-comment <issue-reference> --file <reason-file>
 ```
 
-## Shell quoting for authored text
+## Passing authored text
 
-When passing authored text such as Markdown comments, commit messages, PR
-titles, or PR descriptions to a shell command, quote it so the shell preserves
-it literally. Prefer a single-quoted argument, and escape any literal single
-quote inside the text as `'\''`. Do not wrap text containing backticks in double
-quotes, as the shell will treat backticks as command substitution before the
-command receives the text.
+For Markdown comments and issue/PR descriptions, prefer writing the exact text
+to a temporary file outside the repository and passing `--file <path>`. Use a
+file-writing tool or a quoted heredoc to create the file so backticks, dollar
+signs, quotes, and line breaks remain literal. `--file -` also accepts stdin,
+for example through a quoted heredoc. Omit the inline comment argument or
+`--description` when using `--file`.
+
+For inline arguments such as commit messages and PR titles,
+quote the text so the shell preserves it literally. Prefer a single-quoted
+argument, and escape any literal single quote inside the text as `'\''`. Do not
+wrap text containing backticks in double quotes, as the shell will treat
+backticks as command substitution before the command receives the text.
 
 ## Markdown references for issue, pull request, or build
 
@@ -184,9 +190,10 @@ or `PROJ-123`):
    tod pr get-title-and-description-requirement --target-project <target-project> --target-branch <target-branch>
    ```
    Compose a concise title and description from the submitted commits,
-   validate them, then run:
+   validate them, write the exact description to a temporary Markdown file,
+   then run:
    ```bash
-   tod pr create '<title>' --description '<description>' --target-project <target-project> --target-branch <target-branch>
+   tod pr create '<title>' --file <description-file> --target-project <target-project> --target-branch <target-branch>
    ```
    Pass the resolved target project and target branch values. Save the returned
    PR reference and URL.
@@ -208,9 +215,10 @@ or `PROJ-123`):
    - If `<saved-issue-comments>` is empty and no code was submitted, report
      that there is nothing to submit.
 
-   For each comment in `<saved-issue-comments>`, run:
+   For each comment in `<saved-issue-comments>`, write its exact text to a
+   temporary Markdown file, then run:
    ```bash
-   tod issue add-comment <issue-reference> '<comment>'
+   tod issue add-comment <issue-reference> --file <comment-file>
    ```
 
 8. **Restore the previous checkout and clean up the current branch if applicable.**

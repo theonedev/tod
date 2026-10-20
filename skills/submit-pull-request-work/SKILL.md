@@ -37,8 +37,8 @@ handoff has zero actions.
 
 Run the workflow sequentially. Before aborting it for any reason, always follow
 this section. If the current user is an AI user and `<pr-reference>` is known,
-immediately run
-`tod pr add-comment <pr-reference> '<reason>'` to explain the stop reason.
+write the stop reason to a temporary Markdown file and immediately run
+`tod pr add-comment <pr-reference> --file <reason-file>` to explain it.
 Report the reason, including the command and error when applicable, and stop.
 
 
@@ -47,19 +47,25 @@ Report the reason, including the command and error when applicable, and stop.
 If the current user is an AI user, do not ask the
 current user for direction in this workflow. When you would otherwise ask a
 question, post a concise PR comment explaining the blocker or needed decision,
-then stop:
+then stop. Write the comment to `<reason-file>` and run:
 ```bash
-tod pr add-comment <pr-reference> '<reason>'
+tod pr add-comment <pr-reference> --file <reason-file>
 ```
 
-## Shell quoting for authored text
+## Passing authored text
 
-When passing authored text such as Markdown comments, review notes, summaries,
-or commit messages to `tod` from a shell command, quote it so the shell
+For Markdown comments, replies, notes, and review summaries, prefer writing the
+exact text to a temporary file outside the repository and passing `--file <path>`.
+Use a file-writing tool or a quoted heredoc to create the file so backticks,
+dollar signs, quotes, and line breaks remain literal. `--file -` also accepts
+stdin, for example through a quoted heredoc. Omit the inline comment argument,
+`--note`, or `--summary` when using `--file`.
+
+For inline arguments such as commit messages, quote the text so the shell
 preserves it literally. Prefer a single-quoted argument, and escape any literal
-single quote inside the text as `'\''`. Do not wrap text containing backticks in
-double quotes, as the shell will treat backticks as command substitution before
-`tod` receives the text.
+single quote inside the text as `'\''`. Do not wrap text containing backticks
+in double quotes, as the shell will treat backticks as command substitution
+before the command receives the text.
 
 ## Markdown references for issue, pull request, or build
 
@@ -162,15 +168,17 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
      there is nothing to submit.
 
    For each action in `<saved-pr-actions>`, use the command that matches where
-   the discussion lives:
-   - New line-anchored finding -> `tod pr add-code-comment <pr-reference> '<comment>' --file <path> --from-line <line> [--to-line <line>]`
-   - General PR feedback -> `tod pr add-comment <pr-reference> '<reply>'`
-   - Line-anchored thread -> `tod code-comment add-reply <comment-id> '<reply>'`
-   - Outstanding concern addressed in code -> `tod code-comment resolve <comment-id> --note '<why>'` when appropriate
-   - Concern stated addressed but not actually addressed in code -> `tod code-comment unresolve <comment-id> --note '<why>'` when appropriate
+   the discussion lives. Each input file below must contain that action's
+   exact saved Markdown text, written to a temporary file:
+
+   - New line-anchored finding -> `tod pr add-code-comment <pr-reference> --file <comment-file> --on-file <path> --from-line <line> [--to-line <line>]`
+   - General PR feedback -> `tod pr add-comment <pr-reference> --file <comment-file>`
+   - Line-anchored thread -> `tod code-comment add-reply <comment-id> --file <reply-file>`
+   - Outstanding concern addressed in code -> `tod code-comment resolve <comment-id> --file <note-file>` when appropriate; omit `--file` when there is no note
+   - Concern stated addressed but not actually addressed in code -> `tod code-comment unresolve <comment-id> --file <note-file>` when appropriate; omit `--file` when there is no note
    - Reviewer outcome -> `tod pr approve <pr-reference>` or
      `tod pr request-changes <pr-reference>` when the saved action is a
-     pending-reviewer state change; include `--summary '<summary>'` when the
+     pending-reviewer state change; include `--file <summary-file>` when the
      saved outcome has summary text
    - Merge outcome -> inspect `tod pr get <pr-reference>`. If its merge strategy
      is `SQUASH_SOURCE_BRANCH_COMMITS`, read:

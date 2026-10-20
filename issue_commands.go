@@ -82,7 +82,10 @@ var issueCreateCmd = &cobra.Command{
 	Short: "Create a new issue",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		description, _ := cmd.Flags().GetString("description")
+		description, err := readMarkdownFlag(cmd, "description")
+		if err != nil {
+			return err
+		}
 		project, _ := cmd.Flags().GetString("project")
 		fields, _ := cmd.Flags().GetStringArray("field")
 		iterations, _ := cmd.Flags().GetStringArray("iteration")
@@ -130,7 +133,10 @@ var issueEditCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		title, _ := cmd.Flags().GetString("title")
-		description, _ := cmd.Flags().GetString("description")
+		description, err := readMarkdownFlag(cmd, "description")
+		if err != nil {
+			return err
+		}
 		fields, _ := cmd.Flags().GetStringArray("field")
 		iterations, _ := cmd.Flags().GetStringArray("iteration")
 		ownEstimatedTime, _ := cmd.Flags().GetFloat64("own-estimated-time")
@@ -178,7 +184,10 @@ var issueChangeStateCmd = &cobra.Command{
 	Short: "Change the state of an issue",
 	Args:  cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		comment, _ := cmd.Flags().GetString("comment")
+		comment, err := readMarkdownFlag(cmd, "comment")
+		if err != nil {
+			return err
+		}
 		fields, _ := cmd.Flags().GetStringArray("field")
 
 		payload, err := collectFieldFlags(fields)
@@ -262,11 +271,14 @@ Run 'tod issue get-valid-links' for valid link names.`,
 }
 
 var issueAddCommentCmd = &cobra.Command{
-	Use:   "add-comment <issue-reference> <content>",
+	Use:   "add-comment <issue-reference> [content]",
 	Short: "Add a Markdown comment to an issue",
-	Args:  nonEmptyCommentArgs,
+	Args:  markdownContentArgs("file"),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		content := args[1]
+		content, err := readMarkdownContent(cmd, args, "file")
+		if err != nil {
+			return err
+		}
 
 		currentProject, err := currentProjectFor(cmd)
 		if err != nil {
@@ -418,11 +430,14 @@ var issueLogWorkCmd = &cobra.Command{
 	Short: "Log spent time against an issue",
 	Args:  cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		comment, _ := cmd.Flags().GetString("comment")
-
 		var hours int
 		if _, err := fmt.Sscanf(args[1], "%d", &hours); err != nil || hours <= 0 {
 			return fmt.Errorf("<hours> must be a positive integer")
+		}
+
+		comment, err := readMarkdownFlag(cmd, "comment")
+		if err != nil {
+			return err
 		}
 
 		currentProject, err := currentProjectFor(cmd)
@@ -452,6 +467,7 @@ func initIssueCommands() {
 	issueListCmd.Flags().Int("count", DefaultQueryCount, fmt.Sprintf("number of issues to return (optional, defaults to %d, max %d)", DefaultQueryCount, MaxQueryCount))
 
 	issueCreateCmd.Flags().String("description", "", "Issue description")
+	issueCreateCmd.Flags().String("file", "", "Read the Markdown description from a file (use - for stdin); cannot be combined with --description")
 	issueCreateCmd.Flags().String("project", "", "Project to create issue in (defaults to current project; required outside a checkout)")
 	issueCreateCmd.Flags().StringArray("field", nil, "Additional field in form key=value (repeatable; JSON values are parsed; run 'tod issue get-valid-fields' for valid field names and values)")
 	issueCreateCmd.Flags().StringArray("iteration", nil, "Iteration name to assign (repeatable)")
@@ -460,15 +476,19 @@ func initIssueCommands() {
 
 	issueEditCmd.Flags().String("title", "", "New issue title")
 	issueEditCmd.Flags().String("description", "", "New issue description")
+	issueEditCmd.Flags().String("file", "", "Read the Markdown description from a file (use - for stdin); cannot be combined with --description")
 	issueEditCmd.Flags().StringArray("field", nil, "Field to update in form key=value (repeatable; JSON values are parsed; run 'tod issue get-valid-fields' for valid field names and values)")
 	issueEditCmd.Flags().StringArray("iteration", nil, "Iteration name to assign (repeatable)")
 	issueEditCmd.Flags().Float64("own-estimated-time", 0, "Estimated time in hours for this issue only (not including linked issues)")
 	issueEditCmd.Flags().Bool("confidential", false, "Whether the issue is confidential")
 
 	issueChangeStateCmd.Flags().String("comment", "", "Optional Markdown comment for the state change")
+	issueChangeStateCmd.Flags().String("file", "", "Read the Markdown comment from a file (use - for stdin); cannot be combined with --comment")
 	issueChangeStateCmd.Flags().StringArray("field", nil, "Additional state-specific field in form key=value (repeatable; run 'tod issue get-valid-fields' for valid field names and values)")
 
 	issueLogWorkCmd.Flags().String("comment", "", "Optional Markdown comment for the work log entry")
+	issueLogWorkCmd.Flags().String("file", "", "Read the Markdown comment from a file (use - for stdin); cannot be combined with --comment")
+	issueAddCommentCmd.Flags().String("file", "", "Read the Markdown comment from a file (use - for stdin) instead of <content>")
 	issueCheckoutCmd.Flags().Bool("for-write", false, "Test whether the user has write permission to the issue branch")
 
 	issueCmd.AddCommand(
