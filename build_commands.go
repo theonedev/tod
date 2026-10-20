@@ -27,7 +27,7 @@ var buildCmd = &cobra.Command{
 
 var buildListCmd = &cobra.Command{
 	Use:   "list",
-	Short: "Query builds in the current (or a specified) project",
+	Short: "Query builds in a project, or across projects outside a checkout",
 	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		project, _ := cmd.Flags().GetString("project")
@@ -195,8 +195,9 @@ var buildGetChangesSinceSuccessCmd = &cobra.Command{
 var buildRunCmd = &cobra.Command{
 	Use:   "run <job-name>",
 	Short: "Run a CI/CD job against a branch, tag, or local changes",
-	Long: `Run a CI/CD job in the repository.
+	Long: `Run a CI/CD job in a OneDev project.
 Exactly one of --branch, --tag, or --local must be specified.
+Use --project to run against a branch or tag without a local checkout.
 
 When --local is given, your local changes are stashed and pushed to a
 temporal ref so the server can execute the job against them without
@@ -297,6 +298,7 @@ func runBuildJobCommand(cmd *cobra.Command, args []string) error {
 	branch, _ := cmd.Flags().GetString("branch")
 	tag, _ := cmd.Flags().GetString("tag")
 	local, _ := cmd.Flags().GetBool("local")
+	project, _ := cmd.Flags().GetString("project")
 
 	selected := 0
 	if branch != "" {
@@ -313,6 +315,9 @@ func runBuildJobCommand(cmd *cobra.Command, args []string) error {
 	}
 	if selected > 1 {
 		return fmt.Errorf("--branch, --tag, and --local are mutually exclusive")
+	}
+	if local && cmd.Flags().Changed("project") {
+		return fmt.Errorf("--project cannot be used with --local; the project is inferred from the local repository")
 	}
 
 	params, err := paramsFromFlags(cmd)
@@ -333,9 +338,12 @@ func runBuildJobCommand(cmd *cobra.Command, args []string) error {
 			return err
 		}
 	} else {
-		_, currentProject, err := inferProject(workingDirOf(cmd))
+		currentProject, err := currentProjectFor(cmd)
 		if err != nil {
 			return err
+		}
+		if project == "" && currentProject == "" {
+			return fmt.Errorf("--project is required when no current OneDev project can be inferred")
 		}
 
 		jobMap := map[string]interface{}{
@@ -364,7 +372,7 @@ func runBuildJobCommand(cmd *cobra.Command, args []string) error {
 			fmt.Printf("tag '%s'...\n", tag)
 		}
 
-		build, err = runJob(currentProject, jobMap)
+		build, err = runJob(project, currentProject, jobMap)
 		if err != nil {
 			return err
 		}
@@ -409,23 +417,11 @@ func runBuildspecCheckCommand(cmd *cobra.Command, logger *log.Logger) error {
 	return nil
 }
 
-func runJob(currentProject string, jobMap map[string]interface{}) (map[string]interface{}, error) {
-	jobBytes, err := json.Marshal(jobMap)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal map to JSON: %v", err)
-	}
-	jobData := string(jobBytes)
-
-	apiURL := config.ServerUrl + "/~api/tod/run-job?currentProject=" + url.QueryEscape(currentProject)
-
-	req, err := http.NewRequest("POST", apiURL, strings.NewReader(jobData))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %v", err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-
-	body, err := makeAPICall(req)
+func runJob(project, currentProject string, jobMap map[string]interface{}) (map[string]interface{}, error) {
+	body, err := postJSON("run-job", url.Values{
+		"project":        {project},
+		"currentProject": {currentProject},
+	}, jobMap)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make API call: %v", err)
 	}
@@ -481,7 +477,7 @@ func runLocalJob(jobName string, workingDir string, params map[string][]string,
 		"reason":     reason,
 	}
 
-	return runJob(project, jobMap)
+	return runJob("", project, jobMap)
 }
 
 func findGitRoot(workingDir string) (string, error) {
@@ -740,12 +736,13 @@ func wrapWithBold(message string) string {
 func initBuildCommands() {
 	buildCmd.PersistentFlags().String("working-dir", "", "Working directory used to infer the OneDev project (defaults to current directory)")
 
-	buildListCmd.Flags().String("project", "", "Project to query builds in. Leave empty to query in current project")
+	buildListCmd.Flags().String("project", "", "Project to query builds in (defaults to current project, or all accessible projects outside a checkout)")
 	buildListCmd.Flags().String("query", "", "OneDev build query string (run 'tod build get-query-description' for the supported query DSL)")
 	buildListCmd.Flags().Int("offset", 0, "start position for the query (optional, defaults to 0)")
 	buildListCmd.Flags().Int("count", DefaultQueryCount, fmt.Sprintf("number of builds to return (optional, defaults to %d, max %d)", DefaultQueryCount, MaxQueryCount))
 
 	buildRunCmd.Flags().String("branch", "", "Branch to run the job against (one of --branch, --tag, or --local is required)")
+	buildRunCmd.Flags().String("project", "", "Project to run the job in (defaults to current project; only with --branch or --tag)")
 	buildRunCmd.Flags().String("tag", "", "Tag to run the job against (one of --branch, --tag, or --local is required)")
 	buildRunCmd.Flags().Bool("local", false, "Run the job against local changes without committing/pushing (one of --branch, --tag, or --local is required)")
 	buildRunCmd.Flags().StringArrayP("param", "p", nil, "Job parameter in form key=value (repeatable)")

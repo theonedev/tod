@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -33,8 +34,17 @@ func workingDirOf(cmd *cobra.Command) string {
 	return "."
 }
 
-// currentProjectFor infers the OneDev project from the working directory.
+// currentProjectFor returns an optional project context for server API calls.
+// Missing repository context is allowed; configuration and server errors are not.
 func currentProjectFor(cmd *cobra.Command) (string, error) {
+	project, err := requireCurrentProjectFor(cmd)
+	if errors.Is(err, errNoCurrentProject) {
+		return "", nil
+	}
+	return project, err
+}
+
+func requireCurrentProjectFor(cmd *cobra.Command) (string, error) {
 	_, project, err := inferProject(workingDirOf(cmd))
 	if err != nil {
 		return "", err

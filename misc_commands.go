@@ -101,7 +101,7 @@ The project is inferred from the current git repository's OneDev project.
 Branch defaults to the current git branch when omitted.`,
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		project, err := currentProjectFor(cmd)
+		project, err := requireCurrentProjectFor(cmd)
 		if err != nil {
 			return err
 		}

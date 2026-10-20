@@ -16,7 +16,7 @@ var prCmd = &cobra.Command{
 
 var prListCmd = &cobra.Command{
 	Use:   "list",
-	Short: "Query pull requests in the current (or a specified) project",
+	Short: "Query pull requests in a project, or across projects outside a checkout",
 	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		project, _ := cmd.Flags().GetString("project")
@@ -530,7 +530,7 @@ command prints an error and exits non-zero.`,
 			return currentReferenceError(cmd, fmt.Errorf("could not detect current branch (detached HEAD)"))
 		}
 
-		currentProject, err := currentProjectFor(cmd)
+		currentProject, err := requireCurrentProjectFor(cmd)
 		if err != nil {
 			return currentReferenceError(cmd, err)
 		}
@@ -577,7 +577,7 @@ var prCheckoutCmd = &cobra.Command{
 func initPullRequestCommands() {
 	prCmd.PersistentFlags().String("working-dir", "", "Working directory used to infer the OneDev project (defaults to current directory)")
 
-	prListCmd.Flags().String("project", "", "Project to query pull requests in. Leave empty to query in current project")
+	prListCmd.Flags().String("project", "", "Project to query pull requests in (defaults to current project, or all accessible projects outside a checkout)")
 	prListCmd.Flags().String("query", "", "OneDev pull request query string (run 'tod pr get-query-description' for the supported query DSL)")
 	prListCmd.Flags().Int("offset", 0, "start position for the query (optional, defaults to 0)")
 	prListCmd.Flags().Int("count", DefaultQueryCount, fmt.Sprintf("number of pull requests to return (optional, defaults to %d, max %d)", DefaultQueryCount, MaxQueryCount))
@@ -588,8 +588,8 @@ func initPullRequestCommands() {
 	prCreateCmd.Flags().String("source-branch", "", "Source branch (defaults to the current git branch)")
 	prCreateCmd.Flags().String("target-branch", "", "Target branch (defaults to the target project's default branch)")
 	prCreateCmd.Flags().String("description", "", "Pull request description")
-	prCreateCmd.Flags().String("source-project", "", "Source project (defaults to current project)")
-	prCreateCmd.Flags().String("target-project", "", "Target project (defaults to current project, or forked from project for forks)")
+	prCreateCmd.Flags().String("source-project", "", "Source project (defaults to current project; required outside a checkout)")
+	prCreateCmd.Flags().String("target-project", "", "Target project (defaults to source project, or forked from project for forks)")
 	prCreateCmd.Flags().StringArray("assignee", nil, "Assignee login name (repeatable)")
 	prCreateCmd.Flags().StringArray("reviewer", nil, "Reviewer login name (repeatable)")
 	prCreateCmd.Flags().StringArray("label", nil, "Label name (repeatable; run 'tod get-valid-labels' for accepted values)")
@@ -597,13 +597,13 @@ func initPullRequestCommands() {
 
 	prGetTitleAndDescriptionRequirementCmd.Flags().String("source-branch", "", "Source branch (defaults to the current git branch)")
 	prGetTitleAndDescriptionRequirementCmd.Flags().String("target-branch", "", "Target branch (defaults to the target project's default branch)")
-	prGetTitleAndDescriptionRequirementCmd.Flags().String("source-project", "", "Source project (defaults to current project)")
-	prGetTitleAndDescriptionRequirementCmd.Flags().String("target-project", "", "Target project (defaults to current project, or forked from project for forks)")
+	prGetTitleAndDescriptionRequirementCmd.Flags().String("source-project", "", "Source project (defaults to current project; required outside a checkout)")
+	prGetTitleAndDescriptionRequirementCmd.Flags().String("target-project", "", "Target project (defaults to source project, or forked from project for forks)")
 
 	prGetCommitMessageRequirementCmd.Flags().String("source-branch", "", "Source branch (defaults to the current git branch)")
 	prGetCommitMessageRequirementCmd.Flags().String("target-branch", "", "Target branch (defaults to the target project's default branch)")
-	prGetCommitMessageRequirementCmd.Flags().String("source-project", "", "Source project (defaults to current project)")
-	prGetCommitMessageRequirementCmd.Flags().String("target-project", "", "Target project (defaults to current project, or forked from project for forks)")
+	prGetCommitMessageRequirementCmd.Flags().String("source-project", "", "Source project (defaults to current project; required outside a checkout)")
+	prGetCommitMessageRequirementCmd.Flags().String("target-project", "", "Target project (defaults to source project, or forked from project for forks)")
 
 	prEditCmd.Flags().String("title", "", "New pull request title")
 	prEditCmd.Flags().String("description", "", "New pull request description")

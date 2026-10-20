@@ -7,9 +7,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const version = "4.3.4"
+const version = "4.4.0"
 
-const minRequiredServerVersion = "16.5.11"
+const minRequiredServerVersion = "16.9.5"
 
 var config *Config
 
@@ -17,7 +17,7 @@ var checkedVersionInfo VersionInfo
 
 var rootCmd = &cobra.Command{
 	Use:   "tod",
-	Short: "TOD (TheOneDev) is a command line tool for OneDev 15.1+",
+	Short: "TOD (TheOneDev) is a command line tool for OneDev " + minRequiredServerVersion + "+",
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		if cmd.Name() == "version" {
 			return nil
@@ -44,45 +44,7 @@ var rootCmd = &cobra.Command{
 	},
 }
 
-// Hidden legacy top-level commands kept so existing scripts continue working.
-// Prefer the grouped equivalents (`tod build run`, `tod pr checkout`).
-
-var runJobCmd = &cobra.Command{
-	Use:    "run <job-name>",
-	Short:  "[deprecated] alias for `tod build run`",
-	Hidden: true,
-	Args:   cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		return runBuildJobCommand(cmd, args)
-	},
-}
-
-var checkoutPullRequestCmd = &cobra.Command{
-	Use:    "checkout <pull-request-reference>",
-	Short:  "[deprecated] alias for `tod pr checkout`",
-	Hidden: true,
-	Args:   cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		forWrite, _ := cmd.Flags().GetBool("for-write")
-		logger := cliLogger("[checkout] ")
-		if err := checkoutPullRequest(workingDirOf(cmd), args[0], forWrite, logger); err != nil {
-			return fmt.Errorf("failed to checkout pull request: %v", err)
-		}
-		logger.Printf("Checked out pull request %s successfully", args[0])
-		return nil
-	},
-}
-
 func init() {
-	runJobCmd.Flags().String("branch", "", "Specify branch to run job against (one of --branch, --tag, or --local is required)")
-	runJobCmd.Flags().String("tag", "", "Specify tag to run job against (one of --branch, --tag, or --local is required)")
-	runJobCmd.Flags().Bool("local", false, "Run the job against local changes without committing/pushing (one of --branch, --tag, or --local is required)")
-	runJobCmd.Flags().StringArrayP("param", "p", nil, "Specify job parameters in form of key=value (can be used multiple times)")
-	runJobCmd.Flags().String("working-dir", "", "Specify working directory to run job against (defaults to current directory)")
-
-	checkoutPullRequestCmd.Flags().String("working-dir", "", "Specify working directory to checkout pull request against (defaults to current directory)")
-	checkoutPullRequestCmd.Flags().Bool("for-write", false, "Test whether the user has write permission to the pull request source branch")
-
 	initIssueCommands()
 	initPullRequestCommands()
 	initCodeCommentCommands()
@@ -105,11 +67,6 @@ func init() {
 		getCommitMessageRequirementCmd,
 		downloadCmd,
 		versionCmd,
-	)
-
-	rootCmd.AddCommand(
-		runJobCmd,
-		checkoutPullRequestCmd,
 		checkVersionCmd,
 	)
 

@@ -1,16 +1,70 @@
 # TOD CLI reference
 
-Every `tod` subcommand writes the raw OneDev server response to stdout (same
-payload the old MCP server returned in `ToolContent.Text`) and logs progress
-to stderr. Commands that need to talk to OneDev require a config file with
+API commands generally write the raw OneDev server response to stdout.
+Commands that operate on local files or run builds also print status and
+progress. Commands that need to talk to OneDev require a config file with
 `server-url` and `access-token` set — `$XDG_CONFIG_HOME/tod/config` or
 `~/.config/tod/config` (run `tod config set` to create one). Set the optional
 `trust-certs-file` property to trust additional PEM certificates when
 interacting with a OneDev server using a self-signed certificate or private
-CA. Commands that
-interact with the current project also expect the working directory to be
-inside a git repository whose remote points at that project (override with
-`--working-dir`).
+CA.
+
+## Project and repository context
+
+Commands infer the current project from the working directory when available.
+For commands supporting `--working-dir`, that flag selects the local directory
+used for inference or file operations; it does not specify a server project.
+Use `--project` where supported, or a qualified entity reference, to select a
+project explicitly.
+
+Issue, pull request, and build API commands can run outside a checkout:
+
+- Use a qualified reference such as `myproject#123` or `PROJ-123` for an
+  existing issue, pull request, or build. Bare numbers and `#123` require a
+  current project.
+- List commands use `--project`, the inferred current project, or all
+  accessible projects when neither is available. When listing globally,
+  references inside `--query` must also be qualified, for example
+  `fixed in pull request "myproject#42"`.
+- Creating an issue requires `--project` when no current project is available.
+- Creating a pull request or querying its title/description or commit message
+  requirements requires `--source-project` and `--source-branch` outside a
+  checkout. The target defaults to the source project's upstream project for
+  forks, or the source project otherwise.
+- Running a build against a branch or tag accepts `--project` and requires it
+  when no current project is available. `--project` cannot be combined with
+  `--local`.
+
+These commands always require a local repository:
+
+| Command | Required repository context |
+|---------|-----------------------------|
+| `tod issue checkout <ref>` | The issue's project. |
+| `tod pr checkout <ref>` | The PR's source or target project; checkout switches to its source project when needed. |
+| `tod issue current-reference` | A Git branch whose name identifies the issue number. |
+| `tod pr current-reference` | The current OneDev project and Git branch. |
+| `tod project current`, `tod remote` | A Git remote from which the OneDev project can be inferred. |
+| `tod build run --local` | The local OneDev repository and changes to submit. |
+| `tod build check-spec` | The OneDev repository containing `.onedev-buildspec.yml`. |
+| `tod get-commit-message-requirement` | The current OneDev project, even when `--branch` is supplied. |
+
+`tod issue create-branch` only creates or finds the server branch, so it can
+run outside a checkout or target another project with a qualified reference.
+`tod issue checkout` also creates the server branch when needed, with or
+without `--for-write`; that flag adds a write-permission check.
+
+When no current project can be inferred, API requests omit `currentProject`.
+The server reports missing context for unqualified references, issue creation
+without `--project`, and PR creation/requirement queries without a source
+project. Two checks happen locally: branch/tag builds reject a missing project,
+and PR creation/requirement queries attempt Git branch inference when
+`--source-branch` is omitted. Invalid working directories, Git configuration
+errors, and server/authentication failures remain errors.
+
+### Command syntax
+
+Use `tod build run` and `tod pr checkout`. The former top-level `tod run` and
+`tod checkout` aliases have been removed.
 
 Top-level groups:
 
@@ -40,7 +94,7 @@ determines the entity type.
 | `tod issue link <source ref> <link-name> <target ref>` | Add `<target ref>` as `<link-name>` of `<source ref>` (run `tod issue get-valid-links` for valid link names). |
 | `tod issue add-comment <ref> <content>` | Add a Markdown comment. |
 | `tod issue log-work <ref> <hours>` | Record time spent (`<hours>` must be a positive integer). Flag: `--comment` (Markdown). |
-| `tod issue create-branch <ref>` | Create the issue branch on the server if it does not exist, and print the branch name. |
+| `tod issue create-branch <ref>` | Create the issue branch on the server if it does not exist, and print the branch name. No checkout required; use a qualified reference without a current project. |
 | `tod issue checkout <ref>` | Check out the issue branch into the working directory, set up remote tracking, and update already retrieved submodules. Flag: `--for-write`. |
 | `tod issue current-reference` | Print the issue number inferred from the current branch (matched against `[<prefix>/]issue-<n>[-<suffix>]`). Fails if no issue number can be inferred. |
 | `tod issue get-query-description` | Print the OneDev issue query DSL description (syntax reference for `--query` of `issue list`). |
@@ -74,7 +128,8 @@ determines the entity type.
 ## `tod code-comment`
 
 Code comment IDs are returned by `tod pr get-code-comments <pr-reference>` (the
-`id` field on each entry).
+`id` field on each entry). These commands use that ID directly and do not
+require a repository.
 
 | Command | Description |
 |---------|-------------|
@@ -92,7 +147,7 @@ Code comment IDs are returned by `tod pr get-code-comments <pr-reference>` (the
 | `tod build get-code-problems <ref> <report-name> <severity-level>` | Found code problems for a build with or higher than the specified severity. Severity level must be one of `CRITICAL`, `HIGH`, `MEDIUM`, or `LOW`. |
 | `tod build get-unit-test-report <ref> <report-name>` | Unit test report data. Use `--artifact <path>` to download a report artifact instead. |
 | `tod build get-changes-since-success <ref>` | Patch between the build's commit and the previous successful similar build. |
-| `tod build run <job-name>` | Run a job against a branch, tag, or local changes. Flags: exactly one of `--branch`, `--tag`, or `--local`; `-p key=value`. Streams the log. |
+| `tod build run <job-name>` | Run a job against a branch, tag, or local changes. Flags: exactly one of `--branch`, `--tag`, or `--local`; `--project` (branch/tag only); `-p key=value`. Streams the log. |
 | `tod build get-spec-schema` | Print the build spec YAML definition. |
 | `tod build check-spec` | Validate (and upgrade) `.onedev-buildspec.yml` in the working directory. |
 | `tod build get-query-description` | Print the OneDev build query DSL description (syntax reference for `--query` of `build list`). |

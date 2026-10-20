@@ -20,7 +20,7 @@ var issueCmd = &cobra.Command{
 
 var issueListCmd = &cobra.Command{
 	Use:   "list",
-	Short: "Query issues in the current (or a specified) project",
+	Short: "Query issues in a project, or across projects outside a checkout",
 	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		project, _ := cmd.Flags().GetString("project")
@@ -419,13 +419,13 @@ var issueLogWorkCmd = &cobra.Command{
 func initIssueCommands() {
 	issueCmd.PersistentFlags().String("working-dir", "", "Working directory used to infer the OneDev project (defaults to current directory)")
 
-	issueListCmd.Flags().String("project", "", "Project to query issues in. Leave empty to query in current project")
+	issueListCmd.Flags().String("project", "", "Project to query issues in (defaults to current project, or all accessible projects outside a checkout)")
 	issueListCmd.Flags().String("query", "", "OneDev issue query string (run 'tod issue get-query-description' for the supported query DSL)")
 	issueListCmd.Flags().Int("offset", 0, "start position for the query (optional, defaults to 0)")
 	issueListCmd.Flags().Int("count", DefaultQueryCount, fmt.Sprintf("number of issues to return (optional, defaults to %d, max %d)", DefaultQueryCount, MaxQueryCount))
 
 	issueCreateCmd.Flags().String("description", "", "Issue description")
-	issueCreateCmd.Flags().String("project", "", "Project to create issue in. Leave empty to create issue in current project")
+	issueCreateCmd.Flags().String("project", "", "Project to create issue in (defaults to current project; required outside a checkout)")
 	issueCreateCmd.Flags().StringArray("field", nil, "Additional field in form key=value (repeatable; JSON values are parsed; run 'tod issue get-valid-fields' for valid field names and values)")
 	issueCreateCmd.Flags().StringArray("iteration", nil, "Iteration name to assign (repeatable)")
 	issueCreateCmd.Flags().Float64("own-estimated-time", 0, "Estimated time in hours for this issue only (not including linked issues)")

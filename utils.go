@@ -2,11 +2,13 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -43,14 +45,24 @@ func makeAPICall(req *http.Request) ([]byte, error) {
 	return body, nil
 }
 
+var errNoCurrentProject = errors.New("no current OneDev project")
+
 func inferProject(workingDir string) (string, string, error) {
 	return inferProjectWithRemoteValidation(workingDir, false)
 }
 
 func inferProjectWithRemoteValidation(workingDir string, requireMatchingCloneRoot bool) (string, string, error) {
-	_, err := exec.LookPath("git")
+	info, err := os.Stat(workingDir)
 	if err != nil {
-		return "", "", fmt.Errorf("git executable not found in system path")
+		return "", "", err
+	}
+	if !info.IsDir() {
+		return "", "", fmt.Errorf("working directory is not a directory: %s", workingDir)
+	}
+
+	_, err = exec.LookPath("git")
+	if err != nil {
+		return "", "", fmt.Errorf("%w: git executable not found in system path", errNoCurrentProject)
 	}
 
 	var prefix = "failed to infer OneDev project from working directory '" + workingDir + "': "
@@ -58,9 +70,13 @@ func inferProjectWithRemoteValidation(workingDir string, requireMatchingCloneRoo
 
 	cmd := exec.Command("git", "rev-parse", "--git-dir")
 	cmd.Dir = workingDir
-	_, err = cmd.Output()
+	cmd.Env = append(os.Environ(), "LC_ALL=C")
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", "", fmt.Errorf(prefix + "working directory is not inside a git repository" + suffix)
+		if strings.Contains(string(output), "not a git repository") {
+			return "", "", fmt.Errorf("%w: %sworking directory is not inside a git repository%s", errNoCurrentProject, prefix, suffix)
+		}
+		return "", "", fmt.Errorf("%sgit rev-parse failed: %v: %s", prefix, err, strings.TrimSpace(string(output)))
 	}
 
 	apiURL := config.ServerUrl + "/~api/tod/get-clone-roots"
@@ -85,14 +101,14 @@ func inferProjectWithRemoteValidation(workingDir string, requireMatchingCloneRoo
 
 	cmd = exec.Command("git", "remote")
 	cmd.Dir = workingDir
-	output, err := cmd.Output()
+	output, err = cmd.Output()
 	if err != nil {
 		return "", "", fmt.Errorf(prefix+"failed to list git remotes: %v"+suffix, err)
 	}
 
 	remotes := strings.Fields(strings.TrimSpace(string(output)))
 	if len(remotes) == 0 {
-		return "", "", fmt.Errorf(prefix + "no git remotes found in repository" + suffix)
+		return "", "", fmt.Errorf("%w: %sno git remotes found in repository%s", errNoCurrentProject, prefix, suffix)
 	}
 
 	if len(remotes) == 1 {
@@ -143,7 +159,7 @@ func inferProjectWithRemoteValidation(workingDir string, requireMatchingCloneRoo
 		}
 	}
 
-	return "", "", fmt.Errorf(prefix + "no remote found corresponding to a OneDev project" + suffix)
+	return "", "", fmt.Errorf("%w: %sno remote found corresponding to a OneDev project%s", errNoCurrentProject, prefix, suffix)
 }
 
 // matchesConfiguredServer tells whether the remote points at the OneDev server

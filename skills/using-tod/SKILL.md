@@ -10,7 +10,26 @@ Use the command and consent rules below for general OneDev interactions.
 ## Prerequisites
 
 - `tod` is installed and configured with `server-url` and `access-token`.
-- Project-scoped commands run inside the corresponding OneDev repository.
+- The current project is inferred from Git remotes in the working directory
+  (`--working-dir` selects another directory). Without a current project, use
+  qualified references such as `myproject#123` or `PROJ-123`; bare numbers and
+  `#123` require a current project.
+- Issue, PR, and build lists use `--project`, then the current project, or
+  query all accessible projects if neither is available.
+- Outside a checkout, `issue create` and branch/tag builds require `--project`;
+  `pr create` and its two requirement queries require `--source-project` and
+  `--source-branch`.
+- Issue/PR `checkout` and `current-reference`, `project current`, `remote`,
+  top-level `tod get-commit-message-requirement`, `build check-spec`, and
+  `build run --local` require a local repository. `build run --local` does
+  not accept `--project`.
+- `issue create-branch` accepts a qualified reference without a checkout,
+  including for another project. `issue checkout` requires a local repository
+  for the issue's project and creates the server branch if missing, even
+  without `--for-write`.
+
+For API-only work, use explicit references and project flags directly;
+`tod project current` does not need to succeed first.
 
 ## Command shape
 
@@ -23,11 +42,13 @@ Commands are grouped by resource:
 - `tod pr` -- `list`, `get`, `get-comments`, `get-code-comments`, `get-builds`, `get-patch`,
   `create`, `get-title-and-description-requirement`,
   `get-commit-message-requirement`, `edit`, `approve`, `request-changes`, `merge`,
-  `discard`, `add-comment`, `add-code-comment`, `checkout`, `get-query-description`
+  `discard`, `add-comment`, `add-code-comment`, `checkout`, `current-reference`,
+  `get-query-description`
 - `tod code-comment` -- `add-reply`, `resolve`, `unresolve` (operates on the
   `id` returned by `tod pr get-code-comments`)
 - `tod build` -- `list`, `get`, `get-log`, `get-code-problems`, `get-unit-test-report`,
-  `get-changes-since-success`, `run` (with `--branch`, `--tag`, or `--local`),
+  `get-changes-since-success`, `run` (with `--branch`, `--tag`, or `--local`;
+  `--project` is available for branch/tag runs),
   `get-spec-schema`, `check-spec`, `get-query-description`
 - `tod config` -- `set`, `get`, `path`
 - `tod project` -- `list`, `current`, `get`, `get-query-description`
@@ -35,7 +56,8 @@ Commands are grouped by resource:
   `tod get-valid-labels`,
   `tod get-commit-message-requirement`, `tod download`, `tod version`
 
-Commands write the raw OneDev server response to stdout. Run
+API commands generally write the raw OneDev server response to stdout; local
+commands and build execution also print derived values or progress. Run
 `tod <command> --help` for exact flags.
 
 `tod build get-code-problems <build-reference> <report-name> <severity-level>`
@@ -54,6 +76,10 @@ Commands that take a `<ref>/<source ref>/<target ref>` argument accept
 `myproject#123`, `PROJ-123`). The subcommand (`issue`, `pr`, or `build`)
 determines the entity type; these forms are not the syntax for authored
 Markdown (see below).
+
+Keep qualified references from API responses in subsequent commands and saved
+handoffs. References inside global `--query` expressions must also identify
+their project, for example `fixed in pull request "myproject#42"`.
 
 To resolve "the current issue" or "the current pull request" without a
 reference, run `tod issue current-reference` or `tod pr current-reference`.

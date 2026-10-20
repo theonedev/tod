@@ -1,6 +1,6 @@
 # TOD - TheOneDev CLI Tool
 
-TOD (**T**he**O**ne**D**ev) is a powerful command-line tool for OneDev 15.1+
+TOD (**T**he**O**ne**D**ev) is a powerful command-line tool for OneDev 16.9.5+
 that streamlines your development workflow by letting you run CI/CD jobs
 against local changes, check out pull requests into a local working
 directory, query and edit issues/PRs/builds, and drive all of the above from
@@ -138,6 +138,22 @@ tod build get <ref>
 tod build get-log <ref>
 ```
 
+API commands also work outside a local checkout. Use qualified references for
+existing entities and explicit projects when creating issues, pull requests,
+or builds:
+
+```bash
+tod issue get 'myproject#123'
+tod issue create 'Fix login' --project myproject
+tod issue create-branch 'myproject#123'
+tod pr create 'Fix login' --source-project myproject --source-branch issue-123
+tod build run ci --project myproject --branch main
+```
+
+Issue, pull request, and build lists query all accessible projects when neither
+`--project` nor a current project inferred from the working directory is
+available.
+
 Both checkout commands also move already retrieved submodules to the commits
 recorded by the checked out revision, fetching from the remote of the submodule
 when a commit is missing locally. Submodules that have not been retrieved stay
@@ -157,11 +173,11 @@ teach AI agents how to drive common OneDev workflows through the CLI:
 - `generate-commit-message` — compose a message that satisfies OneDev
   requirements
 - `work-on-issue` — check out and implement issue work
-- `submit-issue-work` — commit and push issue work, then update or create its
-  pull request
+- `submit-issue-work` — submit issue code changes and/or saved comments,
+  updating or creating a pull request when submitting code
 - `work-on-pull-request` — review a pull request or implement follow-up work
-- `submit-pull-request-work` — commit and push work for an existing pull
-  request
+- `submit-pull-request-work` — submit code changes and/or saved discussion,
+  review, and merge actions for an existing pull request
 
 See [skills/README.md](skills/README.md) for how to install these into Claude
 Code, Codex, Cursor, or any other agent that reads `SKILL.md` files.
