@@ -36,24 +36,40 @@ func TestMarkdownCommandInput(t *testing.T) {
 		fileFlag   string
 		endpoint   string
 	}{
-		{"issue create", issueCreateCmd, []string{"Title", "--project", "onedev/tod"}, "description", "file", "create-issue"},
-		{"issue edit", issueEditCmd, []string{"TOD-17"}, "description", "file", "edit-issue"},
+		{"issue create", issueCreateCmd, []string{"Title", "--project", "onedev/tod"}, "description", "description-file", "create-issue"},
+		{"issue edit", issueEditCmd, []string{"TOD-17"}, "description", "description-file", "edit-issue"},
 		{"issue comment", issueAddCommentCmd, []string{"TOD-17"}, "", "file", "add-issue-comment"},
-		{"issue state", issueChangeStateCmd, []string{"TOD-17", "Closed"}, "comment", "file", "change-issue-state"},
-		{"issue work", issueLogWorkCmd, []string{"TOD-17", "2"}, "comment", "file", "log-work"},
-		{"PR create", prCreateCmd, []string{"Title", "--source-project", "onedev/tod", "--source-branch", "issue-17"}, "description", "file", "create-pull-request"},
-		{"PR edit", prEditCmd, []string{"TOD-17"}, "description", "file", "edit-pull-request"},
+		{"issue state", issueChangeStateCmd, []string{"TOD-17", "Closed"}, "comment", "comment-file", "change-issue-state"},
+		{"issue work", issueLogWorkCmd, []string{"TOD-17", "2"}, "comment", "comment-file", "log-work"},
+		{"PR create", prCreateCmd, []string{"Title", "--source-project", "onedev/tod", "--source-branch", "issue-17"}, "description", "description-file", "create-pull-request"},
+		{"PR edit", prEditCmd, []string{"TOD-17"}, "description", "description-file", "edit-pull-request"},
 		{"PR comment", prAddCommentCmd, []string{"TOD-17"}, "", "file", "add-pull-request-comment"},
 		{"PR code comment", prAddCodeCommentCmd, []string{"TOD-17", "--on-file", "src/main.go", "--from-line", "3"}, "", "file", "add-pull-request-code-comment"},
-		{"PR approval", prApproveCmd, []string{"TOD-17"}, "summary", "file", "approve-pull-request"},
-		{"PR changes", prRequestChangesCmd, []string{"TOD-17"}, "summary", "file", "request-changes-on-pull-request"},
-		{"PR discard", prDiscardCmd, []string{"TOD-17"}, "comment", "file", "discard-pull-request"},
+		{"PR approval", prApproveCmd, []string{"TOD-17"}, "summary", "summary-file", "approve-pull-request"},
+		{"PR changes", prRequestChangesCmd, []string{"TOD-17"}, "summary", "summary-file", "request-changes-on-pull-request"},
+		{"PR discard", prDiscardCmd, []string{"TOD-17"}, "comment", "comment-file", "discard-pull-request"},
 		{"code reply", codeCommentAddReplyCmd, []string{"17"}, "", "file", "add-code-comment-reply"},
-		{"code resolve", codeCommentResolveCmd, []string{"17"}, "note", "file", "resolve-code-comment"},
-		{"code unresolve", codeCommentUnresolveCmd, []string{"17"}, "note", "file", "unresolve-code-comment"},
+		{"code resolve", codeCommentResolveCmd, []string{"17"}, "note", "note-file", "resolve-code-comment"},
+		{"code unresolve", codeCommentUnresolveCmd, []string{"17"}, "note", "note-file", "unresolve-code-comment"},
 	}
 	for _, command := range commands {
 		t.Run(command.name, func(t *testing.T) {
+			conflictErr := fmt.Sprintf("<content> and --%s cannot be used together", command.fileFlag)
+			if command.inlineFlag != "" {
+				conflictErr = fmt.Sprintf("--%s and --%s cannot be used together", command.inlineFlag, command.fileFlag)
+				t.Run("old file flag", func(t *testing.T) {
+					cmd := markdownTestCommand(t, command.command)
+					cmd.RunE = func(cmd *cobra.Command, args []string) error {
+						t.Fatal("old --file flag must be rejected before running the command")
+						return nil
+					}
+					args := append(append([]string(nil), command.args...), "--file", contentPath)
+					cmd.SetArgs(args)
+					if err := cmd.Execute(); err == nil || !strings.Contains(err.Error(), "unknown flag: --file") {
+						t.Fatalf("expected unknown flag error for --file, got %v", err)
+					}
+				})
+			}
 			sources := []struct {
 				name    string
 				inline  bool
@@ -66,9 +82,10 @@ func TestMarkdownCommandInput(t *testing.T) {
 				{name: "file", file: true, path: contentPath, content: markdown},
 				{name: "stdin", file: true, path: "-", content: markdown},
 				{name: "literal dash", inline: true, content: "-"},
-				{name: "conflicting sources", inline: true, file: true, path: contentPath, wantErr: "cannot be used together"},
+				{name: "conflicting sources", inline: true, file: true, path: contentPath, content: markdown, wantErr: conflictErr},
+				{name: "conflicting empty inline", inline: true, file: true, path: contentPath, wantErr: conflictErr},
 				{name: "missing file", file: true, path: filepath.Join(directory, "missing.md"), wantErr: "failed to read Markdown file"},
-				{name: "empty path", file: true, wantErr: "must not be empty"},
+				{name: "empty path", file: true, wantErr: "--" + command.fileFlag + " must not be empty"},
 				{name: "empty stdin", file: true, path: "-"},
 				{name: "blank stdin", file: true, path: "-", content: " \t\r\n"},
 				{name: "blank file", file: true, path: emptyPath, content: " \t\r\n"},

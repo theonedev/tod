@@ -112,15 +112,18 @@ determines the entity type.
 
 ### Markdown descriptions, comments, notes, and review summaries
 
-Use `--file <path>` to read Markdown from a file, or `--file -` to read stdin.
-The command determines which content is read:
+Use the matching file-input flag with a path to read Markdown from a file, or
+with `-` to read stdin (for example, `--description-file -`):
 
-| Content | Commands |
-|---------|----------|
-| Description | `issue create`, `issue edit`, `pr create`, `pr edit` |
-| Comment or reply | `issue add-comment`, `issue change-state`, `issue log-work`, `pr add-comment`, `pr add-code-comment`, `pr discard`, `code-comment add-reply` |
-| Note | `code-comment resolve`, `code-comment unresolve` |
-| Review summary | `pr approve`, `pr request-changes` |
+| Content | Inline input | File/stdin flag | Commands |
+|---------|--------------|-----------------|----------|
+| Description | `--description` | `--description-file` | `issue create`, `issue edit`, `pr create`, `pr edit` |
+| Comment | `--comment` | `--comment-file` | `issue change-state`, `issue log-work`, `pr discard` |
+| Note | `--note` | `--note-file` | `code-comment resolve`, `code-comment unresolve` |
+| Review summary | `--summary` | `--summary-file` | `pr approve`, `pr request-changes` |
+| Comment or reply | `<content>` argument | `--file` | `issue add-comment`, `pr add-comment`, `pr add-code-comment`, `code-comment add-reply` |
+
+The commands with named inline flags no longer accept the old `--file` flag.
 
 For `pr add-code-comment`, `--on-file <path>` selects the source file being
 commented on.
@@ -130,28 +133,28 @@ File/stdin input replaces the inline `<content>` argument or the corresponding
 error, even if the inline value is empty. Commands that add a comment or reply
 require nonblank content from either source. Descriptions, comments, notes, and
 summaries on other operations remain optional. An inline `-` is still literal
-text; only `--file -` reads stdin.
+text; stdin is read only when `-` is passed to the matching file-input flag.
 
 Content is sent unchanged, including line endings, indentation, and trailing
 newlines. Relative input file paths are resolved from the process's current
 directory, independently of `--working-dir`.
 
 ```bash
-tod issue create 'Support Markdown files' --file description.md
-tod issue edit TOD-17 --file - < description.md
-tod pr create 'Support Markdown files' --file description.md
-tod pr edit 42 --file description.md
+tod issue create 'Support Markdown files' --description-file description.md
+tod issue edit TOD-17 --description-file - < description.md
+tod pr create 'Support Markdown files' --description-file description.md
+tod pr edit 42 --description-file description.md
 tod issue add-comment TOD-17 --file report.md
 tod pr add-comment 42 --file - < report.md
-tod issue change-state TOD-17 Closed --file resolution.md
-tod issue log-work TOD-17 2 --file work-log.md
-tod pr approve 42 --file review.md
-tod pr request-changes 42 --file review.md
-tod pr discard 42 --file reason.md
+tod issue change-state TOD-17 Closed --comment-file resolution.md
+tod issue log-work TOD-17 2 --comment-file work-log.md
+tod pr approve 42 --summary-file review.md
+tod pr request-changes 42 --summary-file review.md
+tod pr discard 42 --comment-file reason.md
 tod pr add-code-comment 42 --on-file src/main.go --from-line 10 --file review.md
 tod code-comment add-reply 123 --file reply.md
-tod code-comment resolve 123 --file resolution.md
-tod code-comment unresolve 123 --file - <<'MARKDOWN'
+tod code-comment resolve 123 --note-file resolution.md
+tod code-comment unresolve 123 --note-file - <<'MARKDOWN'
 The example still expands `$HOME` and `$(command)`.
 
 Please preserve this text literally.
@@ -165,13 +168,13 @@ MARKDOWN
 | `tod issue list` | Query issues. Flags: `--project`, `--query`, `--offset`, `--count`. |
 | `tod issue get <ref>` | Detail information of a issue except comments. |
 | `tod issue get-comments <ref>` | List comments on an issue. |
-| `tod issue create <title>` | Create a new issue. Flags: `--description` or `--file` (use `-` for stdin), `--project`, `--field key=value` (repeatable), `--iteration` (repeatable), `--own-estimated-time`, `--confidential`. |
-| `tod issue edit <ref>` | Edit an existing issue. Flags: `--title`, `--description` or `--file` (use `-` for stdin), `--field key=value` (repeatable), `--iteration` (repeatable), `--own-estimated-time`, `--confidential`. |
-| `tod issue change-state <ref> <state>` | Change state. Flags: `--comment` (Markdown) or `--file` (use `-` for stdin), `--field key=value` (repeatable). |
+| `tod issue create <title>` | Create a new issue. Flags: `--description` or `--description-file` (use `-` for stdin), `--project`, `--field key=value` (repeatable), `--iteration` (repeatable), `--own-estimated-time`, `--confidential`. |
+| `tod issue edit <ref>` | Edit an existing issue. Flags: `--title`, `--description` or `--description-file` (use `-` for stdin), `--field key=value` (repeatable), `--iteration` (repeatable), `--own-estimated-time`, `--confidential`. |
+| `tod issue change-state <ref> <state>` | Change state. Flags: `--comment` (Markdown) or `--comment-file` (use `-` for stdin), `--field key=value` (repeatable). |
 | `tod issue link <source ref> <link-name> <target ref>` | Add `<target ref>` as `<link-name>` of `<source ref>` (run `tod issue get-valid-links` for valid link names). |
 | `tod issue unlink <source ref> <link-name> <target ref>` | Remove `<target ref>` as `<link-name>` of `<source ref>` (run `tod issue get-valid-links` for valid link names). Fails if the link does not exist. |
 | `tod issue add-comment <ref> [content]` | Add a Markdown comment inline or with `--file` (use `-` for stdin). |
-| `tod issue log-work <ref> <hours>` | Record time spent (`<hours>` must be a positive integer). Flags: `--comment` (Markdown) or `--file` (use `-` for stdin). |
+| `tod issue log-work <ref> <hours>` | Record time spent (`<hours>` must be a positive integer). Flags: `--comment` (Markdown) or `--comment-file` (use `-` for stdin). |
 | `tod issue create-branch <ref>` | Create the issue branch on the server if it does not exist, and print the branch name. No checkout required; use a qualified reference without a current project. |
 | `tod issue checkout <ref>` | Check out the issue branch into the working directory, set up remote tracking, and update already retrieved submodules. Flag: `--for-write`. |
 | `tod issue current-reference` | Print the issue number inferred from the current branch (matched against `[<prefix>/]issue-<n>[-<suffix>]`). Fails if no issue number can be inferred. |
@@ -196,14 +199,14 @@ the valid choices.
 | `tod pr get-code-comments <ref>` | List code comments on a pull request. |
 | `tod pr get-builds <ref>` | List builds of a pull request. |
 | `tod pr get-patch <ref>` | Patch. Flag: `--for-code-review`. |
-| `tod pr create <title>` | Create a pull request. Flags: `--source-branch` (defaults to current git branch), `--target-branch`, `--description` or `--file` (use `-` for stdin), `--source-project`, `--target-project`, `--assignee`, `--reviewer`, `--label`, `--merge-strategy`. |
+| `tod pr create <title>` | Create a pull request. Flags: `--source-branch` (defaults to current git branch), `--target-branch`, `--description` or `--description-file` (use `-` for stdin), `--source-project`, `--target-project`, `--assignee`, `--reviewer`, `--label`, `--merge-strategy`. |
 | `tod pr get-title-and-description-requirement` | Get pull request title and description requirement. Flags: `--source-branch` (defaults to current git branch), `--target-branch`, `--source-project`, `--target-project`. |
 | `tod pr get-commit-message-requirement` | Get pull request commit message requirement. Flags: `--source-branch` (defaults to current git branch), `--target-branch`, `--source-project`, `--target-project`. |
-| `tod pr edit <ref>` | Edit a pull request. Flags: `--title`, `--description` or `--file` (use `-` for stdin), `--assignee`, `--add-reviewer`, `--remove-reviewer`, `--label`, `--merge-strategy`, `--auto-merge`, `--auto-merge-commit-message`. |
-| `tod pr approve <ref>` | Approve a pull request as a pending reviewer. Flags: `--summary` (Markdown review summary) or `--file` (use `-` for stdin). |
-| `tod pr request-changes <ref>` | Request changes on a pull request as a pending reviewer. Flags: `--summary` (Markdown review summary) or `--file` (use `-` for stdin). |
+| `tod pr edit <ref>` | Edit a pull request. Flags: `--title`, `--description` or `--description-file` (use `-` for stdin), `--assignee`, `--add-reviewer`, `--remove-reviewer`, `--label`, `--merge-strategy`, `--auto-merge`, `--auto-merge-commit-message`. |
+| `tod pr approve <ref>` | Approve a pull request as a pending reviewer. Flags: `--summary` (Markdown review summary) or `--summary-file` (use `-` for stdin). |
+| `tod pr request-changes <ref>` | Request changes on a pull request as a pending reviewer. Flags: `--summary` (Markdown review summary) or `--summary-file` (use `-` for stdin). |
 | `tod pr merge <ref>` | Merge a pull request. Flag: `--commit-message`. |
-| `tod pr discard <ref>` | Discard (close without merging) a pull request. Flags: `--comment` (Markdown) or `--file` (use `-` for stdin). |
+| `tod pr discard <ref>` | Discard (close without merging) a pull request. Flags: `--comment` (Markdown) or `--comment-file` (use `-` for stdin). |
 | `tod pr add-comment <ref> [content]` | Add a Markdown comment inline or with `--file` (use `-` for stdin). |
 | `tod pr add-code-comment <ref> [content]` | Add a Markdown code comment to a line range visible on the right side of the PR patch. Flags: `--on-file` (source path, required), `--from-line` (required, 1-based), `--to-line` (defaults to `--from-line`), `--file` (Markdown input instead of inline content; use `-` for stdin). |
 | `tod pr checkout <ref>` | Check out the pull request into the working directory and update already retrieved submodules. Flag: `--for-write`. |
@@ -219,8 +222,8 @@ require a repository.
 | Command | Description |
 |---------|-------------|
 | `tod code-comment add-reply <comment-id> [content]` | Add a Markdown reply inline or with `--file` (use `-` for stdin). |
-| `tod code-comment resolve <comment-id>` | Mark a code comment as resolved. Flags: `--note` (Markdown) or `--file` (use `-` for stdin). |
-| `tod code-comment unresolve <comment-id>` | Mark a code comment as unresolved. Flags: `--note` (Markdown) or `--file` (use `-` for stdin). |
+| `tod code-comment resolve <comment-id>` | Mark a code comment as resolved. Flags: `--note` (Markdown) or `--note-file` (use `-` for stdin). |
+| `tod code-comment unresolve <comment-id>` | Mark a code comment as unresolved. Flags: `--note` (Markdown) or `--note-file` (use `-` for stdin). |
 
 ## `tod build`
 

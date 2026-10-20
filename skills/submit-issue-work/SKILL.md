@@ -51,11 +51,12 @@ tod issue add-comment <issue-reference> --file <reason-file>
 ## Passing authored text
 
 For Markdown comments and issue/PR descriptions, prefer writing the exact text
-to a temporary file outside the repository and passing `--file <path>`. Use a
-file-writing tool or a quoted heredoc to create the file so backticks, dollar
-signs, quotes, and line breaks remain literal. `--file -` also accepts stdin,
-for example through a quoted heredoc. Omit the inline comment argument or
-`--description` when using `--file`.
+to a temporary file outside the repository. Pass `--file <path>` for added
+comments or `--description-file <path>` for descriptions. Use a file-writing
+tool or a quoted heredoc to create the file so backticks, dollar signs, quotes,
+and line breaks remain literal. Both flags accept `-` for stdin, for example
+through a quoted heredoc. Omit the inline comment argument or `--description`
+when using the corresponding file-input flag.
 
 For inline arguments such as commit messages and PR titles,
 quote the text so the shell preserves it literally. Prefer a single-quoted
@@ -193,7 +194,7 @@ or `PROJ-123`):
    validate them, write the exact description to a temporary Markdown file,
    then run:
    ```bash
-   tod pr create '<title>' --file <description-file> --target-project <target-project> --target-branch <target-branch>
+   tod pr create '<title>' --description-file <description-file> --target-project <target-project> --target-branch <target-branch>
    ```
    Pass the resolved target project and target branch values. Save the returned
    PR reference and URL.

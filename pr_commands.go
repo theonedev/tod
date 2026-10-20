@@ -610,7 +610,7 @@ func initPullRequestCommands() {
 	prCreateCmd.Flags().String("source-branch", "", "Source branch (defaults to the current git branch)")
 	prCreateCmd.Flags().String("target-branch", "", "Target branch (defaults to the target project's default branch)")
 	prCreateCmd.Flags().String("description", "", "Pull request description")
-	prCreateCmd.Flags().String("file", "", "Read the Markdown description from a file (use - for stdin); cannot be combined with --description")
+	prCreateCmd.Flags().String("description-file", "", "Read the Markdown description from a file (use - for stdin); cannot be combined with --description")
 	prCreateCmd.Flags().String("source-project", "", "Source project (defaults to current project; required outside a checkout)")
 	prCreateCmd.Flags().String("target-project", "", "Target project (defaults to source project, or forked from project for forks)")
 	prCreateCmd.Flags().StringArray("assignee", nil, "Assignee login name (repeatable)")
@@ -630,7 +630,7 @@ func initPullRequestCommands() {
 
 	prEditCmd.Flags().String("title", "", "New pull request title")
 	prEditCmd.Flags().String("description", "", "New pull request description")
-	prEditCmd.Flags().String("file", "", "Read the Markdown description from a file (use - for stdin); cannot be combined with --description")
+	prEditCmd.Flags().String("description-file", "", "Read the Markdown description from a file (use - for stdin); cannot be combined with --description")
 	prEditCmd.Flags().StringArray("assignee", nil, "Assignee login name (repeatable)")
 	prEditCmd.Flags().StringArray("add-reviewer", nil, "Reviewer login name to add (repeatable)")
 	prEditCmd.Flags().StringArray("remove-reviewer", nil, "Reviewer login name to remove (repeatable)")
@@ -640,12 +640,12 @@ func initPullRequestCommands() {
 	prEditCmd.Flags().String("auto-merge-commit-message", "", "Preset commit message for auto merge")
 
 	prApproveCmd.Flags().String("summary", "", "Optional Markdown review summary")
-	prApproveCmd.Flags().String("file", "", "Read the Markdown review summary from a file (use - for stdin); cannot be combined with --summary")
+	prApproveCmd.Flags().String("summary-file", "", "Read the Markdown review summary from a file (use - for stdin); cannot be combined with --summary")
 	prRequestChangesCmd.Flags().String("summary", "", "Optional Markdown review summary")
-	prRequestChangesCmd.Flags().String("file", "", "Read the Markdown review summary from a file (use - for stdin); cannot be combined with --summary")
+	prRequestChangesCmd.Flags().String("summary-file", "", "Read the Markdown review summary from a file (use - for stdin); cannot be combined with --summary")
 	prMergeCmd.Flags().String("commit-message", "", "Optional merge commit message (must satisfy server-side validation if provided)")
 	prDiscardCmd.Flags().String("comment", "", "Optional Markdown comment explaining the discard")
-	prDiscardCmd.Flags().String("file", "", "Read the Markdown comment from a file (use - for stdin); cannot be combined with --comment")
+	prDiscardCmd.Flags().String("comment-file", "", "Read the Markdown comment from a file (use - for stdin); cannot be combined with --comment")
 
 	prAddCommentCmd.Flags().String("file", "", "Read the Markdown comment from a file (use - for stdin) instead of <content>")
 	prAddCodeCommentCmd.Flags().String("on-file", "", "Path of the file to comment on (required)")

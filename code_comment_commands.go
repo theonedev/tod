@@ -95,9 +95,9 @@ func parseCommentId(raw string) (string, error) {
 func initCodeCommentCommands() {
 	codeCommentAddReplyCmd.Flags().String("file", "", "Read the Markdown reply from a file (use - for stdin) instead of <content>")
 	codeCommentResolveCmd.Flags().String("note", "", "Optional Markdown note explaining the resolution")
-	codeCommentResolveCmd.Flags().String("file", "", "Read the Markdown note from a file (use - for stdin); cannot be combined with --note")
+	codeCommentResolveCmd.Flags().String("note-file", "", "Read the Markdown note from a file (use - for stdin); cannot be combined with --note")
 	codeCommentUnresolveCmd.Flags().String("note", "", "Optional Markdown note explaining why the comment is unresolved")
-	codeCommentUnresolveCmd.Flags().String("file", "", "Read the Markdown note from a file (use - for stdin); cannot be combined with --note")
+	codeCommentUnresolveCmd.Flags().String("note-file", "", "Read the Markdown note from a file (use - for stdin); cannot be combined with --note")
 
 	codeCommentCmd.AddCommand(
 		codeCommentAddReplyCmd,

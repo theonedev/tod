@@ -49,11 +49,12 @@ func readMarkdownContent(cmd *cobra.Command, args []string, fileFlag string) (st
 }
 
 func readMarkdownFlag(cmd *cobra.Command, inlineFlag string) (string, error) {
-	if cmd.Flags().Changed(inlineFlag) && cmd.Flags().Changed("file") {
-		return "", fmt.Errorf("--%s and --file cannot be used together", inlineFlag)
+	fileFlag := inlineFlag + "-file"
+	if cmd.Flags().Changed(inlineFlag) && cmd.Flags().Changed(fileFlag) {
+		return "", fmt.Errorf("--%s and --%s cannot be used together", inlineFlag, fileFlag)
 	}
 	content, _ := cmd.Flags().GetString(inlineFlag)
-	return readMarkdown(cmd, content, "file")
+	return readMarkdown(cmd, content, fileFlag)
 }
 
 // readMarkdown preserves the content exactly, including whitespace and newlines.

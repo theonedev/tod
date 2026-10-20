@@ -88,29 +88,32 @@ Each prints `<n>` on success; otherwise ask the user for an explicit reference.
 ## Passing Markdown descriptions, comments, notes, and review summaries
 
 Prefer writing the exact Markdown text to a temporary file outside the repository
-and passing `--file <path>`. This supplies descriptions on `issue create`,
-`issue edit`, `pr create`, and `pr edit`; comments and replies; notes on code
-comment resolution/unresolution; and PR approval/request-changes summaries.
-It also supplies comments on state changes, work logs, and discarded PRs.
+and passing the matching file-input flag:
+
+- `--description-file <path>` for `issue create`, `issue edit`, `pr create`, and `pr edit`
+- `--comment-file <path>` for `issue change-state`, `issue log-work`, and `pr discard`
+- `--note-file <path>` for `code-comment resolve` and `code-comment unresolve`
+- `--summary-file <path>` for `pr approve` and `pr request-changes`
+- `--file <path>` for `issue add-comment`, `pr add-comment`, `pr add-code-comment`, and `code-comment add-reply`
 
 Use a file-writing tool or a quoted heredoc to create the file so backticks,
-dollar signs, quotes, and line breaks remain literal. `--file -` also accepts
-stdin, for example through a quoted heredoc. Omit the inline content argument
-or corresponding `--description`, `--comment`, `--note`, or `--summary` flag when
-using `--file`. Omit `--file` when there is no optional text. For code comments,
-`--on-file` selects the source file being reviewed.
+dollar signs, quotes, and line breaks remain literal. Each file-input flag accepts
+`-` for stdin, for example through a quoted heredoc. Omit the inline content
+argument or corresponding `--description`, `--comment`, `--note`, or `--summary`
+flag when using file input. Omit the file-input flag when there is no optional
+text. For code comments, `--on-file` selects the source file being reviewed.
 
 ```bash
-tod issue create '<title>' --file <description-file>
-tod issue edit <issue-reference> --file <description-file>
-tod pr create '<title>' --file <description-file>
-tod pr edit <pr-reference> --file <description-file>
+tod issue create '<title>' --description-file <description-file>
+tod issue edit <issue-reference> --description-file <description-file>
+tod pr create '<title>' --description-file <description-file>
+tod pr edit <pr-reference> --description-file <description-file>
 tod issue add-comment <issue-reference> --file <comment-file>
 tod pr add-comment <pr-reference> --file <comment-file>
 tod pr add-code-comment <pr-reference> --on-file <source-path> --from-line <line> --file <comment-file>
 tod code-comment add-reply <comment-id> --file <reply-file>
-tod code-comment resolve <comment-id> --file <note-file>
-tod pr approve <pr-reference> --file <summary-file>
+tod code-comment resolve <comment-id> --note-file <note-file>
+tod pr approve <pr-reference> --summary-file <summary-file>
 ```
 
 ## Markdown references for issue, pull request, or build

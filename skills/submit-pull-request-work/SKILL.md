@@ -55,11 +55,13 @@ tod pr add-comment <pr-reference> --file <reason-file>
 ## Passing authored text
 
 For Markdown comments, replies, notes, and review summaries, prefer writing the
-exact text to a temporary file outside the repository and passing `--file <path>`.
-Use a file-writing tool or a quoted heredoc to create the file so backticks,
-dollar signs, quotes, and line breaks remain literal. `--file -` also accepts
-stdin, for example through a quoted heredoc. Omit the inline comment argument,
-`--note`, or `--summary` when using `--file`.
+exact text to a temporary file outside the repository. Pass `--file <path>` for
+added comments and replies, `--note-file <path>` for resolution/unresolution
+notes, or `--summary-file <path>` for review summaries. Use a file-writing tool
+or a quoted heredoc to create the file so backticks, dollar signs, quotes, and
+line breaks remain literal. Each flag accepts `-` for stdin, for example through
+a quoted heredoc. Omit the inline comment argument, `--note`, or `--summary`
+when using the corresponding file-input flag.
 
 For inline arguments such as commit messages, quote the text so the shell
 preserves it literally. Prefer a single-quoted argument, and escape any literal
@@ -174,11 +176,11 @@ Given an optional `<pr-reference>` (e.g. `42`, `#42`, `myproject#42`, or
    - New line-anchored finding -> `tod pr add-code-comment <pr-reference> --file <comment-file> --on-file <path> --from-line <line> [--to-line <line>]`
    - General PR feedback -> `tod pr add-comment <pr-reference> --file <comment-file>`
    - Line-anchored thread -> `tod code-comment add-reply <comment-id> --file <reply-file>`
-   - Outstanding concern addressed in code -> `tod code-comment resolve <comment-id> --file <note-file>` when appropriate; omit `--file` when there is no note
-   - Concern stated addressed but not actually addressed in code -> `tod code-comment unresolve <comment-id> --file <note-file>` when appropriate; omit `--file` when there is no note
+   - Outstanding concern addressed in code -> `tod code-comment resolve <comment-id> --note-file <note-file>` when appropriate; omit `--note-file` when there is no note
+   - Concern stated addressed but not actually addressed in code -> `tod code-comment unresolve <comment-id> --note-file <note-file>` when appropriate; omit `--note-file` when there is no note
    - Reviewer outcome -> `tod pr approve <pr-reference>` or
      `tod pr request-changes <pr-reference>` when the saved action is a
-     pending-reviewer state change; include `--file <summary-file>` when the
+     pending-reviewer state change; include `--summary-file <summary-file>` when the
      saved outcome has summary text
    - Merge outcome -> inspect `tod pr get <pr-reference>`. If its merge strategy
      is `SQUASH_SOURCE_BRANCH_COMMITS`, read:

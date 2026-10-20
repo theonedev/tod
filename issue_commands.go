@@ -467,7 +467,7 @@ func initIssueCommands() {
 	issueListCmd.Flags().Int("count", DefaultQueryCount, fmt.Sprintf("number of issues to return (optional, defaults to %d, max %d)", DefaultQueryCount, MaxQueryCount))
 
 	issueCreateCmd.Flags().String("description", "", "Issue description")
-	issueCreateCmd.Flags().String("file", "", "Read the Markdown description from a file (use - for stdin); cannot be combined with --description")
+	issueCreateCmd.Flags().String("description-file", "", "Read the Markdown description from a file (use - for stdin); cannot be combined with --description")
 	issueCreateCmd.Flags().String("project", "", "Project to create issue in (defaults to current project; required outside a checkout)")
 	issueCreateCmd.Flags().StringArray("field", nil, "Additional field in form key=value (repeatable; JSON values are parsed; run 'tod issue get-valid-fields' for valid field names and values)")
 	issueCreateCmd.Flags().StringArray("iteration", nil, "Iteration name to assign (repeatable)")
@@ -476,18 +476,18 @@ func initIssueCommands() {
 
 	issueEditCmd.Flags().String("title", "", "New issue title")
 	issueEditCmd.Flags().String("description", "", "New issue description")
-	issueEditCmd.Flags().String("file", "", "Read the Markdown description from a file (use - for stdin); cannot be combined with --description")
+	issueEditCmd.Flags().String("description-file", "", "Read the Markdown description from a file (use - for stdin); cannot be combined with --description")
 	issueEditCmd.Flags().StringArray("field", nil, "Field to update in form key=value (repeatable; JSON values are parsed; run 'tod issue get-valid-fields' for valid field names and values)")
 	issueEditCmd.Flags().StringArray("iteration", nil, "Iteration name to assign (repeatable)")
 	issueEditCmd.Flags().Float64("own-estimated-time", 0, "Estimated time in hours for this issue only (not including linked issues)")
 	issueEditCmd.Flags().Bool("confidential", false, "Whether the issue is confidential")
 
 	issueChangeStateCmd.Flags().String("comment", "", "Optional Markdown comment for the state change")
-	issueChangeStateCmd.Flags().String("file", "", "Read the Markdown comment from a file (use - for stdin); cannot be combined with --comment")
+	issueChangeStateCmd.Flags().String("comment-file", "", "Read the Markdown comment from a file (use - for stdin); cannot be combined with --comment")
 	issueChangeStateCmd.Flags().StringArray("field", nil, "Additional state-specific field in form key=value (repeatable; run 'tod issue get-valid-fields' for valid field names and values)")
 
 	issueLogWorkCmd.Flags().String("comment", "", "Optional Markdown comment for the work log entry")
-	issueLogWorkCmd.Flags().String("file", "", "Read the Markdown comment from a file (use - for stdin); cannot be combined with --comment")
+	issueLogWorkCmd.Flags().String("comment-file", "", "Read the Markdown comment from a file (use - for stdin); cannot be combined with --comment")
 	issueAddCommentCmd.Flags().String("file", "", "Read the Markdown comment from a file (use - for stdin) instead of <content>")
 	issueCheckoutCmd.Flags().Bool("for-write", false, "Test whether the user has write permission to the issue branch")
 
