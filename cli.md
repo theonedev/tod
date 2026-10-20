@@ -9,6 +9,21 @@ progress. Commands that need to talk to OneDev require a config file with
 interacting with a OneDev server using a self-signed certificate or private
 CA.
 
+## Mutation responses
+
+Issue creation, edits, and state changes, and pull request creation, edits,
+reviews, merges, and discards return only `id`, `number`, `reference`, and
+`link`. Creating an issue/PR comment, code comment, reply, or work log returns
+only `id` and `link`, since these records have no number or reference of their
+own. Resolving or unresolving a code comment also returns its `id` and `link`.
+Descriptions, comment text, notes, and other entity fields are not echoed.
+
+The server's build submission response likewise contains only `id`, `number`,
+`reference`, and `link`. `tod build run` streams build logs and the final status.
+
+Use the corresponding `get`, `get-comments`, or `get-code-comments` command
+when you need full details.
+
 ## List pagination
 
 `tod issue list`, `tod pr list`, and `tod build list` return up to `--count`
