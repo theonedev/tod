@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -144,5 +145,17 @@ func emit(body []byte) {
 	os.Stdout.Write(body)
 	if body[len(body)-1] != '\n' {
 		fmt.Println()
+	}
+}
+
+// emitList preserves the raw response and prints a pagination hint for full pages.
+func emitList(cmd *cobra.Command, body []byte, offset, count int) {
+	emit(body)
+	if count <= 0 {
+		return
+	}
+	var items []json.RawMessage
+	if err := json.Unmarshal(body, &items); err == nil && len(items) == count {
+		cmd.PrintErrf("Showing %d results; more may exist. Use --offset %d to continue.\n", len(items), offset+len(items))
 	}
 }

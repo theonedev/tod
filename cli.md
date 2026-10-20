@@ -9,6 +9,20 @@ progress. Commands that need to talk to OneDev require a config file with
 interacting with a OneDev server using a self-signed certificate or private
 CA.
 
+## List pagination
+
+`tod issue list`, `tod pr list`, and `tod build list` return up to `--count`
+results (25 by default, maximum 100), starting at `--offset` (0 by default).
+When a page contains `--count` results, the command prints a hint to stderr:
+
+```text
+Showing 25 results; more may exist. Use --offset 25 to continue.
+```
+
+Repeat the same query with the suggested offset to fetch the next page. A full
+page does not guarantee more results; continue until a page contains fewer
+than `--count` results. Stdout remains the raw JSON array from the server.
+
 ## Project and repository context
 
 Commands infer the current project from the working directory when available.

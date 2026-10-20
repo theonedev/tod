@@ -36,7 +36,7 @@ var issueListCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		emit(body)
+		emitList(cmd, body, offset, count)
 		return nil
 	},
 }
