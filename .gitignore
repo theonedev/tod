@@ -12,3 +12,4 @@ tod.exe
 *.bak
 *~.nib
 *.DS_Store
+.idea/
